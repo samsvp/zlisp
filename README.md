@@ -44,7 +44,7 @@ nil
 ### Functions
 You can define functions with the `defun` symbol.
 ```lisp
-(defun! my-func [arg1 arg2]
+(defun my-func [arg1 arg2]
     "doc string"
     (  ) ;; body
 )
