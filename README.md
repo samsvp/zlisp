@@ -5,25 +5,25 @@ Embeddable Lisp for Zig.
 ## Data Types
 ### Ints
 `int`s are `i32` variables.
-```lisp
+```clojure
 (def x 5) ;; define x to the current scope as 5
 ```
 
 ### Floats
 `float`s are `f32` variables.
-```lisp
+```clojure
 (def x 5.0)
 ```
 
 ### Strings
 Wrapper around `[]const u8`.
-```lisp
+```clojure
 (def x "hello, world")
 ```
 
 ### Symbols
 A `[]const u8` that does not start with `"` and has no spaces.
-```lisp
+```clojure
 x ;; our x variable. On the repl, this will print it.
 valid-symbol ;; as with any lisp, some special chars are allowed.
 def ;; def is just a symbol.
@@ -31,19 +31,19 @@ def ;; def is just a symbol.
 
 ### Keywords
 A `[]const u8` that starts with `:`.
-```lisp
+```clojure
 :my-symbol ;; a symbol evaluates to itself.
 ```
 
 ### Nil
 The `null` type.
-```lisp
+```clojure
 nil
 ```
 
 ### Functions
 You can define functions with the `defun` symbol.
-```lisp
+```clojure
 (defun my-func [arg1 arg2]
     "doc string"
     (  ) ;; body
@@ -54,18 +54,18 @@ An optional docstring can be passed as the third argument. The final argument is
 
 You define anonymous functions with the `fn` symbol. It takes a list/vector of symbols as parameters and a body
 which is evaluated when called.
-```lisp
+```clojure
 (fn (a b) (+ a b)) ;; a function that sums a and b.
 ((fn (a b) (+ a b)) 1 2) ;; call the function with 1 and 2 as parameters.
 ```
 
 You can define functions to the current environment with:
-```lisp
+```clojure
 (def my-func (fn* [a b] (+ a b)))
 ```
 
 We also have closures
-```lisp
+```clojure
 (defun add-a [a]
     (fn [b] (+ a b))
 ```
@@ -79,7 +79,7 @@ fn (args: []LispType) LispError!LispType
 Lists are array lists which contains any number of ZLisp's variables. If the first element of the list
 is a function, then it applies it with the other list elements as arguments. Any symbols will be evaluated
 and added to the list.
-```lisp
+```clojure
 (1 2 3) ;; a list.
 (1 "a" 5.0 nil) ;; lists can contain values of different types.
 ((1 2) "hello") ;; this includes other lists.
@@ -97,7 +97,7 @@ and added to the list.
 ### Vectors
 Vectors are also array lists. Any operations done on vectors can be done on lists. Vectors do not
 evaluate functions inside it, however.
-```lisp
+```clojure
 [1 2 3] ;; a vector.
 [1 "a" 5.0 nil] ;; vectors can contain values of different types.
 [(fn (a b) (+ a b)] 1 2) ;; the function will not be applied, it is just an element of the vector.
@@ -113,7 +113,7 @@ evaluate functions inside it, however.
 
 ### Dictionaries
 Dictionaries can have `int`s, `boolean`s, `string`s and `keywords`s as keys. Anything can be used as the key value.
-```lisp
+```clojure
 (def my-dict {:a 1 :b 2 :c (1 2 3)}) ;; create a dict
 (get my-dict :a) ;; return the value of :a, which is 1
 (get my-dict :d) ;; :d is not a key, so `get` returns nil
@@ -127,7 +127,7 @@ Dictionaries can have `int`s, `boolean`s, `string`s and `keywords`s as keys. Any
 
 ### Booleans
 Wrapper around `bool`.
-```lisp
+```clojure
 true
 false
 ```
@@ -135,7 +135,7 @@ All values besides `false` and `nil` are considered as truthy values.
 
 ### Atoms
 A mutable variable that holds a reference to another `lisp` value.
-```lisp
+```clojure
 (atom 5) ;; creates an atom which holds 5 as a value
 (def a (atom "hello")) ;; binds the (atom "hello") to a
 (deref a) ;; "hello"
