@@ -67,7 +67,7 @@ You can define functions to the current environment with:
 We also have closures
 ```clojure
 (defun add-a [a]
-    (fn [b] (+ a b))
+    (fn [a] [b] (+ a b))
 ```
 
 Behind the scenes, all functions have the following signature:
@@ -100,8 +100,7 @@ evaluate functions inside it, however.
 ```clojure
 [1 2 3] ;; a vector.
 [1 "a" 5.0 nil] ;; vectors can contain values of different types.
-[(fn [a b] (+ a b)] 1 2) ;; the function will not be applied, it is just an element of the vector.
-((fn [a b] (+ a b)) 1 2) ;; will can use vectors as the function parameter list (you can not use it a body, though)
+[(fn [a b] (+ a b)) 1 2] ;; the function will not be applied, it is just an element of the vector.
 (nth [1 2 3] 0) ;; 1
 (nth [1 2 3] 2) ;; 3
 (nth [1 2 3] 3) ;; nil
