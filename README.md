@@ -67,7 +67,7 @@ You can define functions to the current environment with:
 We also have closures
 ```clojure
 (defun add-a [a]
-    (fn [a] [b] (+ a b))
+    (fn |a| [b] (+ a b))
 ```
 
 Behind the scenes, all functions have the following signature:
