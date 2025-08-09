@@ -49,14 +49,14 @@ You can define functions with the `defun` symbol.
     (  ) ;; body
 )
 ```
-The first argument is a symbol, which is the function name, followed by a list/vector with the arguments names.
+The first argument is a symbol, which is the function name, followed by a vector with the arguments names.
 An optional docstring can be passed as the third argument. The final argument is the function body.
 
-You define anonymous functions with the `fn` symbol. It takes a list/vector of symbols as parameters and a body
+You define anonymous functions with the `fn` symbol. It takes a vector of symbols as parameters and a body
 which is evaluated when called.
 ```clojure
-(fn (a b) (+ a b)) ;; a function that sums a and b.
-((fn (a b) (+ a b)) 1 2) ;; call the function with 1 and 2 as parameters.
+(fn [a b] (+ a b)) ;; a function that sums a and b.
+((fn [a b] (+ a b)) 1 2) ;; call the function with 1 and 2 as parameters.
 ```
 
 You can define functions to the current environment with:
@@ -80,18 +80,18 @@ Lists are array lists which contains any number of ZLisp's variables. If the fir
 is a function, then it applies it with the other list elements as arguments. Any symbols will be evaluated
 and added to the list.
 ```clojure
-(1 2 3) ;; a list.
-(1 "a" 5.0 nil) ;; lists can contain values of different types.
-((1 2) "hello") ;; this includes other lists.
+(list 1 2 3) ;; a list.
+(list 1 "a" 5.0 nil) ;; lists can contain values of different types.
+(list (list 1 2) "hello") ;; this includes other lists.
 ((fn (a b) (+ a b)) 1 2) ;; this will call the function with 1 and 2 as `a` and `b` respectively.
-(a b c) ;; this will get the values of `a`, `b` and `c` and add it to the list. If `a` is function, it will be called with `b` and `c` as arguments.
-(nth (1 2 3) 0) ;; 1
-(nth (1 2 3) 2) ;; 3
-(nth (1 2 3) 3) ;; nil
-(head ()) ;; nil
-(head (1 2 3)) ;; 1
-(tail (1 2 3)) ;; (2 3)
-(tail (1)) ;; ()
+(a b c) ;; If `a` is function, it will be called with `b` and `c` as arguments.
+(nth (list 1 2 3) 0) ;; 1
+(nth (list 1 2 3) 2) ;; 3
+(nth (list 1 2 3) 3) ;; nil
+(head (list)) ;; nil
+(head (list 1 2 3)) ;; 1
+(tail (list 1 2 3)) ;; (2 3)
+(tail (list 1)) ;; ()
 ```
 
 ### Vectors
@@ -100,7 +100,7 @@ evaluate functions inside it, however.
 ```clojure
 [1 2 3] ;; a vector.
 [1 "a" 5.0 nil] ;; vectors can contain values of different types.
-[(fn (a b) (+ a b)] 1 2) ;; the function will not be applied, it is just an element of the vector.
+[(fn [a b] (+ a b)] 1 2) ;; the function will not be applied, it is just an element of the vector.
 ((fn [a b] (+ a b)) 1 2) ;; will can use vectors as the function parameter list (you can not use it a body, though)
 (nth [1 2 3] 0) ;; 1
 (nth [1 2 3] 2) ;; 3
@@ -140,7 +140,7 @@ A mutable variable that holds a reference to another `lisp` value.
 (def a (atom "hello")) ;; binds the (atom "hello") to a
 (deref a) ;; "hello"
 (reset! a 5) ;; a now holds the value 5. Returns 5
-(defun minus (a b c)
+(defun minus [a b c]
     (- a b c))
 ;; calls `minus` with the current value of `a` as the first argument and 3 and 4 as the second and third arguments.
 ;; the value returned by the function will be saved on the atom `a` and returns.
