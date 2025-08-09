@@ -6,19 +6,19 @@ Embeddable Lisp for Zig.
 ### Ints
 `int`s are `i32` variables.
 ```lisp
-(def! x 5) ;; define x to the current scope as 5
+(def x 5) ;; define x to the current scope as 5
 ```
 
 ### Floats
 `float`s are `f32` variables.
 ```lisp
-(def! x 5.0)
+(def x 5.0)
 ```
 
 ### Strings
 Wrapper around `[]const u8`.
 ```lisp
-(def! x "hello, world")
+(def x "hello, world")
 ```
 
 ### Symbols
@@ -26,7 +26,7 @@ A `[]const u8` that does not start with `"` and has no spaces.
 ```lisp
 x ;; our x variable. On the repl, this will print it.
 valid-symbol ;; as with any lisp, some special chars are allowed.
-def! ;; def! is just a symbol.
+def ;; def is just a symbol.
 ```
 
 ### Keywords
@@ -61,12 +61,12 @@ which is evaluated when called.
 
 You can define functions to the current environment with:
 ```lisp
-(def! my-func (fn* [a b] (+ a b)))
+(def my-func (fn* [a b] (+ a b)))
 ```
 
 We also have closures
 ```lisp
-(defun! add-a [a]
+(defun add-a [a]
     (fn [b] (+ a b))
 ```
 
@@ -114,7 +114,7 @@ evaluate functions inside it, however.
 ### Dictionaries
 Dictionaries can have `int`s, `boolean`s, `string`s and `keywords`s as keys. Anything can be used as the key value.
 ```lisp
-(def! my-dict {:a 1 :b 2 :c (1 2 3)}) ;; create a dict
+(def my-dict {:a 1 :b 2 :c (1 2 3)}) ;; create a dict
 (get my-dict :a) ;; return the value of :a, which is 1
 (get my-dict :d) ;; :d is not a key, so `get` returns nil
 (assoc my-dict :d "hello" :e 0.5) ;; returns a NEW hash map with the keys :d and :e, with values "hello" and 0.5
@@ -137,10 +137,10 @@ All values besides `false` and `nil` are considered as truthy values.
 A mutable variable that holds a reference to another `lisp` value.
 ```lisp
 (atom 5) ;; creates an atom which holds 5 as a value
-(def! a (atom "hello")) ;; binds the (atom "hello") to a
+(def a (atom "hello")) ;; binds the (atom "hello") to a
 (deref a) ;; "hello"
 (reset! a 5) ;; a now holds the value 5. Returns 5
-(defun! minus (a b c)
+(defun minus (a b c)
     (- a b c))
 ;; calls `minus` with the current value of `a` as the first argument and 3 and 4 as the second and third arguments.
 ;; the value returned by the function will be saved on the atom `a` and returns.
