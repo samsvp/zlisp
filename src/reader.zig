@@ -1,5 +1,5 @@
 const std = @import("std");
-const ZType = @import("types.zig").ZType;
+const LispType = @import("types.zig").LispType;
 
 const pcre = @cImport({
     @cDefine("PCRE2_CODE_UNIT_WIDTH", "8");
@@ -145,7 +145,7 @@ fn tokenize(
 fn readAtom(
     allocator: std.mem.Allocator,
     reader: *Reader,
-) ParserError!ZType {
+) ParserError!LispType {
     const atom = reader.next().?;
     if (atom.len == 0) {
         return .nil;
@@ -153,7 +153,7 @@ fn readAtom(
 
     switch (atom[0]) {
         ':' => {
-            return ZType.String.initKeyword(allocator, atom);
+            return LispType.String.initKeyword(allocator, atom);
         },
         '"' => {
             if (atom.len < 2 or atom[atom.len - 1] != '"') {
@@ -169,7 +169,7 @@ fn readAtom(
             if (backslash_amount % 2 != 0) {
                 return ParserError.EOFStringReadError;
             }
-            return ZType.String.initString(allocator, atom[1 .. atom.len - 1]);
+            return LispType.String.initString(allocator, atom[1 .. atom.len - 1]);
         },
         else => {
             const maybe_num = std.fmt.parseInt(i32, atom, 10) catch null;
@@ -191,7 +191,7 @@ fn readAtom(
                 return .{ .boolean = false };
             }
 
-            return ZType.String.initSymbol(allocator, atom);
+            return LispType.String.initSymbol(allocator, atom);
         },
     }
 }
@@ -205,8 +205,8 @@ fn readCollection(
     allocator: std.mem.Allocator,
     reader: *Reader,
     collection_type: CollectionType,
-) ParserError!ZType {
-    var list: std.ArrayListUnmanaged(ZType) = .empty;
+) ParserError!LispType {
+    var list: std.ArrayListUnmanaged(LispType) = .empty;
     errdefer {
         for (list.items) |*item| {
             item.deinit(allocator);
@@ -235,8 +235,8 @@ fn readCollection(
     return ParserError.EOFCollectionReadError;
 }
 
-fn readDict(allocator: std.mem.Allocator, reader: *Reader) ParserError!ZType {
-    var dict = ZType.Dict.Map.empty;
+fn readDict(allocator: std.mem.Allocator, reader: *Reader) ParserError!LispType {
+    var dict = LispType.Dict.Map.empty;
     errdefer {
         var iter = dict.iterator();
         while (iter.next()) |entry| {
@@ -246,7 +246,7 @@ fn readDict(allocator: std.mem.Allocator, reader: *Reader) ParserError!ZType {
         dict.deinit(allocator);
     }
 
-    var maybe_key: ?ZType = null;
+    var maybe_key: ?LispType = null;
     _ = reader.next();
     while (reader.peek()) |token| {
         if (std.mem.eql(u8, token, "}")) {
@@ -286,7 +286,7 @@ fn readDict(allocator: std.mem.Allocator, reader: *Reader) ParserError!ZType {
 //    return ZType.Array.initList(allocator, &lst);
 //}
 
-fn readForm(allocator: std.mem.Allocator, reader: *Reader) !ZType {
+fn readForm(allocator: std.mem.Allocator, reader: *Reader) !LispType {
     const maybe_token = reader.peek();
     if (maybe_token == null) {
         return .nil;
@@ -319,7 +319,7 @@ fn readForm(allocator: std.mem.Allocator, reader: *Reader) !ZType {
 pub fn readStr(
     allocator: std.mem.Allocator,
     subject: []const u8,
-) !ZType {
+) !LispType {
     var token_list = try tokenize(subject, allocator);
     defer token_list.deinit(allocator);
 

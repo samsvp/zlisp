@@ -1,11 +1,11 @@
 const std = @import("std");
 const lib = @import("zlisp_lib");
-const ZType = @import("types.zig").ZType;
+const LispType = @import("types.zig").LispType;
 const Reader = @import("reader.zig");
 const Linenoise = @import("linenoize").Linenoise;
 const eval = @import("eval.zig").eval;
 
-fn print(allocator: std.mem.Allocator, s: ZType) []const u8 {
+fn print(allocator: std.mem.Allocator, s: LispType) []const u8 {
     return s.toStringFull(allocator) catch unreachable;
 }
 

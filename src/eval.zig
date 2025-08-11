@@ -1,6 +1,6 @@
 const std = @import("std");
-const ZType = @import("types.zig").ZType;
+const LispType = @import("types.zig").LispType;
 
-pub fn eval(allocator: std.mem.Allocator, s: ZType) ZType {
+pub fn eval(allocator: std.mem.Allocator, s: LispType) LispType {
     return s.clone(allocator);
 }

@@ -1,9 +1,9 @@
 const std = @import("std");
-const ZType = @import("types.zig").ZType;
+const LispType = @import("types.zig").LispType;
 const outOfMemory = @import("utils.zig").outOfMemory;
 
 pub const Env = struct {
-    mapping: std.StringHashMapUnmanaged(ZType),
+    mapping: std.StringHashMapUnmanaged(LispType),
     parent: ?*Env,
 
     pub fn init(allocator: std.mem.Allocator) *Env {
@@ -24,7 +24,7 @@ pub const Env = struct {
         return env;
     }
 
-    pub fn get(self: Env, key: []const u8) ?ZType {
+    pub fn get(self: Env, key: []const u8) ?LispType {
         return self.mapping.get(key) orelse {
             if (self.parent) |parent| {
                 return parent.get(key);
@@ -33,7 +33,7 @@ pub const Env = struct {
         };
     }
 
-    pub fn getPtr(self: Env, key: []const u8) ?*ZType {
+    pub fn getPtr(self: Env, key: []const u8) ?*LispType {
         return self.mapping.getPtr(key) orelse {
             if (self.parent) |parent| {
                 return parent.getPtr(key);
@@ -54,12 +54,12 @@ pub const Env = struct {
         return self.parent == null;
     }
 
-    pub fn put(self: *Env, allocator: std.mem.Allocator, key: []const u8, val: ZType) void {
+    pub fn put(self: *Env, allocator: std.mem.Allocator, key: []const u8, val: LispType) void {
         const key_owned = std.mem.Allocator.dupe(allocator, u8, key) catch outOfMemory();
         self.mapping.put(allocator, key_owned, val.clone(allocator)) catch outOfMemory();
     }
 
-    pub fn putAssumeCapacity(self: *Env, allocator: std.mem.Allocator, key: []const u8, val: ZType) void {
+    pub fn putAssumeCapacity(self: *Env, allocator: std.mem.Allocator, key: []const u8, val: LispType) void {
         const key_owned = std.mem.Allocator.dupe(allocator, u8, key) catch outOfMemory();
         self.mapping.putAssumeCapacity(key_owned, val.clone(allocator));
     }
