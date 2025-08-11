@@ -17,42 +17,28 @@ pub const ParserError = error{
     OutOfMemory,
 };
 
-/// Wrapper that holds the raw tokens (strings) of a Lisp expression (which may not be valid).
-const TokenList = struct {
-    tokens: std.ArrayListUnmanaged([]const u8),
-
-    pub fn init() TokenList {
-        const tokens: std.ArrayListUnmanaged([]const u8) = .empty;
-        return .{ .tokens = tokens };
-    }
-
-    pub fn append(self: *TokenList, allocator: std.mem.Allocator, token: []const u8) !void {
-        try self.tokens.append(allocator, token);
-    }
-
-    pub fn deinit(self: *TokenList, allocator: std.mem.Allocator) void {
-        self.tokens.deinit(allocator);
-    }
-};
+const TokenList = std.ArrayListUnmanaged([]const u8);
 
 /// A helper token reader.
 pub const Reader = struct {
     token_list: TokenList,
     current: usize,
 
-    pub fn next(self: *Reader) ?[]const u8 {
-        if (self.token_list.tokens.items.len <= self.current) {
+    const Self = @This();
+
+    pub fn next(self: *Self) ?[]const u8 {
+        if (self.token_list.items.len <= self.current) {
             return null;
         }
         self.current += 1;
-        return self.token_list.tokens.items[self.current - 1];
+        return self.token_list.items[self.current - 1];
     }
 
-    pub fn peek(self: Reader) ?[]const u8 {
-        if (self.token_list.tokens.items.len <= self.current) {
+    pub fn peek(self: Self) ?[]const u8 {
+        if (self.token_list.items.len <= self.current) {
             return null;
         }
-        return self.token_list.tokens.items[self.current];
+        return self.token_list.items[self.current];
     }
 };
 
@@ -93,7 +79,7 @@ fn tokenize(
     defer pcre.pcre2_match_data_free_8(match_data);
 
     var offset: usize = 0;
-    var list: TokenList = .init();
+    var list: TokenList = .empty;
 
     while (true) {
         const rc = pcre.pcre2_match_8(

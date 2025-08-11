@@ -9,27 +9,29 @@ pub const Context = struct {
     allocator: std.mem.Allocator,
     buffer: std.ArrayListUnmanaged(u8) = .empty,
 
-    pub fn init(allocator: std.mem.Allocator) Context {
-        return Context{
+    const Self = @This();
+
+    pub fn init(allocator: std.mem.Allocator) Self {
+        return Self{
             .allocator = allocator,
         };
     }
 
-    pub fn wrongNumberOfArguments(self: *Context, expected: usize, actual: usize) LispError {
+    pub fn wrongNumberOfArguments(self: *Self, expected: usize, actual: usize) LispError {
         self.clear();
         std.fmt.format(self.buffer.writer(self.allocator), "Wrong number of arguments, expected {}, got {}", .{ expected, actual });
         return LispError.WrongNumberOfArguments;
     }
 
-    pub fn getMessage(self: Context) []const u8 {
+    pub fn getMessage(self: Self) []const u8 {
         return self.buffer.items;
     }
 
-    pub fn clear(self: *Context) void {
+    pub fn clear(self: *Self) void {
         self.buffer.clearRetainingCapacity();
     }
 
-    pub fn deinit(self: *Context) void {
+    pub fn deinit(self: *Self) void {
         self.buffer.deinit(self.allocator);
     }
 };

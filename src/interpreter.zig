@@ -33,9 +33,9 @@ pub const Interpreter = struct {
         self.buffer.deinit(self.allocator);
     }
 
-    pub fn rep(self: *Self, s: []const u8) ![]const u8 {
+    pub fn rep(self: *Self, text: []const u8) ![]const u8 {
         const allocator = self.arena.allocator();
-        var val = try Reader.readStr(allocator, s);
+        var val = try Reader.readStr(allocator, text);
         defer val.deinit(allocator);
 
         var ret = try eval(allocator, val, &self.err_ctx);
