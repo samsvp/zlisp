@@ -69,6 +69,7 @@ We also have closures
 (defun add-a [a]
     (fn [a] [b] (+ a b))
 ```
+You need to specify which variables you are capturing in the closure. These will be copied to the function environment.
 
 Behind the scenes, all functions have the following signature:
 ```zig
