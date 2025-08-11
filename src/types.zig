@@ -1,11 +1,8 @@
 const std = @import("std");
 const Env = @import("env.zig").Env;
+const errors = @import("errors.zig");
+const LispError = @import("errors.zig").LispError;
 const outOfMemory = @import("utils.zig").outOfMemory;
-
-pub const LispError = error{
-    UnhashableType,
-    FunctionArgsAreNotSymbols,
-};
 
 pub const LispType = union(enum) {
     string: String,
@@ -18,8 +15,16 @@ pub const LispType = union(enum) {
     list: Array,
     vector: Array,
     dict: Dict,
-    function: Fn,
     atom: Atom,
+    function: Function,
+
+    pub const lisp_true = LispType{ .boolean = true };
+    pub const lisp_false = LispType{ .boolean = false };
+    pub const BuiltinFunc = *const fn (
+        allocator: std.mem.Allocator,
+        args: []LispType,
+        err_ctx: errors.Context,
+    ) LispError!LispType;
 
     pub const Array = struct {
         array: ZArray,
@@ -235,7 +240,7 @@ pub const LispType = union(enum) {
                 .args = args_owned,
                 .env = env,
             };
-            return .{ .function = m_fn };
+            return .{ .function = .{ .fn_ = m_fn } };
         }
 
         pub fn setMacro(self: *Fn) void {
@@ -260,13 +265,13 @@ pub const LispType = union(enum) {
 
         pub fn clone(self: Fn, allocator: std.mem.Allocator) LispType {
             const fn_ = init(allocator, self.ast.clone(allocator), self.args);
-            fn_.function.env.mapping.ensureTotalCapacity(allocator, self.env.mapping.size) catch {
+            fn_.function.fn_.env.mapping.ensureTotalCapacity(allocator, self.env.mapping.size) catch {
                 outOfMemory();
             };
 
             var iter = self.env.mapping.iterator();
             while (iter.next()) |entry| {
-                fn_.function.env.putAssumeCapacity(allocator, entry.key_ptr.*, entry.value_ptr.*);
+                fn_.function.fn_.env.putAssumeCapacity(allocator, entry.key_ptr.*, entry.value_ptr.*);
             }
             return fn_;
         }
@@ -275,6 +280,25 @@ pub const LispType = union(enum) {
             self.ast.deinit(allocator);
             allocator.destroy(self.ast);
             self.env.deinit(allocator);
+        }
+    };
+
+    pub const Function = union(enum) {
+        fn_: Fn,
+        builtin: BuiltinFunc,
+
+        pub fn clone(self: Function, allocator: std.mem.Allocator) LispType {
+            return switch (self) {
+                .fn_ => |fn_| fn_.clone(allocator),
+                .builtin => .{ .function = self },
+            };
+        }
+
+        pub fn deinit(self: *Function, allocator: std.mem.Allocator) void {
+            switch (self.*) {
+                .fn_ => |*fn_| fn_.deinit(allocator),
+                .builtin => {},
+            }
         }
     };
 

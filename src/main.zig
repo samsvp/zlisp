@@ -1,5 +1,6 @@
 const std = @import("std");
 const lib = @import("zlisp_lib");
+const errors = @import("errors.zig");
 const LispType = @import("types.zig").LispType;
 const Reader = @import("reader.zig");
 const Linenoise = @import("linenoize").Linenoise;
@@ -9,18 +10,19 @@ fn print(allocator: std.mem.Allocator, s: LispType) []const u8 {
     return s.toStringFull(allocator) catch unreachable;
 }
 
-fn rep(allocator: std.mem.Allocator, s: []const u8) ![]const u8 {
+fn rep(allocator: std.mem.Allocator, s: []const u8, err_ctx: *errors.Context) ![]const u8 {
     var val = try Reader.readStr(
         allocator,
         s,
     );
     defer val.deinit(allocator);
 
-    var ret = eval(allocator, val);
+    var ret = try eval(allocator, val, err_ctx);
     defer ret.deinit(allocator);
 
     return ret.toStringFull(allocator);
 }
+
 pub fn main() !void {
     var gpa = std.heap.DebugAllocator(.{}){};
     defer {
@@ -29,6 +31,9 @@ pub fn main() !void {
     }
 
     const allocator = gpa.allocator();
+
+    var err_ctx = errors.Context.init(allocator);
+    defer err_ctx.deinit();
 
     var ln = Linenoise.init(allocator);
     defer ln.deinit();
@@ -41,7 +46,7 @@ pub fn main() !void {
     const stdout = std.io.getStdOut().writer();
     while (try ln.linenoise("user> ")) |input| {
         defer allocator.free(input);
-        const res = rep(allocator, input) catch |err| {
+        const res = rep(allocator, input, &err_ctx) catch |err| {
             try stdout.print("{any}\n", .{err});
             continue;
         };
