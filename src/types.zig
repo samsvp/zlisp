@@ -362,6 +362,63 @@ pub const LispType = union(enum) {
         }
     };
 
+    pub const UserStruct = struct {
+        ptr: *anyopaque,
+        type_info: TypeInfo,
+
+        pub const TypeInfo = struct {
+            name: []const u8,
+            size: usize,
+
+            pub fn init(comptime T: type) TypeInfo {
+                return .{
+                    .name = @typeName(T),
+                    .size = @sizeOf(T),
+                };
+            }
+        };
+
+        pub fn initRef(ptr: anytype) UserStruct {
+            const t_info = @typeInfo(@TypeOf(ptr));
+            if (t_info != .pointer) {
+                @compileError("Value of 'ptr' must be a pointer.");
+            }
+
+            const C = t_info.pointer.child;
+
+            const p: *anyopaque = @ptrCast(ptr);
+            return .{
+                .ptr = p,
+                .type_info = TypeInfo.init(C),
+            };
+        }
+
+        pub fn initCopy(allocator: std.mem.Allocator, val: anytype) UserStruct {
+            const T = @TypeOf(val);
+            const ptr = allocator.create(T) catch outOfMemory();
+            ptr.* = val;
+
+            const type_info = TypeInfo.init(T);
+
+            return .{
+                .ptr = ptr,
+                .type_info = type_info,
+            };
+        }
+
+        pub fn deinitCopy(self: *UserStruct, allocator: std.mem.Allocator) void {
+            allocator.destroy(self.ptr);
+        }
+
+        pub fn as(self: UserStruct, comptime T: type) ?*T {
+            if (!std.mem.eql(u8, self.type_info.name, @typeName(T))) {
+                return null;
+            }
+
+            return @alignCast(@ptrCast(self.ptr));
+        }
+    };
+
     pub fn clone(self: Self, allocator: std.mem.Allocator) Self {
         return switch (self) {
             inline .string,
