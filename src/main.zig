@@ -13,13 +13,6 @@ const S = struct {
 };
 
 pub fn main() !void {
-    const u = S{ .a = 5 };
-    const ptr = UserStruct.initCopy(std.heap.c_allocator, u);
-    const maybe_u2 = ptr.as(S);
-    if (maybe_u2) |m_u2| {
-        std.debug.print("{}\n", .{m_u2.a});
-    }
-
     var gpa = std.heap.DebugAllocator(.{}){};
     defer {
         const deinit_status = gpa.deinit();
@@ -29,6 +22,14 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     var interpreter = Interpreter.init(gpa.allocator(), 1000);
     defer interpreter.deinit();
+
+    const u = S{ .a = 5 };
+    var ptr = UserStruct.init(allocator, u);
+    defer ptr.deinit(allocator);
+    const maybe_u2 = ptr.record.as(S);
+    if (maybe_u2) |m_u2| {
+        std.debug.print("{}\n", .{m_u2.a});
+    }
 
     var ln = Linenoise.init(allocator);
     defer ln.deinit();

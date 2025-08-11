@@ -17,6 +17,7 @@ pub const LispType = union(enum) {
     dict: Dict,
     atom: Atom,
     function: Function,
+    record: UserStruct,
 
     const Self = @This();
 
@@ -363,7 +364,7 @@ pub const LispType = union(enum) {
     };
 
     pub const UserStruct = struct {
-        ptr: *anyopaque,
+        bytes: []u8,
         type_info: TypeInfo,
 
         pub const TypeInfo = struct {
@@ -378,36 +379,36 @@ pub const LispType = union(enum) {
             }
         };
 
-        pub fn initRef(ptr: anytype) UserStruct {
-            const t_info = @typeInfo(@TypeOf(ptr));
-            if (t_info != .pointer) {
-                @compileError("Value of 'ptr' must be a pointer.");
-            }
+        pub fn initFromBytes(allocator: std.mem.Allocator, src: []const u8, type_info: TypeInfo) LispType {
+            const buf = allocator.alloc(u8, type_info.size) catch outOfMemory();
+            @memcpy(buf, src);
 
-            const C = t_info.pointer.child;
-
-            const p: *anyopaque = @ptrCast(ptr);
             return .{
-                .ptr = p,
-                .type_info = TypeInfo.init(C),
+                .record = .{
+                    .bytes = buf,
+                    .type_info = type_info,
+                },
             };
         }
 
-        pub fn initCopy(allocator: std.mem.Allocator, val: anytype) UserStruct {
+        pub fn init(allocator: std.mem.Allocator, val: anytype) LispType {
             const T = @TypeOf(val);
-            const ptr = allocator.create(T) catch outOfMemory();
-            ptr.* = val;
-
             const type_info = TypeInfo.init(T);
 
-            return .{
-                .ptr = ptr,
-                .type_info = type_info,
-            };
+            const src = std.mem.asBytes(&val);
+            return initFromBytes(allocator, src, type_info);
         }
 
-        pub fn deinitCopy(self: *UserStruct, allocator: std.mem.Allocator) void {
-            allocator.destroy(self.ptr);
+        pub fn deinit(self: *UserStruct, allocator: std.mem.Allocator) void {
+            allocator.free(self.bytes);
+        }
+
+        pub fn clone(self: UserStruct, allocator: std.mem.Allocator) LispType {
+            return initFromBytes(allocator, self.bytes, self.type_info);
+        }
+
+        pub fn eql(self: UserStruct, other: UserStruct) bool {
+            return std.mem.eql(u8, self.bytes, other.bytes);
         }
 
         pub fn as(self: UserStruct, comptime T: type) ?*T {
@@ -415,7 +416,7 @@ pub const LispType = union(enum) {
                 return null;
             }
 
-            return @alignCast(@ptrCast(self.ptr));
+            return @alignCast(std.mem.bytesAsValue(T, self.bytes));
         }
     };
 
@@ -427,6 +428,7 @@ pub const LispType = union(enum) {
             .dict,
             .function,
             .atom,
+            .record,
             => |s| s.clone(allocator),
             .keyword => |s| {
                 const str = s.clone(allocator);
@@ -464,6 +466,10 @@ pub const LispType = union(enum) {
             },
             .keyword => |s1| switch (b) {
                 .keyword => |s2| std.mem.eql(u8, s1.getStr(), s2.getStr()),
+                else => false,
+            },
+            .record => |r1| switch (b) {
+                .record => |r2| r1.eql(r2),
                 else => false,
             },
             .list => |l1| switch (b) {
@@ -582,6 +588,7 @@ pub const LispType = union(enum) {
                 try buffer.appendSlice("}");
             },
             .function => try buffer.appendSlice("#<function>"),
+            .record => |r| try std.fmt.format(buffer.writer(), "#record {s}", .{r.type_info.name}),
             inline .int, .float, .boolean => |i| try std.fmt.format(buffer.writer(), "{}", .{i}),
         }
     }
@@ -596,6 +603,7 @@ pub const LispType = union(enum) {
             .symbol,
             .function,
             .atom,
+            .record,
             => |*f| {
                 f.deinit(allocator);
             },

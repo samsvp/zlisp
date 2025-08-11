@@ -2,6 +2,8 @@ const std = @import("std");
 const eval = @import("eval.zig").eval;
 const errors = @import("errors.zig");
 const Reader = @import("reader.zig");
+const LispError = @import("errors.zig").LispError;
+const LispType = @import("types.zig").LispType;
 const outOfMemory = @import("utils.zig").outOfMemory;
 
 pub const Interpreter = struct {
@@ -33,15 +35,23 @@ pub const Interpreter = struct {
         self.buffer.deinit(self.allocator);
     }
 
+    pub fn run(self: *Self, value: LispType) LispError!LispType {
+        return eval(self.arena.allocator(), value, &self.err_ctx);
+    }
+
+    pub fn print(self: *Self, value: LispType) []const u8 {
+        self.buffer.clearRetainingCapacity();
+        return value.toString(self.buffer.allocatedSlice());
+    }
+
     pub fn rep(self: *Self, text: []const u8) ![]const u8 {
         const allocator = self.arena.allocator();
         var val = try Reader.readStr(allocator, text);
         defer val.deinit(allocator);
 
-        var ret = try eval(allocator, val, &self.err_ctx);
+        var ret = try self.run(val);
         defer ret.deinit(allocator);
 
-        self.buffer.clearRetainingCapacity();
-        return ret.toString(self.buffer.allocatedSlice());
+        return self.print(ret);
     }
 };
