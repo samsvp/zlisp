@@ -26,6 +26,7 @@ pub const LispType = union(enum) {
     pub const BuiltinFunc = *const fn (
         allocator: std.mem.Allocator,
         args: []Self,
+        env: *Env,
         err_ctx: *errors.Context,
     ) LispError!Self;
 

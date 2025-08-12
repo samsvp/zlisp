@@ -8,10 +8,6 @@ const Linenoise = @import("linenoize").Linenoise;
 const Interpreter = @import("interpreter.zig").Interpreter;
 const eval = @import("eval.zig").eval;
 
-const S = struct {
-    a: i32,
-};
-
 pub fn main() !void {
     var gpa = std.heap.DebugAllocator(.{}){};
     defer {
@@ -22,14 +18,6 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     var interpreter = Interpreter.init(gpa.allocator(), 1000);
     defer interpreter.deinit();
-
-    const u = S{ .a = 5 };
-    var ptr = UserStruct.init(allocator, u);
-    defer ptr.deinit(allocator);
-    const maybe_u2 = ptr.record.as(S);
-    if (maybe_u2) |m_u2| {
-        std.debug.print("{}\n", .{m_u2.a});
-    }
 
     var ln = Linenoise.init(allocator);
     defer ln.deinit();

@@ -1,6 +1,7 @@
 const std = @import("std");
 const eval = @import("eval.zig").eval;
 const errors = @import("errors.zig");
+const Env = @import("env.zig").Env;
 const Reader = @import("reader.zig");
 const LispError = @import("errors.zig").LispError;
 const LispType = @import("types.zig").LispType;
@@ -10,15 +11,18 @@ pub const Interpreter = struct {
     allocator: std.mem.Allocator,
     arena: std.heap.ArenaAllocator,
     buffer: std.ArrayListUnmanaged(u8) = .empty,
+    env: *Env,
     err_ctx: errors.Context,
 
     const Self = @This();
 
     pub fn init(
-        allocator: std.mem.Allocator,
+        allocator_: std.mem.Allocator,
         buffer_size: usize,
     ) Self {
-        const arena = std.heap.ArenaAllocator.init(allocator);
+        var arena = std.heap.ArenaAllocator.init(allocator_);
+        const allocator = arena.allocator();
+
         const err_ctx = errors.Context.init(allocator);
         const buffer = std.ArrayListUnmanaged(u8).initCapacity(allocator, buffer_size) catch outOfMemory();
         return .{
@@ -26,17 +30,16 @@ pub const Interpreter = struct {
             .arena = arena,
             .err_ctx = err_ctx,
             .buffer = buffer,
+            .env = Env.init(allocator),
         };
     }
 
     pub fn deinit(self: *Self) void {
         self.arena.deinit();
-        self.err_ctx.deinit();
-        self.buffer.deinit(self.allocator);
     }
 
     pub fn run(self: *Self, value: LispType) LispError!LispType {
-        return eval(self.arena.allocator(), value, &self.err_ctx);
+        return eval(self.arena.allocator(), value, self.env, &self.err_ctx);
     }
 
     pub fn print(self: *Self, value: LispType) []const u8 {
