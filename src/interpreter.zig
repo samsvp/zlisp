@@ -25,12 +25,13 @@ pub const Interpreter = struct {
 
         const err_ctx = errors.Context.init(allocator);
         const buffer = std.ArrayListUnmanaged(u8).initCapacity(allocator, buffer_size) catch outOfMemory();
+        const env = Env.init(allocator).setFunctions();
         return .{
             .allocator = allocator,
             .arena = arena,
             .err_ctx = err_ctx,
             .buffer = buffer,
-            .env = Env.init(allocator),
+            .env = env,
         };
     }
 
@@ -49,12 +50,8 @@ pub const Interpreter = struct {
 
     pub fn rep(self: *Self, text: []const u8) ![]const u8 {
         const allocator = self.arena.allocator();
-        var val = try Reader.readStr(allocator, text);
-        defer val.deinit(allocator);
-
-        var ret = try self.run(val);
-        defer ret.deinit(allocator);
-
+        const val = try Reader.readStr(allocator, text);
+        const ret = try self.run(val);
         return self.print(ret);
     }
 };

@@ -161,7 +161,7 @@ pub const LispType = union(enum) {
         pub fn add(self: *Dict, allocator: std.mem.Allocator, key: Self, value: Self) LispError!void {
             switch (key) {
                 .int, .string, .keyword, .symbol => {
-                    self.map.put(allocator, key.clone(allocator), value.clone(allocator)) catch {
+                    self.map.put(allocator, key, value) catch {
                         outOfMemory();
                     };
                 },
@@ -169,10 +169,10 @@ pub const LispType = union(enum) {
             }
         }
 
-        pub fn addAssumeCapactity(self: *Dict, allocator: std.mem.Allocator, key: Self, value: Self) !void {
+        pub fn addAssumeCapactity(self: *Dict, key: Self, value: Self) !void {
             switch (key) {
                 .int, .string, .keyword, .symbol => {
-                    self.map.putAssumeCapacity(key.clone(allocator), value.clone(allocator));
+                    self.map.putAssumeCapacity(key, value);
                 },
                 else => return LispError.UnhashableType,
             }
@@ -198,7 +198,7 @@ pub const LispType = union(enum) {
 
             var iter = self.map.iterator();
             while (iter.next()) |entry| {
-                dict.dict.addAssumeCapactity(allocator, entry.key_ptr.*, entry.value_ptr.*) catch unreachable;
+                dict.dict.addAssumeCapactity(entry.key_ptr.clone(allocator), entry.value_ptr.clone(allocator)) catch unreachable;
             }
 
             return dict;
@@ -275,7 +275,7 @@ pub const LispType = union(enum) {
 
             var iter = self.env.mapping.iterator();
             while (iter.next()) |entry| {
-                fn_.function.fn_.env.putAssumeCapacity(allocator, entry.key_ptr.*, entry.value_ptr.*);
+                _ = fn_.function.fn_.env.putAssumeCapacity(entry.key_ptr.*, entry.value_ptr.*);
             }
             return fn_;
         }
