@@ -87,7 +87,7 @@ pub const Env = struct {
     pub fn setFunctions(self: *Self) *Self {
         const allocator = self.arena.allocator();
 
-        self.mapping.put(allocator, "def!", .{ .function = .{ .builtin = eval.defBang } }) catch outOfMemory();
+        self.mapping.put(allocator, "def", .{ .function = .{ .builtin = eval.def } }) catch outOfMemory();
         self.mapping.put(allocator, "eval", .{ .function = .{ .builtin = eval.evalWrapper } }) catch outOfMemory();
 
         return self;

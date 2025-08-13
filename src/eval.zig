@@ -5,7 +5,7 @@ const errors = @import("errors.zig");
 const LispError = errors.LispError;
 const outOfMemory = @import("utils.zig").outOfMemory;
 
-pub fn defBang(
+pub fn def(
     allocator: std.mem.Allocator,
     s: []LispType,
     env: *Env,
@@ -44,6 +44,35 @@ pub fn eval(
                     value.clone(allocator)
                 else
                     err_ctx.symbolNotFound(symbol.getStr());
+            },
+            .list => |v| {
+                const items = v.getItems();
+                if (items.len == 0) {
+                    return s;
+                }
+
+                const function = switch (items[0]) {
+                    .symbol => sym: {
+                        const res = try eval(allocator, items[0], env, err_ctx);
+                        if (res != .function) {
+                            return err_ctx.wrongParameterType("First argument", "function");
+                        }
+                        break :sym res.function;
+                    },
+                    .function => |function| function,
+                    else => return err_ctx.wrongParameterType("First argument", "function"),
+                };
+
+                switch (function) {
+                    .builtin => |builtin| {
+                        var args = std.ArrayListUnmanaged(LispType).initCapacity(allocator, items.len - 1) catch outOfMemory();
+                        for (items[1..]) |item| {
+                            args.appendAssumeCapacity(item);
+                        }
+                        return builtin(allocator, args.items, env, err_ctx);
+                    },
+                    .fn_ => @panic("Not implemented."),
+                }
             },
             .vector => |v| {
                 var new_v = LispType.Array.emptyVector();
