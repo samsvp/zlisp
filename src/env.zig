@@ -11,8 +11,8 @@ pub const Env = struct {
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator) *Self {
-        const env = allocator.create(Self) catch unreachable;
-        const arena = std.heap.ArenaAllocator.init(allocator);
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        const env = arena.allocator().create(Self) catch unreachable;
         env.* = .{
             .arena = arena,
             .mapping = .empty,
@@ -21,8 +21,8 @@ pub const Env = struct {
         return env;
     }
 
-    pub fn initWithParent(allocator: std.mem.Allocator, parent: *Self) *Self {
-        var env = init(allocator);
+    pub fn initFromParent(parent: *Self) *Self {
+        var env = init(parent.arena.child_allocator);
         env.parent = parent;
         return env;
     }
@@ -74,7 +74,7 @@ pub const Env = struct {
     }
 
     pub fn clone(self: *Self, allocator: std.mem.Allocator) *Self {
-        var env = initWithParent(allocator, self.parent);
+        var env = initFromParent(self.parent);
         env.mapping.ensureTotalCapacity(allocator, self.mapping.size) catch outOfMemory();
 
         var iter = self.mapping.iterator();
@@ -93,14 +93,7 @@ pub const Env = struct {
         return self;
     }
 
-    pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
-        var iter = self.mapping.iterator();
-        while (iter.next()) |entry| {
-            entry.value_ptr.deinit(allocator);
-        }
-
-        if (self.parent) |p| {
-            p.deinit(allocator);
-        }
+    pub fn deinit(self: *Self) void {
+        self.arena.deinit();
     }
 };

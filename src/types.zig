@@ -283,7 +283,7 @@ pub const LispType = union(enum) {
         pub fn deinit(self: *Fn, allocator: std.mem.Allocator) void {
             self.ast.deinit(allocator);
             allocator.destroy(self.ast);
-            self.env.deinit(allocator);
+            self.env.deinit();
         }
     };
 

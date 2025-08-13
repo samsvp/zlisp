@@ -25,10 +25,11 @@ pub fn def(
 
 pub fn eval(
     allocator: std.mem.Allocator,
-    s: LispType,
+    ast: LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
+    var s = ast;
     while (true) {
         const is_eval = env.get("DEBUG-EVAL");
         if (is_eval) |flag| {
@@ -69,7 +70,11 @@ pub fn eval(
                         for (items[1..]) |item| {
                             args.appendAssumeCapacity(item);
                         }
-                        return builtin(allocator, args.items, env, err_ctx);
+                        var new_env = Env.initFromParent(env);
+                        defer new_env.deinit();
+
+                        s = try builtin(allocator, args.items, new_env, err_ctx);
+                        s = s.clone(allocator);
                     },
                     .fn_ => @panic("Not implemented."),
                 }
