@@ -57,7 +57,10 @@ pub const Interpreter = struct {
     pub fn rep(self: *Self, text: []const u8) ![]const u8 {
         const allocator = self.arena.allocator();
         const val = try Reader.readStr(allocator, text);
-        const ret = try self.run(val);
+        const ret = self.run(val) catch |err| {
+            std.debug.print("ERROR: {s}\n", .{self.err_ctx.buffer.items});
+            return err;
+        };
         return self.print(ret);
     }
 };

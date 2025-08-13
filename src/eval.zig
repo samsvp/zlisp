@@ -23,6 +23,29 @@ pub fn def(
     return env.getRoot().put(s[0].symbol.getStr(), val);
 }
 
+pub fn if_(
+    allocator: std.mem.Allocator,
+    s: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (s.len != 2 and s.len != 3) {
+        return err_ctx.wrongNumberOfArgumentsTwoChoices(2, 3, s.len);
+    }
+
+    const cond = try eval(allocator, s[0], env, err_ctx);
+    return switch (cond) {
+        .nil => if (s.len == 3) s[2] else .nil,
+        .boolean => if (cond.eql(LispType.lisp_true))
+            s[1]
+        else if (s.len == 3)
+            s[2]
+        else
+            .nil,
+        else => s[1],
+    };
+}
+
 pub fn eval(
     allocator: std.mem.Allocator,
     ast: LispType,

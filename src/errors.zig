@@ -33,6 +33,22 @@ pub const Context = struct {
         return LispError.WrongNumberOfArguments;
     }
 
+    pub fn wrongNumberOfArgumentsTwoChoices(
+        self: *Self,
+        expected_1: usize,
+        expected_2: usize,
+        actual: usize,
+    ) LispError {
+        self.clear();
+        std.fmt.format(
+            self.buffer.writer(self.allocator),
+            "Wrong number of arguments, expected {} or {} arguments, got {}.",
+            .{ expected_1, expected_2, actual },
+        ) catch
+            outOfMemory();
+        return LispError.WrongNumberOfArguments;
+    }
+
     pub fn symbolNotFound(self: *Self, name: []const u8) LispError {
         self.clear();
         std.fmt.format(
