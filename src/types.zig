@@ -232,7 +232,7 @@ pub const LispType = union(enum) {
             const env = Env.init(allocator);
 
             const ast = allocator.create(Self) catch outOfMemory();
-            ast.* = val;
+            ast.* = val.clone(allocator);
 
             var args_owned = allocator.alloc([]const u8, args.len) catch outOfMemory();
             for (args, 0..) |arg, i| {
@@ -268,7 +268,7 @@ pub const LispType = union(enum) {
         }
 
         pub fn clone(self: Fn, allocator: std.mem.Allocator) Self {
-            const fn_ = init(allocator, self.ast.clone(allocator), self.args);
+            const fn_ = init(allocator, self.ast.*, self.args);
             fn_.function.fn_.env.mapping.ensureTotalCapacity(allocator, self.env.mapping.size) catch {
                 outOfMemory();
             };

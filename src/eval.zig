@@ -46,6 +46,38 @@ pub fn if_(
     };
 }
 
+pub fn fn_(
+    allocator: std.mem.Allocator,
+    s: []LispType,
+    _: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (s.len != 2 and s.len != 3) {
+        return err_ctx.wrongNumberOfArgumentsTwoChoices(2, 3, s.len);
+    }
+
+    var args_symbol = if (s.len == 2) s[0] else s[1];
+    if (args_symbol != .vector) {
+        return err_ctx.wrongParameterType("Parameter list", "vector");
+    }
+
+    const items = args_symbol.vector.getItems();
+    var args = std.ArrayListUnmanaged([]const u8).initCapacity(allocator, items.len) catch outOfMemory();
+    for (items) |a| {
+        if (a != .symbol) {
+            return err_ctx.wrongParameterType("Parameter list arguments", "symbol");
+        }
+
+        args.appendAssumeCapacity(a.symbol.getStr());
+    }
+
+    return LispType.Fn.init(
+        allocator,
+        s[s.len - 1],
+        args.items,
+    );
+}
+
 pub fn eval(
     allocator: std.mem.Allocator,
     ast: LispType,
