@@ -81,10 +81,21 @@ pub fn fn_(
 pub fn eval(
     allocator: std.mem.Allocator,
     ast: LispType,
-    env: *Env,
+    root_env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
     var s = ast;
+    var env = root_env;
+
+    var env_stack: std.ArrayListUnmanaged(*Env) = .empty;
+
+    defer {
+        for (env_stack.items) |m_env| {
+            m_env.deinit();
+        }
+        env_stack.deinit(root_env.arena.child_allocator);
+    }
+
     while (true) {
         const is_eval = env.get("DEBUG-EVAL");
         if (is_eval) |flag| {
@@ -131,7 +142,22 @@ pub fn eval(
                         s = try builtin(allocator, args.items, new_env, err_ctx);
                         s = s.clone(allocator);
                     },
-                    .fn_ => @panic("Not implemented."),
+                    .fn_ => |func| {
+                        if (func.args.len != items[1..].len) {
+                            return err_ctx.wrongNumberOfArguments(func.args.len, items[1..].len);
+                        }
+
+                        // this leaks
+                        var new_env = Env.initFromParent(env);
+                        env_stack.append(root_env.arena.child_allocator, new_env) catch outOfMemory();
+                        for (items[1..], func.args) |item, arg| {
+                            const val = try eval(allocator, item, new_env, err_ctx);
+                            _ = new_env.put(arg, val);
+                        }
+
+                        s = func.ast.*;
+                        env = new_env;
+                    },
                 }
             },
             .vector => |v| {
