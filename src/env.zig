@@ -100,7 +100,6 @@ pub const Env = struct {
         const allocator = self.arena.allocator();
 
         self.mapping.put(allocator, "def", .{ .function = .{ .builtin = eval.def } }) catch outOfMemory();
-        self.mapping.put(allocator, "if", .{ .function = .{ .builtin = eval.if_ } }) catch outOfMemory();
         self.mapping.put(allocator, "fn", .{ .function = .{ .builtin = eval.fn_ } }) catch outOfMemory();
         self.mapping.put(allocator, "let", .{ .function = .{ .builtin = eval.let } }) catch outOfMemory();
         self.mapping.put(allocator, "eval", .{ .function = .{ .builtin = eval.evalWrapper } }) catch outOfMemory();

@@ -66,29 +66,6 @@ pub fn def(
     return env.getRoot().put(s[0].symbol.getStr(), val);
 }
 
-pub fn if_(
-    allocator: std.mem.Allocator,
-    s: []LispType,
-    env: *Env,
-    err_ctx: *errors.Context,
-) LispError!LispType {
-    if (s.len != 2 and s.len != 3) {
-        return err_ctx.wrongNumberOfArgumentsTwoChoices(2, 3, s.len);
-    }
-
-    const cond = try eval(allocator, s[0], env, err_ctx);
-    return switch (cond) {
-        .nil => if (s.len == 3) s[2] else .nil,
-        .boolean => if (cond.eql(LispType.lisp_true))
-            s[1]
-        else if (s.len == 3)
-            s[2]
-        else
-            .nil,
-        else => s[1],
-    };
-}
-
 pub fn fn_(
     allocator: std.mem.Allocator,
     s: []LispType,
@@ -175,9 +152,9 @@ pub fn eval(
         switch (s) {
             .symbol => |symbol| {
                 return if (env.getPtr(symbol.getStr())) |value|
-                    value.clone(allocator)
+                    return value.*
                 else
-                    err_ctx.symbolNotFound(symbol.getStr());
+                    return err_ctx.symbolNotFound(symbol.getStr());
             },
             .list => |v| {
                 const items = v.getItems();
@@ -186,12 +163,32 @@ pub fn eval(
                 }
 
                 const function = switch (items[0]) {
-                    .symbol => sym: {
-                        const res = try eval(allocator, items[0], env, err_ctx);
-                        if (res != .function) {
-                            return err_ctx.wrongParameterType("First argument", "function");
+                    .symbol => |symbol| sym: {
+                        if (std.mem.eql(u8, symbol.getStr(), "if")) {
+                            const args = items[1..];
+                            if (args.len != 2 and args.len != 3) {
+                                return err_ctx.wrongNumberOfArgumentsTwoChoices(2, 3, args.len);
+                            }
+
+                            const cond = try eval(allocator, args[0], env, err_ctx);
+                            s = switch (cond) {
+                                .nil => if (args.len == 3) args[2] else .nil,
+                                .boolean => if (cond.eql(LispType.lisp_true))
+                                    args[1]
+                                else if (args.len == 3)
+                                    args[2]
+                                else
+                                    .nil,
+                                else => args[1],
+                            };
+                            continue;
+                        } else {
+                            const res = try eval(allocator, items[0], env, err_ctx);
+                            if (res != .function) {
+                                return err_ctx.wrongParameterType("First argument", "function");
+                            }
+                            break :sym res.function;
                         }
-                        break :sym res.function;
                     },
                     .function => |function| function,
                     else => return err_ctx.wrongParameterType("First argument", "function"),
@@ -213,15 +210,16 @@ pub fn eval(
                             return err_ctx.wrongNumberOfArguments(func.args.len, items[1..].len);
                         }
 
-                        var new_env = Env.initFromParent(func.env);
+                        var new_env = Env.initFromParent(env);
                         env_stack.append(root_env.arena.child_allocator, new_env) catch outOfMemory();
                         for (items[1..], func.args) |item, arg| {
-                            const val = try eval(allocator, item, new_env, err_ctx);
+                            const val = try eval(allocator, item, env, err_ctx);
                             _ = new_env.put(arg, val);
                         }
 
                         s = func.ast.*;
                         env = new_env;
+                        continue;
                     },
                 }
             },
