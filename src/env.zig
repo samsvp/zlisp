@@ -6,17 +6,25 @@ const outOfMemory = @import("utils.zig").outOfMemory;
 
 pub const Env = struct {
     arena: std.heap.ArenaAllocator,
-    mapping: std.StringHashMapUnmanaged(LispType),
+    mapping: std.StringArrayHashMapUnmanaged(LispType),
+    // keep track of all atoms, as they need to clean up their values once the
+    // environment goes out of scope.
+    atoms: std.ArrayListUnmanaged([]const u8),
     parent: ?*Self,
 
     const Self = @This();
 
-    pub fn init(allocator: std.mem.Allocator) *Self {
-        var arena = std.heap.ArenaAllocator.init(allocator);
+    pub fn init(base_allocator: std.mem.Allocator) *Self {
+        var arena = std.heap.ArenaAllocator.init(base_allocator);
+        const allocator = arena.allocator();
+
         const env = arena.allocator().create(Self) catch unreachable;
+        var mapping: std.StringArrayHashMapUnmanaged(LispType) = .empty;
+        mapping.ensureTotalCapacity(allocator, 20) catch outOfMemory();
         env.* = .{
             .arena = arena,
-            .mapping = .empty,
+            .atoms = .empty,
+            .mapping = mapping,
             .parent = null,
         };
         return env;
@@ -59,18 +67,21 @@ pub const Env = struct {
     }
 
     pub fn put(self: *Self, key: []const u8, val: LispType) LispType {
-        const allocator = self.arena.allocator();
-        const key_owned = std.mem.Allocator.dupe(allocator, u8, key) catch outOfMemory();
-        const val_clone = val.clone(allocator);
-        self.mapping.put(allocator, key_owned, val_clone) catch outOfMemory();
-        return val_clone;
+        self.mapping.ensureUnusedCapacity(self.arena.allocator(), 1) catch outOfMemory();
+        return self.putAssumeCapacity(key, val);
     }
 
     pub fn putAssumeCapacity(self: *Self, key: []const u8, val: LispType) LispType {
         const allocator = self.arena.allocator();
         const key_owned = std.mem.Allocator.dupe(allocator, u8, key) catch outOfMemory();
-        const val_clone = val.clone(allocator);
-        self.mapping.putAssumeCapacity(key_owned, val_clone);
+        const val_clone = switch (val) {
+            .symbol => blk: {
+                self.atoms.append(allocator, key_owned) catch outOfMemory();
+                break :blk val.clone(self.arena.child_allocator);
+            },
+            else => val.clone(allocator),
+        };
+        self.mapping.put(allocator, key_owned, val_clone) catch outOfMemory();
         return val_clone;
     }
 
@@ -105,7 +116,7 @@ pub const Env = struct {
         self.mapping.put(allocator, "*", .{ .function = .{ .builtin = core.mul } }) catch outOfMemory();
         self.mapping.put(allocator, "/", .{ .function = .{ .builtin = core.div } }) catch outOfMemory();
 
-        //self.mapping.put(allocator, "list", .{ .function = .{ .builtin = core.list } }) catch outOfMemory();
+        self.mapping.put(allocator, "list", .{ .function = .{ .builtin = core.list } }) catch outOfMemory();
         self.mapping.put(allocator, "list?", .{ .function = .{ .builtin = core.listQuestion } }) catch outOfMemory();
         self.mapping.put(allocator, "empty", .{ .function = .{ .builtin = core.emptyQuestion } }) catch outOfMemory();
         self.mapping.put(allocator, "count", .{ .function = .{ .builtin = core.count } }) catch outOfMemory();
@@ -125,6 +136,13 @@ pub const Env = struct {
     }
 
     pub fn deinit(self: *Self) void {
+        for (self.atoms.items) |key| {
+            var atom = self.mapping.getPtr(key) orelse continue;
+            if (atom.* != .atom) {
+                continue;
+            }
+            atom.deinit(self.arena.child_allocator);
+        }
         self.arena.deinit();
     }
 };

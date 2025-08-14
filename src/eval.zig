@@ -163,8 +163,7 @@ pub fn eval(
                         var new_env = Env.initFromParent(env);
                         defer new_env.deinit();
 
-                        s = try builtin(allocator, args.items, new_env, err_ctx);
-                        s = s.clone(allocator);
+                        return try builtin(allocator, args.items, new_env, err_ctx);
                     },
                     .fn_ => |func| {
                         if (func.args.len != items[1..].len) {

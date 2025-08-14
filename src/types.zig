@@ -282,7 +282,7 @@ pub const LispType = union(enum) {
 
         pub fn clone(self: Fn, allocator: std.mem.Allocator) LispType {
             const fn_ = init(allocator, self.ast.*, self.args, &[0][]u8{}, &[0]LispType{}, self.env.getRoot());
-            fn_.function.fn_.env.mapping.ensureTotalCapacity(allocator, self.env.mapping.size) catch {
+            fn_.function.fn_.env.mapping.ensureTotalCapacity(allocator, self.env.mapping.count()) catch {
                 outOfMemory();
             };
 
