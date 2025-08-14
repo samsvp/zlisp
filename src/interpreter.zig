@@ -10,28 +10,24 @@ const outOfMemory = @import("utils.zig").outOfMemory;
 pub const Interpreter = struct {
     arena: std.heap.ArenaAllocator,
     eval_arena: std.heap.ArenaAllocator,
-    buffer: std.ArrayListUnmanaged(u8) = .empty,
+    print_arena: std.heap.ArenaAllocator,
     env: *Env,
     err_ctx: errors.Context,
 
     const Self = @This();
 
-    pub fn init(
-        base_allocator: std.mem.Allocator,
-        buffer_size: usize,
-    ) Self {
-        var arena = std.heap.ArenaAllocator.init(base_allocator);
-        const buffer = std.ArrayListUnmanaged(u8).initCapacity(arena.allocator(), buffer_size) catch outOfMemory();
-
+    pub fn init(base_allocator: std.mem.Allocator) Self {
+        const arena = std.heap.ArenaAllocator.init(base_allocator);
         const eval_arena = std.heap.ArenaAllocator.init(base_allocator);
+        const print_arena = std.heap.ArenaAllocator.init(base_allocator);
 
         const err_ctx = errors.Context.init(base_allocator);
         const env = Env.init(base_allocator).setFunctions();
         return .{
             .arena = arena,
             .eval_arena = eval_arena,
+            .print_arena = print_arena,
             .err_ctx = err_ctx,
-            .buffer = buffer,
             .env = env,
         };
     }
@@ -41,6 +37,7 @@ pub const Interpreter = struct {
         self.env.deinit();
         self.arena.deinit();
         self.eval_arena.deinit();
+        self.print_arena.deinit();
     }
 
     pub fn run(self: *Self, value: LispType) LispError!LispType {
@@ -50,8 +47,8 @@ pub const Interpreter = struct {
     }
 
     pub fn print(self: *Self, value: LispType) []const u8 {
-        self.buffer.clearRetainingCapacity();
-        return value.toString(self.buffer.allocatedSlice());
+        _ = self.print_arena.reset(.retain_capacity);
+        return value.toStringFull(self.print_arena.allocator()) catch outOfMemory();
     }
 
     pub fn rep(self: *Self, text: []const u8) ![]const u8 {

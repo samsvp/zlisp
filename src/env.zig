@@ -1,6 +1,7 @@
 const std = @import("std");
 const eval = @import("eval.zig");
 const LispType = @import("types.zig").LispType;
+const core = @import("core.zig");
 const outOfMemory = @import("utils.zig").outOfMemory;
 
 pub const Env = struct {
@@ -91,6 +92,34 @@ pub const Env = struct {
         self.mapping.put(allocator, "if", .{ .function = .{ .builtin = eval.if_ } }) catch outOfMemory();
         self.mapping.put(allocator, "fn", .{ .function = .{ .builtin = eval.fn_ } }) catch outOfMemory();
         self.mapping.put(allocator, "eval", .{ .function = .{ .builtin = eval.evalWrapper } }) catch outOfMemory();
+
+        self.mapping.put(allocator, "=", .{ .function = .{ .builtin = core.eql } }) catch outOfMemory();
+        self.mapping.put(allocator, "!=", .{ .function = .{ .builtin = core.notEql } }) catch outOfMemory();
+        self.mapping.put(allocator, "<", .{ .function = .{ .builtin = core.less } }) catch outOfMemory();
+        self.mapping.put(allocator, "<=", .{ .function = .{ .builtin = core.lessEql } }) catch outOfMemory();
+        self.mapping.put(allocator, ">", .{ .function = .{ .builtin = core.bigger } }) catch outOfMemory();
+        self.mapping.put(allocator, ">=", .{ .function = .{ .builtin = core.biggerEql } }) catch outOfMemory();
+
+        self.mapping.put(allocator, "+", .{ .function = .{ .builtin = core.add } }) catch outOfMemory();
+        self.mapping.put(allocator, "-", .{ .function = .{ .builtin = core.sub } }) catch outOfMemory();
+        self.mapping.put(allocator, "*", .{ .function = .{ .builtin = core.mul } }) catch outOfMemory();
+        self.mapping.put(allocator, "/", .{ .function = .{ .builtin = core.div } }) catch outOfMemory();
+
+        //self.mapping.put(allocator, "list", .{ .function = .{ .builtin = core.list } }) catch outOfMemory();
+        self.mapping.put(allocator, "list?", .{ .function = .{ .builtin = core.listQuestion } }) catch outOfMemory();
+        self.mapping.put(allocator, "empty", .{ .function = .{ .builtin = core.emptyQuestion } }) catch outOfMemory();
+        self.mapping.put(allocator, "count", .{ .function = .{ .builtin = core.count } }) catch outOfMemory();
+        self.mapping.put(allocator, "cons", .{ .function = .{ .builtin = core.cons } }) catch outOfMemory();
+        self.mapping.put(allocator, "concat", .{ .function = .{ .builtin = core.concat } }) catch outOfMemory();
+
+        self.mapping.put(allocator, "atom", .{ .function = .{ .builtin = core.atom } }) catch outOfMemory();
+        self.mapping.put(allocator, "atom?", .{ .function = .{ .builtin = core.atomQuestion } }) catch outOfMemory();
+        self.mapping.put(allocator, "deref", .{ .function = .{ .builtin = core.deref } }) catch outOfMemory();
+        self.mapping.put(allocator, "reset!", .{ .function = .{ .builtin = core.resetBang } }) catch outOfMemory();
+
+        self.mapping.put(allocator, "str", .{ .function = .{ .builtin = core.str } }) catch outOfMemory();
+        self.mapping.put(allocator, "slurp", .{ .function = .{ .builtin = core.slurp } }) catch outOfMemory();
+        self.mapping.put(allocator, "readStr", .{ .function = .{ .builtin = core.readStr } }) catch outOfMemory();
 
         return self;
     }

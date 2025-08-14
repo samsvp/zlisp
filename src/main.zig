@@ -16,7 +16,7 @@ pub fn main() !void {
     }
 
     const allocator = gpa.allocator();
-    var interpreter = Interpreter.init(gpa.allocator(), 1000);
+    var interpreter = Interpreter.init(gpa.allocator());
     defer interpreter.deinit();
 
     var ln = Linenoise.init(allocator);

@@ -19,16 +19,14 @@ pub const LispType = union(enum) {
     function: Function,
     record: UserStruct,
 
-    const Self = @This();
-
-    pub const lisp_true = Self{ .boolean = true };
-    pub const lisp_false = Self{ .boolean = false };
+    pub const lisp_true = LispType{ .boolean = true };
+    pub const lisp_false = LispType{ .boolean = false };
     pub const BuiltinFunc = *const fn (
         allocator: std.mem.Allocator,
-        args: []Self,
+        args: []LispType,
         env: *Env,
         err_ctx: *errors.Context,
-    ) LispError!Self;
+    ) LispError!LispType;
 
     pub const Array = struct {
         array: ZArray,
@@ -39,10 +37,10 @@ pub const LispType = union(enum) {
             vector,
         };
 
-        const ZArray = std.ArrayListUnmanaged(Self);
+        const ZArray = std.ArrayListUnmanaged(LispType);
 
-        fn initArr(allocator: std.mem.Allocator, arr: []Self) ZArray {
-            var items = std.ArrayListUnmanaged(Self).initCapacity(allocator, arr.len) catch outOfMemory();
+        fn initArr(allocator: std.mem.Allocator, arr: []LispType) ZArray {
+            var items = std.ArrayListUnmanaged(LispType).initCapacity(allocator, arr.len) catch outOfMemory();
 
             for (arr) |*a| {
                 items.appendAssumeCapacity(a.clone(allocator));
@@ -51,49 +49,49 @@ pub const LispType = union(enum) {
             return items;
         }
 
-        pub fn initList(allocator: std.mem.Allocator, arr: []Self) Self {
+        pub fn initList(allocator: std.mem.Allocator, arr: []LispType) LispType {
             const new_arr = initArr(allocator, arr);
             const list = Array{ .array = new_arr, .array_type = .list };
             return .{ .list = list };
         }
 
-        pub fn emptyList() Self {
+        pub fn emptyList() LispType {
             return .{ .list = .{ .array = ZArray.empty, .array_type = .list } };
         }
 
-        pub fn initVector(allocator: std.mem.Allocator, arr: []Self) Self {
+        pub fn initVector(allocator: std.mem.Allocator, arr: []LispType) LispType {
             const new_arr = initArr(allocator, arr);
             const vector = Array{ .array = new_arr, .array_type = .vector };
             return .{ .vector = vector };
         }
 
-        pub fn emptyVector() Self {
+        pub fn emptyVector() LispType {
             return .{ .vector = .{ .array = ZArray.empty, .array_type = .vector } };
         }
 
-        pub fn getItems(self: Array) []Self {
+        pub fn getItems(self: Array) []LispType {
             return self.array.items;
         }
 
         // value should be a pointer and we should clone
-        pub fn append(self: *Array, allocator: std.mem.Allocator, value: Self) void {
+        pub fn append(self: *Array, allocator: std.mem.Allocator, value: LispType) void {
             self.array.append(allocator, value) catch outOfMemory();
         }
 
-        pub fn prepend(allocator: std.mem.Allocator, item: Self, self: Array) Self {
-            var items = std.ArrayListUnmanaged(Self).initCapacity(allocator, self.getItems().len + 1) catch {
+        pub fn prepend(allocator: std.mem.Allocator, item: LispType, self: Array) LispType {
+            var items = std.ArrayListUnmanaged(LispType).initCapacity(allocator, self.getItems().len + 1) catch {
                 outOfMemory();
             };
 
             items.appendAssumeCapacity(item.clone(allocator));
-            for (self.values) |val| {
+            for (self.array.items) |val| {
                 items.appendAssumeCapacity(val.clone(allocator));
             }
 
-            return .{ .list = .{ .array = items, .array_type = .list } };
+            return .{ .list = .{ .array = items, .array_type = self.array_type } };
         }
 
-        pub fn addMutSlice(self: *Array, allocator: std.mem.Allocator, other: []Self) void {
+        pub fn addMutSlice(self: *Array, allocator: std.mem.Allocator, other: []LispType) void {
             self.array.ensureUnusedCapacity(allocator, other.len) catch {
                 outOfMemory();
             };
@@ -107,7 +105,7 @@ pub const LispType = union(enum) {
             self.addMutSlice(allocator, other.array.items);
         }
 
-        pub fn clone(self: Array, allocator: std.mem.Allocator) Self {
+        pub fn clone(self: Array, allocator: std.mem.Allocator) LispType {
             return switch (self.array_type) {
                 .list => initList(allocator, self.array.items),
                 .vector => initVector(allocator, self.array.items),
@@ -123,10 +121,10 @@ pub const LispType = union(enum) {
     };
 
     pub const Atom = struct {
-        value: *Self,
+        value: *LispType,
 
-        pub fn init(allocator: std.mem.Allocator, val: *Self) Self {
-            const new_val = std.mem.Allocator.create(allocator, Self) catch outOfMemory();
+        pub fn init(allocator: std.mem.Allocator, val: LispType) LispType {
+            const new_val = std.mem.Allocator.create(allocator, LispType) catch outOfMemory();
             new_val.* = val.clone(allocator);
             return .{ .atom = .{ .value = new_val } };
         }
@@ -136,15 +134,19 @@ pub const LispType = union(enum) {
             allocator.destroy(self.value);
         }
 
-        pub fn reset(self: *Atom, allocator: std.mem.Allocator, val: *Self) Self {
+        pub fn get(self: Atom) LispType {
+            return self.value.*;
+        }
+
+        pub fn reset(self: *Atom, allocator: std.mem.Allocator, val: LispType) LispType {
             const new_value = val.clone(allocator);
             self.value.deinit(allocator);
             self.value.* = new_value;
             return new_value;
         }
 
-        pub fn clone(self: Atom, allocator: std.mem.Allocator) Self {
-            return init(allocator, self.value);
+        pub fn clone(self: Atom, allocator: std.mem.Allocator) LispType {
+            return init(allocator, self.value.*);
         }
     };
 
@@ -152,13 +154,13 @@ pub const LispType = union(enum) {
         map: Map,
 
         pub const Map = std.HashMapUnmanaged(
-            Self,
-            Self,
+            LispType,
+            LispType,
             Context,
             std.hash_map.default_max_load_percentage,
         );
 
-        pub fn add(self: *Dict, allocator: std.mem.Allocator, key: Self, value: Self) LispError!void {
+        pub fn add(self: *Dict, allocator: std.mem.Allocator, key: LispType, value: LispType) LispError!void {
             switch (key) {
                 .int, .string, .keyword, .symbol => {
                     self.map.put(allocator, key, value) catch {
@@ -169,7 +171,7 @@ pub const LispType = union(enum) {
             }
         }
 
-        pub fn addAssumeCapactity(self: *Dict, key: Self, value: Self) !void {
+        pub fn addAssumeCapactity(self: *Dict, key: LispType, value: LispType) !void {
             switch (key) {
                 .int, .string, .keyword, .symbol => {
                     self.map.putAssumeCapacity(key, value);
@@ -178,7 +180,7 @@ pub const LispType = union(enum) {
             }
         }
 
-        pub fn init() Self {
+        pub fn init() LispType {
             const values: Map = .empty;
             return .{ .dict = .{ .map = values } };
         }
@@ -192,7 +194,7 @@ pub const LispType = union(enum) {
             self.map.deinit(allocator);
         }
 
-        pub fn clone(self: Dict, allocator: std.mem.Allocator) Self {
+        pub fn clone(self: Dict, allocator: std.mem.Allocator) LispType {
             var dict = init();
             dict.dict.map.ensureTotalCapacity(allocator, self.map.size) catch outOfMemory();
 
@@ -205,7 +207,7 @@ pub const LispType = union(enum) {
         }
 
         const Context = struct {
-            pub fn hash(_: Context, value: Self) u64 {
+            pub fn hash(_: Context, value: LispType) u64 {
                 var h: std.hash.Wyhash = .init(0);
                 const b = switch (value) {
                     .int => |i| std.mem.asBytes(&i),
@@ -216,14 +218,14 @@ pub const LispType = union(enum) {
                 return h.final();
             }
 
-            pub fn eql(_: Context, a: Self, b: Self) bool {
+            pub fn eql(_: Context, a: LispType, b: LispType) bool {
                 return a.eql(b);
             }
         };
     };
 
     pub const Fn = struct {
-        ast: *Self,
+        ast: *LispType,
         args: [][]const u8,
         env: *Env,
         is_macro: bool = false,
@@ -235,14 +237,14 @@ pub const LispType = union(enum) {
             closure_names: [][]const u8,
             closure_vals: []LispType,
             base_env: *Env,
-        ) Self {
+        ) LispType {
             var env = Env.init(allocator);
             env.parent = base_env.getRoot();
             for (closure_vals, closure_names) |v, name| {
                 _ = env.put(name, v);
             }
 
-            const ast = allocator.create(Self) catch outOfMemory();
+            const ast = allocator.create(LispType) catch outOfMemory();
             ast.* = val.clone(allocator);
 
             var args_owned = allocator.alloc([]const u8, args.len) catch outOfMemory();
@@ -266,7 +268,7 @@ pub const LispType = union(enum) {
             return self.shared_fn.getPtr().is_macro;
         }
 
-        pub fn getAst(self: *Fn) *Self {
+        pub fn getAst(self: *Fn) *LispType {
             return &self.shared_fn.getPtr().ast;
         }
 
@@ -278,7 +280,7 @@ pub const LispType = union(enum) {
             return self.shared_fn.getPtr().env;
         }
 
-        pub fn clone(self: Fn, allocator: std.mem.Allocator) Self {
+        pub fn clone(self: Fn, allocator: std.mem.Allocator) LispType {
             const fn_ = init(allocator, self.ast.*, self.args, &[0][]u8{}, &[0]LispType{}, self.env.getRoot());
             fn_.function.fn_.env.mapping.ensureTotalCapacity(allocator, self.env.mapping.size) catch {
                 outOfMemory();
@@ -302,7 +304,7 @@ pub const LispType = union(enum) {
         fn_: Fn,
         builtin: BuiltinFunc,
 
-        pub fn clone(self: Function, allocator: std.mem.Allocator) Self {
+        pub fn clone(self: Function, allocator: std.mem.Allocator) LispType {
             return switch (self) {
                 .fn_ => |fn_| fn_.clone(allocator),
                 .builtin => .{ .function = self },
@@ -326,19 +328,20 @@ pub const LispType = union(enum) {
             var chars = std.ArrayListUnmanaged(u8).initCapacity(allocator, str.len) catch {
                 outOfMemory();
             };
-            chars.appendSliceAssumeCapacity(str);
+            const str_clone = allocator.dupe(u8, str) catch outOfMemory();
+            chars.appendSliceAssumeCapacity(str_clone);
             return .{ .chars = chars };
         }
 
-        pub fn initString(allocator: std.mem.Allocator, str: []const u8) Self {
+        pub fn initString(allocator: std.mem.Allocator, str: []const u8) LispType {
             return .{ .string = initFrom(allocator, str) };
         }
 
-        pub fn initSymbol(allocator: std.mem.Allocator, str: []const u8) Self {
+        pub fn initSymbol(allocator: std.mem.Allocator, str: []const u8) LispType {
             return .{ .symbol = initFrom(allocator, str) };
         }
 
-        pub fn initKeyword(allocator: std.mem.Allocator, str: []const u8) Self {
+        pub fn initKeyword(allocator: std.mem.Allocator, str: []const u8) LispType {
             return .{ .keyword = initFrom(allocator, str) };
         }
 
@@ -347,7 +350,7 @@ pub const LispType = union(enum) {
         }
 
         /// Concatenates s1 and s2 on a new string
-        pub fn add(allocator: std.mem.Allocator, s1: String, s2: String) Self {
+        pub fn add(allocator: std.mem.Allocator, s1: String, s2: String) LispType {
             var chars = std.ArrayListUnmanaged(u8).initCapacity(allocator, s1.getStr().len + s2.getStr().len) catch {
                 outOfMemory();
             };
@@ -369,7 +372,7 @@ pub const LispType = union(enum) {
             self.chars.deinit(allocator);
         }
 
-        pub fn clone(self: String, allocator: std.mem.Allocator) Self {
+        pub fn clone(self: String, allocator: std.mem.Allocator) LispType {
             const chars = self.chars.clone(allocator) catch outOfMemory();
             return .{ .string = .{ .chars = chars } };
         }
@@ -432,7 +435,7 @@ pub const LispType = union(enum) {
         }
     };
 
-    pub fn clone(self: Self, allocator: std.mem.Allocator) Self {
+    pub fn clone(self: LispType, allocator: std.mem.Allocator) LispType {
         return switch (self) {
             inline .string,
             .vector,
@@ -454,7 +457,7 @@ pub const LispType = union(enum) {
         };
     }
 
-    pub fn eql(a: Self, b: Self) bool {
+    pub fn eql(a: LispType, b: LispType) bool {
         return switch (a) {
             .int => |v1| switch (b) {
                 .int => |v2| v1 == v2,
@@ -541,14 +544,14 @@ pub const LispType = union(enum) {
 
     /// Converts the type to a zig string. This will convert the whole type, as such, it needs an allocator
     /// and the result must be freed by the caller.
-    pub fn toStringFull(self: Self, allocator: std.mem.Allocator) ![]const u8 {
+    pub fn toStringFull(self: LispType, allocator: std.mem.Allocator) ![]const u8 {
         var buffer = std.ArrayList(u8).init(allocator);
         try self.toStringInternal(&buffer);
         return try buffer.toOwnedSlice();
     }
 
     /// Converts the type to a zig string, prints as much as the buffer can old.
-    pub fn toString(self: Self, buffer: []u8) []const u8 {
+    pub fn toString(self: LispType, buffer: []u8) []const u8 {
         var fba = std.heap.FixedBufferAllocator.init(buffer);
         const allocator = fba.allocator();
         var str_buffer = std.ArrayList(u8).init(allocator);
@@ -556,7 +559,7 @@ pub const LispType = union(enum) {
         return str_buffer.items;
     }
 
-    fn toStringInternal(self: Self, buffer: *std.ArrayList(u8)) !void {
+    fn toStringInternal(self: LispType, buffer: *std.ArrayList(u8)) !void {
         switch (self) {
             .symbol, .keyword => |s| try buffer.appendSlice(s.getStr()),
             .string => |s| try std.fmt.format(buffer.writer(), "\"{s}\"", .{s.getStr()}),
@@ -605,7 +608,7 @@ pub const LispType = union(enum) {
         }
     }
 
-    pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
+    pub fn deinit(self: *LispType, allocator: std.mem.Allocator) void {
         switch (self.*) {
             inline .list,
             .vector,
