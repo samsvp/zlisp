@@ -5,6 +5,82 @@ const errors = @import("errors.zig");
 const LispError = errors.LispError;
 const outOfMemory = @import("utils.zig").outOfMemory;
 
+pub fn quote(
+    _: std.mem.Allocator,
+    s: []LispType,
+    _: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (s.len != 1) {
+        return err_ctx.wrongNumberOfArguments(1, s.len);
+    }
+
+    return s[0];
+}
+
+pub fn quasiquote(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    const isSpliceUnquote = struct {
+        pub fn f(elt: LispType) bool {
+            if (elt != .list) {
+                return false;
+            }
+
+            const arr = elt.list;
+            const items = arr.getItems();
+            return items.len > 0 and
+                items[0] == .symbol and
+                std.mem.eql(u8, items[0].symbol.getStr(), "splice-unquote");
+        }
+    }.f;
+
+    if (args_.len != 1) {
+        return err_ctx.wrongNumberOfArguments(1, args_.len);
+    }
+
+    const ast = args_[0];
+
+    if (ast != .list) {
+        return ast;
+    }
+
+    const args_arr = ast.list;
+    const args = args_arr.getItems();
+    if (args.len == 2) {
+        if (args[0] == .symbol and std.mem.eql(u8, args[0].symbol.getStr(), "unquote")) {
+            return eval(allocator, args[1], env, err_ctx);
+        }
+    }
+
+    var res_arr = std.ArrayListUnmanaged(LispType).initCapacity(allocator, args.len) catch outOfMemory();
+    for (args) |elt| {
+        if (!isSpliceUnquote(elt)) {
+            var eltt = [_]LispType{elt};
+            const res = try quasiquote(allocator, &eltt, env, err_ctx);
+            res_arr.append(allocator, res) catch outOfMemory();
+            continue;
+        }
+
+        const items = elt.list.getItems();
+        if (items.len != 2) return err_ctx.wrongNumberOfArguments(2, items.len);
+
+        const lst = try eval(allocator, items[1], env, err_ctx);
+
+        if (lst != .list) {
+            return err_ctx.wrongParameterType("'splice-unquote' argument", "list");
+        }
+        for (lst.list.getItems()) |*x| {
+            res_arr.append(allocator, x.clone(allocator)) catch outOfMemory();
+        }
+    }
+
+    return LispType.Array.initList(allocator, res_arr.items);
+}
+
 pub fn def(
     allocator: std.mem.Allocator,
     s: []LispType,
@@ -119,72 +195,75 @@ pub fn eval(
                     return s;
                 }
 
-                const function = switch (items[0]) {
-                    .symbol => |symbol| sym: {
-                        if (std.mem.eql(u8, symbol.getStr(), "let")) {
-                            const args = items[1..];
-                            if (args.len != 2) {
-                                return err_ctx.wrongNumberOfArguments(2, args.len);
-                            }
-                            var new_env = Env.initFromParent(env);
-                            env_stack.append(root_env.arena.child_allocator, new_env) catch outOfMemory();
-
-                            const arr = switch (args[0]) {
-                                .list, .vector => |arr| blk: {
-                                    if (arr.getItems().len % 2 != 0) {
-                                        return err_ctx.wrongNumberOfArguments(args.len + 1, args.len);
-                                    }
-                                    break :blk arr;
-                                },
-                                else => return err_ctx.wrongParameterType("First argument", "vector"),
-                            };
-
-                            const args_items = arr.getItems();
-                            for (0..args_items.len / 2) |_i| {
-                                const i = 2 * _i;
-
-                                var arg_env = Env.initFromParent(new_env);
-                                defer arg_env.deinit();
-
-                                const key = args_items[i];
-                                const value = try eval(allocator, args_items[i + 1], arg_env, err_ctx);
-
-                                switch (key) {
-                                    .symbol => |new_symbol| {
-                                        _ = new_env.put(new_symbol.getStr(), value);
-                                    },
-                                    else => return err_ctx.wrongParameterType("'let' key", "symbol"),
-                                }
-                            }
-
-                            s = args[1];
-                            env = new_env;
-                            continue;
-                        } else if (std.mem.eql(u8, symbol.getStr(), "if")) {
-                            const args = items[1..];
-                            if (args.len != 2 and args.len != 3) {
-                                return err_ctx.wrongNumberOfArgumentsTwoChoices(2, 3, args.len);
-                            }
-
-                            const cond = try eval(allocator, args[0], env, err_ctx);
-                            s = switch (cond) {
-                                .nil => if (args.len == 3) args[2] else .nil,
-                                .boolean => if (cond.eql(LispType.lisp_true))
-                                    args[1]
-                                else if (args.len == 3)
-                                    args[2]
-                                else
-                                    .nil,
-                                else => args[1],
-                            };
-                            continue;
-                        } else {
-                            const res = try eval(allocator, items[0], env, err_ctx);
-                            if (res != .function) {
-                                return err_ctx.wrongParameterType("First argument", "function");
-                            }
-                            break :sym res.function;
+                if (items[0] == .symbol) {
+                    const symbol = items[0].symbol;
+                    const symbol_name = symbol.getStr();
+                    const args = items[1..];
+                    if (std.mem.eql(u8, symbol_name, "let")) {
+                        if (args.len != 2) {
+                            return err_ctx.wrongNumberOfArguments(2, args.len);
                         }
+                        var new_env = Env.initFromParent(env);
+                        env_stack.append(root_env.arena.child_allocator, new_env) catch outOfMemory();
+
+                        const arr = switch (args[0]) {
+                            .list, .vector => |arr| blk: {
+                                if (arr.getItems().len % 2 != 0) {
+                                    return err_ctx.wrongNumberOfArguments(args.len + 1, args.len);
+                                }
+                                break :blk arr;
+                            },
+                            else => return err_ctx.wrongParameterType("First argument", "vector"),
+                        };
+
+                        const args_items = arr.getItems();
+                        for (0..args_items.len / 2) |_i| {
+                            const i = 2 * _i;
+
+                            var arg_env = Env.initFromParent(new_env);
+                            defer arg_env.deinit();
+
+                            const key = args_items[i];
+                            const value = try eval(allocator, args_items[i + 1], arg_env, err_ctx);
+
+                            switch (key) {
+                                .symbol => |new_symbol| {
+                                    _ = new_env.put(new_symbol.getStr(), value);
+                                },
+                                else => return err_ctx.wrongParameterType("'let' key", "symbol"),
+                            }
+                        }
+
+                        s = args[1];
+                        env = new_env;
+                        continue;
+                    } else if (std.mem.eql(u8, symbol_name, "if")) {
+                        if (args.len != 2 and args.len != 3) {
+                            return err_ctx.wrongNumberOfArgumentsTwoChoices(2, 3, args.len);
+                        }
+
+                        const cond = try eval(allocator, args[0], env, err_ctx);
+                        s = switch (cond) {
+                            .nil => if (args.len == 3) args[2] else .nil,
+                            .boolean => if (cond.eql(LispType.lisp_true))
+                                args[1]
+                            else if (args.len == 3)
+                                args[2]
+                            else
+                                .nil,
+                            else => args[1],
+                        };
+                        continue;
+                    }
+                }
+
+                const function = switch (items[0]) {
+                    .symbol => sym: {
+                        const res = try eval(allocator, items[0], env, err_ctx);
+                        if (res != .function) {
+                            return err_ctx.wrongParameterType("First argument", "function");
+                        }
+                        break :sym res.function;
                     },
                     .function => |function| function,
                     else => return err_ctx.wrongParameterType("First argument", "function"),
