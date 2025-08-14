@@ -228,8 +228,19 @@ pub const LispType = union(enum) {
         env: *Env,
         is_macro: bool = false,
 
-        pub fn init(allocator: std.mem.Allocator, val: Self, args: [][]const u8) Self {
-            const env = Env.init(allocator);
+        pub fn init(
+            allocator: std.mem.Allocator,
+            val: LispType,
+            args: [][]const u8,
+            closure_names: [][]const u8,
+            closure_vals: []LispType,
+            base_env: *Env,
+        ) Self {
+            var env = Env.init(allocator);
+            env.parent = base_env.getRoot();
+            for (closure_vals, closure_names) |v, name| {
+                _ = env.put(name, v);
+            }
 
             const ast = allocator.create(Self) catch outOfMemory();
             ast.* = val.clone(allocator);
@@ -268,7 +279,7 @@ pub const LispType = union(enum) {
         }
 
         pub fn clone(self: Fn, allocator: std.mem.Allocator) Self {
-            const fn_ = init(allocator, self.ast.*, self.args);
+            const fn_ = init(allocator, self.ast.*, self.args, &[0][]u8{}, &[0]LispType{}, self.env.getRoot());
             fn_.function.fn_.env.mapping.ensureTotalCapacity(allocator, self.env.mapping.size) catch {
                 outOfMemory();
             };

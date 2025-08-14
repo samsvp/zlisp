@@ -49,7 +49,7 @@ pub fn if_(
 pub fn fn_(
     allocator: std.mem.Allocator,
     s: []LispType,
-    _: *Env,
+    env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (s.len != 2 and s.len != 3) {
@@ -71,10 +71,34 @@ pub fn fn_(
         args.appendAssumeCapacity(a.symbol.getStr());
     }
 
+    var closure_names: std.ArrayListUnmanaged([]const u8) = .empty;
+    var closure_vals: std.ArrayListUnmanaged(LispType) = .empty;
+    if (s.len == 3) {
+        const closure_symbols = s[0];
+        if (closure_symbols != .vector) {
+            return err_ctx.wrongParameterType("Parameter list", "vector");
+        }
+
+        const c_items = closure_symbols.vector.getItems();
+        closure_names.ensureTotalCapacity(allocator, c_items.len) catch outOfMemory();
+        closure_vals.ensureTotalCapacity(allocator, c_items.len) catch outOfMemory();
+        for (c_items) |item| {
+            if (item != .symbol) {
+                return err_ctx.wrongParameterType("Parameter list arguments", "symbol");
+            }
+
+            closure_names.appendAssumeCapacity(item.symbol.getStr());
+            closure_vals.appendAssumeCapacity(try eval(allocator, item, env, err_ctx));
+        }
+    }
+
     return LispType.Fn.init(
         allocator,
         s[s.len - 1],
         args.items,
+        closure_names.items,
+        closure_vals.items,
+        env,
     );
 }
 
@@ -147,8 +171,7 @@ pub fn eval(
                             return err_ctx.wrongNumberOfArguments(func.args.len, items[1..].len);
                         }
 
-                        // this leaks
-                        var new_env = Env.initFromParent(env);
+                        var new_env = Env.initFromParent(func.env);
                         env_stack.append(root_env.arena.child_allocator, new_env) catch outOfMemory();
                         for (items[1..], func.args) |item, arg| {
                             const val = try eval(allocator, item, new_env, err_ctx);
