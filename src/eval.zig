@@ -96,7 +96,82 @@ pub fn def(
     }
 
     const val = try eval(allocator, s[1], env, err_ctx);
-    return env.getRoot().put(s[0].symbol.getStr(), val);
+    return env.put(s[0].symbol.getStr(), val);
+}
+
+pub fn if_(
+    allocator: std.mem.Allocator,
+    s: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (s.len != 2 and s.len != 3) {
+        return err_ctx.wrongNumberOfArgumentsTwoChoices(2, 3, s.len);
+    }
+
+    const cond = try eval(allocator, s[0], env, err_ctx);
+    const new_s = switch (cond) {
+        .nil => if (s.len == 3) s[2] else .nil,
+        .boolean => if (cond.eql(LispType.lisp_true))
+            s[1]
+        else if (s.len == 3)
+            s[2]
+        else
+            .nil,
+        else => s[1],
+    };
+    return eval(allocator, new_s, env, err_ctx);
+}
+
+pub fn let(
+    allocator: std.mem.Allocator,
+    args: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args.len != 2) {
+        return err_ctx.wrongNumberOfArguments(2, args.len);
+    }
+
+    var new_env = Env.initFromParent(env);
+
+    defer new_env.deinit();
+
+    const arr = switch (args[0]) {
+        .list, .vector => |arr| blk: {
+            if (arr.getItems().len % 2 != 0) {
+                return err_ctx.wrongNumberOfArguments(args.len + 1, args.len);
+            }
+
+            break :blk arr;
+        },
+
+        else => return err_ctx.wrongParameterType("First argument", "vector"),
+    };
+
+    const args_items = arr.getItems();
+
+    for (0..args_items.len / 2) |_i| {
+        const i = 2 * _i;
+
+        var arg_env = Env.initFromParent(new_env);
+
+        defer arg_env.deinit();
+
+        const key = args_items[i];
+
+        const value = try eval(allocator, args_items[i + 1], arg_env, err_ctx);
+
+        switch (key) {
+            .symbol => |new_symbol| {
+                _ = new_env.put(new_symbol.getStr(), value);
+            },
+
+            else => return err_ctx.wrongParameterType("'let' key", "symbol"),
+        }
+    }
+
+    return eval(allocator, args[1], new_env, err_ctx);
 }
 
 pub fn fn_(
@@ -195,68 +270,6 @@ pub fn eval(
                     return s;
                 }
 
-                if (items[0] == .symbol) {
-                    const symbol = items[0].symbol;
-                    const symbol_name = symbol.getStr();
-                    const args = items[1..];
-                    if (std.mem.eql(u8, symbol_name, "let")) {
-                        if (args.len != 2) {
-                            return err_ctx.wrongNumberOfArguments(2, args.len);
-                        }
-                        var new_env = Env.initFromParent(env);
-                        env_stack.append(root_env.arena.child_allocator, new_env) catch outOfMemory();
-
-                        const arr = switch (args[0]) {
-                            .list, .vector => |arr| blk: {
-                                if (arr.getItems().len % 2 != 0) {
-                                    return err_ctx.wrongNumberOfArguments(args.len + 1, args.len);
-                                }
-                                break :blk arr;
-                            },
-                            else => return err_ctx.wrongParameterType("First argument", "vector"),
-                        };
-
-                        const args_items = arr.getItems();
-                        for (0..args_items.len / 2) |_i| {
-                            const i = 2 * _i;
-
-                            var arg_env = Env.initFromParent(new_env);
-                            defer arg_env.deinit();
-
-                            const key = args_items[i];
-                            const value = try eval(allocator, args_items[i + 1], arg_env, err_ctx);
-
-                            switch (key) {
-                                .symbol => |new_symbol| {
-                                    _ = new_env.put(new_symbol.getStr(), value);
-                                },
-                                else => return err_ctx.wrongParameterType("'let' key", "symbol"),
-                            }
-                        }
-
-                        s = args[1];
-                        env = new_env;
-                        continue;
-                    } else if (std.mem.eql(u8, symbol_name, "if")) {
-                        if (args.len != 2 and args.len != 3) {
-                            return err_ctx.wrongNumberOfArgumentsTwoChoices(2, 3, args.len);
-                        }
-
-                        const cond = try eval(allocator, args[0], env, err_ctx);
-                        s = switch (cond) {
-                            .nil => if (args.len == 3) args[2] else .nil,
-                            .boolean => if (cond.eql(LispType.lisp_true))
-                                args[1]
-                            else if (args.len == 3)
-                                args[2]
-                            else
-                                .nil,
-                            else => args[1],
-                        };
-                        continue;
-                    }
-                }
-
                 const function = switch (items[0]) {
                     .symbol => sym: {
                         const res = try eval(allocator, items[0], env, err_ctx);
@@ -271,22 +284,14 @@ pub fn eval(
 
                 switch (function) {
                     .builtin => |builtin| {
-                        var args = std.ArrayListUnmanaged(LispType).initCapacity(allocator, items.len - 1) catch outOfMemory();
-                        for (items[1..]) |item| {
-                            args.appendAssumeCapacity(item);
-                        }
-                        var new_env = Env.initFromParent(env);
-                        defer new_env.deinit();
-
-                        return try builtin(allocator, args.items, new_env, err_ctx);
+                        return try builtin(allocator, items[1..], env, err_ctx);
                     },
                     .fn_ => |func| {
                         if (func.args.len != items[1..].len) {
                             return err_ctx.wrongNumberOfArguments(func.args.len, items[1..].len);
                         }
 
-                        var new_env = Env.initFromParent(env);
-                        env_stack.append(root_env.arena.child_allocator, new_env) catch outOfMemory();
+                        var new_env = Env.initFromParent(func.env);
                         for (items[1..], func.args) |item, arg| {
                             const val = try eval(allocator, item, env, err_ctx);
                             _ = new_env.put(arg, val);

@@ -260,24 +260,34 @@ pub const LispType = union(enum) {
             return .{ .function = .{ .fn_ = m_fn } };
         }
 
-        pub fn setMacro(self: *Fn) void {
-            self.shared_fn.getPtr().is_macro = true;
-        }
+        pub fn init2(
+            allocator: std.mem.Allocator,
+            ast: *LispType,
+            args: []LispType,
+            root: *Env,
+        ) LispType {
+            var args_owned = allocator.alloc([]const u8, args.len) catch {
+                return .nil;
+            };
 
-        pub fn isMacro(self: *Fn) bool {
-            return self.shared_fn.getPtr().is_macro;
-        }
+            for (args, 0..) |arg, i| {
+                switch (arg) {
+                    .symbol => |s| args_owned[i] = allocator.dupe(u8, s.getStr()) catch unreachable,
+                    else => {
+                        return .nil;
+                    },
+                }
+            }
 
-        pub fn getAst(self: *Fn) *LispType {
-            return &self.shared_fn.getPtr().ast;
-        }
+            const env = root;
 
-        pub fn getArgs(self: Fn) [][]const u8 {
-            return self.shared_fn.get().args;
-        }
+            const m_fn = Fn{
+                .ast = ast,
+                .args = args_owned,
+                .env = env,
+            };
 
-        pub fn getEnv(self: *Fn) *Env {
-            return self.shared_fn.getPtr().env;
+            return .{ .function = .{ .fn_ = m_fn } };
         }
 
         pub fn clone(self: Fn, allocator: std.mem.Allocator) LispType {
