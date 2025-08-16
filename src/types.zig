@@ -241,7 +241,7 @@ pub const LispType = union(enum) {
             var env = Env.init(allocator);
             env.parent = base_env;
             for (closure_vals, closure_names) |v, name| {
-                _ = env.put(name, v);
+                _ = env.putClone(name, v);
             }
 
             const ast = allocator.create(LispType) catch outOfMemory();
@@ -260,45 +260,12 @@ pub const LispType = union(enum) {
             return .{ .function = .{ .fn_ = m_fn } };
         }
 
-        pub fn init2(
-            allocator: std.mem.Allocator,
-            ast: *LispType,
-            args: []LispType,
-            root: *Env,
-        ) LispType {
-            var args_owned = allocator.alloc([]const u8, args.len) catch {
-                return .nil;
-            };
-
-            for (args, 0..) |arg, i| {
-                switch (arg) {
-                    .symbol => |s| args_owned[i] = allocator.dupe(u8, s.getStr()) catch unreachable,
-                    else => {
-                        return .nil;
-                    },
-                }
-            }
-
-            const env = root;
-
-            const m_fn = Fn{
-                .ast = ast,
-                .args = args_owned,
-                .env = env,
-            };
-
-            return .{ .function = .{ .fn_ = m_fn } };
-        }
-
         pub fn clone(self: Fn, allocator: std.mem.Allocator) LispType {
             const fn_ = init(allocator, self.ast.*, self.args, &[0][]u8{}, &[0]LispType{}, self.env.getRoot());
-            fn_.function.fn_.env.mapping.ensureTotalCapacity(allocator, self.env.mapping.count()) catch {
-                outOfMemory();
-            };
 
             var iter = self.env.mapping.iterator();
             while (iter.next()) |entry| {
-                _ = fn_.function.fn_.env.putAssumeCapacity(entry.key_ptr.*, entry.value_ptr.*);
+                _ = fn_.function.fn_.env.putClone(entry.key_ptr.*, entry.value_ptr.*);
             }
             return fn_;
         }

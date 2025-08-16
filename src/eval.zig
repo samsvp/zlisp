@@ -96,7 +96,7 @@ pub fn def(
     }
 
     const val = try eval(allocator, s[1], env, err_ctx);
-    return env.put(s[0].symbol.getStr(), val);
+    return env.putClone(s[0].symbol.getStr(), val);
 }
 
 pub fn if_(

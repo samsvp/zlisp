@@ -481,12 +481,11 @@ pub fn resetBang(
         return err_ctx.wrongNumberOfArguments(2, args.len);
     }
 
-    if (args[0] != .atom) {
-        return err_ctx.wrongParameterType("'reset!' first argument", "atom");
-    }
-
-    const val = try eval.eval(allocator, args[1], env, err_ctx);
-    return args[0].atom.reset(allocator, val);
+    var val = try eval.eval(allocator, args[0], env, err_ctx);
+    return switch (val) {
+        .atom => |*a| a.reset(allocator, args[1]),
+        else => err_ctx.wrongParameterType("'reset!' first argument", "atom"),
+    };
 }
 
 pub fn str(
