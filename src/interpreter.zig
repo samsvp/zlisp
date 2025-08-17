@@ -40,10 +40,10 @@ pub const Interpreter = struct {
         self.print_arena.deinit();
     }
 
-    pub fn run(self: *Self, value: LispType) LispError!LispType {
+    pub fn run(self: *Self, allocator: std.mem.Allocator, value: LispType) LispError!LispType {
         defer _ = self.eval_arena.reset(.retain_capacity);
         const s = try eval(self.eval_arena.allocator(), value, self.env, &self.err_ctx);
-        return s.clone(self.arena.allocator());
+        return s.clone(allocator);
     }
 
     pub fn print(self: *Self, value: LispType) []const u8 {
@@ -52,15 +52,16 @@ pub const Interpreter = struct {
     }
 
     pub fn rep(self: *Self, text: []const u8) ![]const u8 {
+        _ = self.arena.reset(.retain_capacity);
         const allocator = self.arena.allocator();
         const val = try Reader.readStr(allocator, text);
-        const ret = self.run(val) catch blk: {
+        const ret = self.run(allocator, val) catch blk: {
             const err_str = std.fmt.allocPrint(
-                self.print_arena.allocator(),
+                allocator,
                 "ERROR: {s}\n",
                 .{self.err_ctx.buffer.items},
             ) catch outOfMemory();
-            break :blk LispType.String.initString(self.arena.allocator(), err_str);
+            break :blk LispType.String.initString(allocator, err_str);
         };
         return self.print(ret);
     }

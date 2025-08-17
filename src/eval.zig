@@ -134,7 +134,6 @@ pub fn let(
     }
 
     var new_env = Env.initFromParent(env);
-
     defer new_env.deinit();
 
     const arr = switch (args[0]) {
@@ -142,35 +141,27 @@ pub fn let(
             if (arr.getItems().len % 2 != 0) {
                 return err_ctx.wrongNumberOfArguments(args.len + 1, args.len);
             }
-
             break :blk arr;
         },
-
         else => return err_ctx.wrongParameterType("First argument", "vector"),
     };
 
     const args_items = arr.getItems();
-
     for (0..args_items.len / 2) |_i| {
         const i = 2 * _i;
 
         var arg_env = Env.initFromParent(new_env);
-
         defer arg_env.deinit();
 
         const key = args_items[i];
-
         const value = try eval(allocator, args_items[i + 1], arg_env, err_ctx);
-
         switch (key) {
             .symbol => |new_symbol| {
                 _ = new_env.put(new_symbol.getStr(), value);
             },
-
             else => return err_ctx.wrongParameterType("'let' key", "symbol"),
         }
     }
-
     return eval(allocator, args[1], new_env, err_ctx);
 }
 
@@ -260,9 +251,9 @@ pub fn eval(
         switch (s) {
             .symbol => |symbol| {
                 return if (env.getPtr(symbol.getStr())) |value|
-                    return value.*
+                    value.*
                 else
-                    return err_ctx.symbolNotFound(symbol.getStr());
+                    err_ctx.symbolNotFound(symbol.getStr());
             },
             .list => |v| {
                 const items = v.getItems();
@@ -271,14 +262,14 @@ pub fn eval(
                 }
 
                 const function = switch (items[0]) {
-                    .symbol => sym: {
+                    .function => |function| function,
+                    .symbol, .list => sym: {
                         const res = try eval(allocator, items[0], env, err_ctx);
                         if (res != .function) {
                             return err_ctx.wrongParameterType("First argument", "function");
                         }
                         break :sym res.function;
                     },
-                    .function => |function| function,
                     else => return err_ctx.wrongParameterType("First argument", "function"),
                 };
 
