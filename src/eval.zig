@@ -230,21 +230,12 @@ pub fn eval(
     var s = ast;
     var env = root_env;
 
-    var env_stack: std.ArrayListUnmanaged(*Env) = .empty;
-
-    defer {
-        for (env_stack.items) |m_env| {
-            m_env.deinit();
-        }
-        env_stack.deinit(root_env.arena.child_allocator);
-    }
-
     while (true) {
         const is_eval = env.get("DEBUG-EVAL");
         if (is_eval) |flag| {
             if (flag != .nil and !flag.eql(LispType.lisp_false)) {
-                var buffer: [1000]u8 = undefined;
-                std.debug.print("EVAL {s}\n", .{s.toString(&buffer)});
+                const str_value = s.toStringFull(allocator) catch outOfMemory();
+                std.debug.print("EVAL {s}\n", .{str_value});
             }
         }
 

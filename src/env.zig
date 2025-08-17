@@ -19,11 +19,10 @@ pub const Env = struct {
     pub fn init(base_allocator: std.mem.Allocator) *Self {
         var arena = std.heap.ArenaAllocator.init(base_allocator);
         const env = arena.allocator().create(Self) catch unreachable;
-        const mapping: std.StringArrayHashMapUnmanaged(LispType) = .empty;
         env.* = .{
             .arena = arena,
-            .atoms = .empty,
-            .mapping = mapping,
+            .atoms = .{},
+            .mapping = .{},
             .parent = null,
         };
         return env;
@@ -67,7 +66,7 @@ pub const Env = struct {
         return root;
     }
 
-    pub fn isRoot(self: *Self) bool {
+    pub fn isRoot(self: Self) bool {
         return self.parent == null;
     }
 
