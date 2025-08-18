@@ -1,12 +1,7 @@
 const std = @import("std");
-const lib = @import("zlisp_lib");
-const errors = @import("errors.zig");
-const UserStruct = @import("types.zig").LispType.UserStruct;
-const LispType = @import("types.zig").LispType;
 const Reader = @import("reader.zig");
 const Linenoise = @import("linenoize").Linenoise;
 const Interpreter = @import("interpreter.zig").Interpreter;
-const eval = @import("eval.zig").eval;
 
 pub fn main() !void {
     var gpa = std.heap.DebugAllocator(.{}){};

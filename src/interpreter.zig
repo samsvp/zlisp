@@ -1,5 +1,5 @@
 const std = @import("std");
-const eval = @import("eval.zig").eval;
+const eval = @import("core.zig").eval;
 const errors = @import("errors.zig");
 const Env = @import("env.zig").Env;
 const Reader = @import("reader.zig");

@@ -1,477 +1,216 @@
 const std = @import("std");
 const Env = @import("env.zig").Env;
-const errors = @import("errors.zig");
 const LispType = @import("types.zig").LispType;
+const errors = @import("errors.zig");
 const LispError = errors.LispError;
-const reader = @import("reader.zig");
-const eval = @import("eval.zig");
 const outOfMemory = @import("utils.zig").outOfMemory;
 
-pub fn eql(
+pub fn try_(
     allocator: std.mem.Allocator,
-    args: []LispType,
+    s: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
-    if (args.len < 2) {
-        return err_ctx.wrongNumberOfArguments(2, args.len);
+    if (s.len != 2) {
+        return err_ctx.wrongNumberOfArguments(2, s.len);
     }
 
-    const fst = try eval.eval(allocator, args[0], env, err_ctx);
-
-    return for (args[1..]) |a| {
-        const val = try eval.eval(allocator, a, env, err_ctx);
-        if (!fst.eql(val)) break LispType.lisp_false;
-    } else blk: {
-        break :blk LispType.lisp_true;
-    };
-}
-
-pub fn notEql(
-    allocator: std.mem.Allocator,
-    args: []LispType,
-    env: *Env,
-    err_ctx: *errors.Context,
-) LispError!LispType {
-    const ret = try eql(allocator, args, env, err_ctx);
-    return .{ .boolean = !ret.boolean };
-}
-
-pub fn cmp(
-    allocator: std.mem.Allocator,
-    args: []LispType,
-    err_ctx: *errors.Context,
-    env: *Env,
-    cmpFn: fn (f32, f32) bool,
-) LispError!LispType {
-    if (args.len < 2) {
-        return err_ctx.wrongNumberOfArguments(2, args.len);
+    if (s[1] != .list) {
+        return err_ctx.wrongParameterType("'try' second argument", "list");
     }
 
-    var args_eval = std.ArrayListUnmanaged(LispType).initCapacity(allocator, args.len) catch outOfMemory();
-    for (args) |arg| {
-        const val = try eval.eval(allocator, arg, env, err_ctx);
-        args_eval.appendAssumeCapacity(val);
+    const catch_form = s[1].list.getItems();
+    if (catch_form.len != 3) {
+        return err_ctx.wrongNumberOfArguments(3, catch_form.len);
     }
 
-    const v1: f32 = switch (args[0]) {
-        .int => |i| @floatFromInt(i),
-        .float => |f| f,
-        else => return err_ctx.wrongParameterType("Operands", "int or float"),
+    if (catch_form[0] == .symbol) {
+        if (!std.mem.eql(u8, catch_form[0].symbol.getStr(), "catch"))
+            return err_ctx.missingCatch();
+    } else {
+        return err_ctx.missingCatch();
+    }
+
+    if (catch_form[1] != .symbol) {
+        return err_ctx.wrongParameterType("'catch' first argument", "symbol");
+    }
+
+    const ret = eval(allocator, s[0], env, err_ctx) catch {
+        const err_str = err_ctx.toLispString(allocator);
+        var new_env = Env.initFromParent(env);
+        defer new_env.deinit();
+
+        _ = new_env.put(catch_form[1].symbol.getStr(), err_str);
+        return eval(allocator, catch_form[2], new_env, err_ctx);
     };
 
-    return for (args[1..]) |a| {
-        const v2: f32 = switch (a) {
-            .int => |i| @floatFromInt(i),
-            .float => |f| f,
-            else => return err_ctx.wrongParameterType("Operands", "int or float"),
-        };
-        if (!cmpFn(v1, v2)) break LispType.lisp_false;
-    } else blk: {
-        break :blk .{ .boolean = true };
-    };
+    return ret;
 }
 
-pub fn less(
-    allocator: std.mem.Allocator,
-    args: []LispType,
-    env: *Env,
+pub fn throw(
+    _: std.mem.Allocator,
+    s: []LispType,
+    _: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
-    const lessFn = struct {
-        pub fn f(v1: f32, v2: f32) bool {
-            return v1 < v2;
-        }
-    }.f;
-    return cmp(allocator, args, err_ctx, env, lessFn);
-}
-
-pub fn lessEql(
-    allocator: std.mem.Allocator,
-    args: []LispType,
-    env: *Env,
-    err_ctx: *errors.Context,
-) LispError!LispType {
-    const lessFn = struct {
-        pub fn f(v1: f32, v2: f32) bool {
-            return v1 <= v2;
-        }
-    }.f;
-    return cmp(allocator, args, err_ctx, env, lessFn);
-}
-
-pub fn bigger(
-    allocator: std.mem.Allocator,
-    args: []LispType,
-    env: *Env,
-    err_ctx: *errors.Context,
-) LispError!LispType {
-    const lessFn = struct {
-        pub fn f(v1: f32, v2: f32) bool {
-            return v1 > v2;
-        }
-    }.f;
-    return cmp(allocator, args, err_ctx, env, lessFn);
-}
-
-pub fn biggerEql(
-    allocator: std.mem.Allocator,
-    args: []LispType,
-    env: *Env,
-    err_ctx: *errors.Context,
-) LispError!LispType {
-    const lessFn = struct {
-        pub fn f(v1: f32, v2: f32) bool {
-            return v1 >= v2;
-        }
-    }.f;
-    return cmp(allocator, args, err_ctx, env, lessFn);
-}
-
-pub fn evalArgs(
-    allocator: std.mem.Allocator,
-    uneval_args: []LispType,
-    env: *Env,
-    err_ctx: *errors.Context,
-) LispError![]LispType {
-    var args_arr = std.ArrayListUnmanaged(LispType).initCapacity(allocator, uneval_args.len) catch outOfMemory();
-    for (uneval_args) |arg| {
-        const val = try eval.eval(allocator, arg, env, err_ctx);
-        args_arr.appendAssumeCapacity(val);
+    if (s.len != 1) {
+        return err_ctx.wrongNumberOfArguments(1, s.len);
     }
-    return args_arr.items;
+
+    if (s[0] != .string) {
+        return err_ctx.wrongParameterType("'throw' first argument", "string");
+    }
+
+    return err_ctx.customError(s[0].string.getStr());
 }
 
-pub fn add(
+pub fn quote(
+    _: std.mem.Allocator,
+    s: []LispType,
+    _: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (s.len != 1) {
+        return err_ctx.wrongNumberOfArguments(1, s.len);
+    }
+
+    return s[0];
+}
+
+pub fn quasiquote(
     allocator: std.mem.Allocator,
     args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
-    const args = try evalArgs(allocator, args_, env, err_ctx);
-
-    if (args.len == 0) {
-        return err_ctx.atLeastNArguments(1);
-    }
-
-    switch (args[0]) {
-        .int => |i| {
-            var acc: i32 = i;
-            for (args[1..]) |value| switch (value) {
-                .int => |i_val| acc += i_val,
-                else => return err_ctx.wrongParameterType("'+' argument", "int"),
-            };
-            return .{ .int = acc };
-        },
-        .float => |f| {
-            var acc: f32 = f;
-            for (args[1..]) |value| switch (value) {
-                .float => |f_val| acc += f_val,
-                .int => |i_val| acc += @floatFromInt(i_val),
-                else => return err_ctx.wrongParameterType("'+' argument", "float"),
-            };
-            return .{ .float = acc };
-        },
-        .string => {
-            var acc = LispType.String.initString(allocator, "");
-            for (args) |arg| switch (arg) {
-                .string => |s| acc.string.addMut(allocator, s),
-                else => return err_ctx.wrongParameterType("'+' argument", "string"),
-            };
-            return acc;
-        },
-        .list, .vector => |arr| {
-            var acc = switch (arr.array_type) {
-                .list => LispType.Array.emptyList(),
-                .vector => LispType.Array.emptyVector(),
-            };
-
-            for (args) |arg| switch (arg) {
-                .list, .vector => |vs| switch (acc) {
-                    inline .list, .vector => |*l| l.addMut(allocator, vs),
-                    else => unreachable,
-                },
-                else => return err_ctx.wrongParameterType("'+' argument", "list or vector"),
-            };
-            return acc;
-        },
-        else => return err_ctx.wrongParameterType("'+' argument", "int, float, string, list or vector"),
-    }
-}
-
-pub fn sub(
-    allocator: std.mem.Allocator,
-    args_: []LispType,
-    env: *Env,
-    err_ctx: *errors.Context,
-) LispError!LispType {
-    const args = try evalArgs(allocator, args_, env, err_ctx);
-
-    if (args.len == 0) {
-        return err_ctx.atLeastNArguments(1);
-    }
-
-    if (args.len == 1) {
-        return switch (args[0]) {
-            .int => |i| .{ .int = -i },
-            .float => |f| .{ .float = -f },
-            else => err_ctx.wrongParameterType("'-' arguments", "int or float"),
-        };
-    }
-
-    switch (args[0]) {
-        .int => |i| {
-            var acc: i32 = i;
-            for (args[1..]) |value| switch (value) {
-                .int => |i_val| acc -= i_val,
-                else => return err_ctx.wrongParameterType("'-' arguments", "int or float"),
-            };
-            return .{ .int = acc };
-        },
-        .float => |f| {
-            var acc: f32 = f;
-            for (args[1..]) |value| switch (value) {
-                .float => |f_val| acc -= f_val,
-                .int => |i_val| acc -= @floatFromInt(i_val),
-                else => return err_ctx.wrongParameterType("'-' arguments", "int or float"),
-            };
-            return .{ .float = acc };
-        },
-        else => return err_ctx.wrongParameterType("'-' arguments", "int or float"),
-    }
-}
-
-pub fn mul(
-    allocator: std.mem.Allocator,
-    args_: []LispType,
-    env: *Env,
-    err_ctx: *errors.Context,
-) LispError!LispType {
-    const args = try evalArgs(allocator, args_, env, err_ctx);
-
-    if (args.len == 0) {
-        return err_ctx.atLeastNArguments(1);
-    }
-
-    switch (args[0]) {
-        .int => |i| {
-            var acc: i32 = i;
-            for (args[1..]) |value|
-                switch (value) {
-                    .int => |i_val| acc *= i_val,
-                    else => return err_ctx.wrongParameterType("'*' arguments", "int"),
-                };
-            return .{ .int = acc };
-        },
-        .float => |f| {
-            var acc: f32 = f;
-            for (args[1..]) |value|
-                switch (value) {
-                    .float => |f_val| acc *= f_val,
-                    .int => |i_val| acc *= @floatFromInt(i_val),
-                    else => return err_ctx.wrongParameterType("'*' arguments", "int or float"),
-                };
-            return .{ .float = acc };
-        },
-        else => return err_ctx.wrongParameterType("'*' arguments", "int or float"),
-    }
-}
-
-pub fn div(
-    allocator: std.mem.Allocator,
-    args_: []LispType,
-    env: *Env,
-    err_ctx: *errors.Context,
-) LispError!LispType {
-    const args = try evalArgs(allocator, args_, env, err_ctx);
-
-    if (args.len == 0) {
-        return err_ctx.atLeastNArguments(1);
-    }
-
-    switch (args[0]) {
-        .int => |i| {
-            var acc: i32 = i;
-            for (args[1..]) |value| switch (value) {
-                .int => |i_val| {
-                    if (i_val != 0) acc = @divFloor(acc, i_val) else return err_ctx.divisionByZero();
-                },
-                else => return err_ctx.wrongParameterType("'/' arguments", "int"),
-            };
-            return .{ .int = acc };
-        },
-        .float => |f| {
-            var acc: f32 = f;
-            for (args[1..]) |value| {
-                var v: f32 = 0;
-                switch (value) {
-                    .float => |f_val| v = f_val,
-                    .int => |i_val| v = @floatFromInt(i_val),
-                    else => return err_ctx.wrongParameterType("'/' arguments", "int or float"),
-                }
-                if (v != 0) acc /= v else return err_ctx.divisionByZero();
+    const isSpliceUnquote = struct {
+        pub fn f(elt: LispType) bool {
+            if (elt != .list) {
+                return false;
             }
-            return .{ .float = acc };
-        },
-        else => return err_ctx.wrongParameterType("'/' arguments", "int or float"),
+
+            const arr = elt.list;
+            const items = arr.getItems();
+            return items.len > 0 and
+                items[0] == .symbol and
+                std.mem.eql(u8, items[0].symbol.getStr(), "splice-unquote");
+        }
+    }.f;
+
+    if (args_.len != 1) {
+        return err_ctx.wrongNumberOfArguments(1, args_.len);
     }
+
+    const ast = args_[0];
+
+    if (ast != .list) {
+        return ast;
+    }
+
+    const args_arr = ast.list;
+    const args = args_arr.getItems();
+    if (args.len == 2) {
+        if (args[0] == .symbol and std.mem.eql(u8, args[0].symbol.getStr(), "unquote")) {
+            return eval(allocator, args[1], env, err_ctx);
+        }
+    }
+
+    var res_arr = std.ArrayListUnmanaged(LispType).initCapacity(allocator, args.len) catch outOfMemory();
+    for (args) |elt| {
+        if (!isSpliceUnquote(elt)) {
+            var eltt = [_]LispType{elt};
+            const res = try quasiquote(allocator, &eltt, env, err_ctx);
+            res_arr.append(allocator, res) catch outOfMemory();
+            continue;
+        }
+
+        const items = elt.list.getItems();
+        if (items.len != 2) return err_ctx.wrongNumberOfArguments(2, items.len);
+
+        const lst = try eval(allocator, items[1], env, err_ctx);
+
+        if (lst != .list) {
+            return err_ctx.wrongParameterType("'splice-unquote' argument", "list");
+        }
+        for (lst.list.getItems()) |*x| {
+            res_arr.append(allocator, x.clone(allocator)) catch outOfMemory();
+        }
+    }
+
+    return LispType.Array.initList(allocator, res_arr.items);
 }
 
-pub fn list(
+pub fn def(
     allocator: std.mem.Allocator,
-    args_: []LispType,
+    s: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
-    const args = try evalArgs(allocator, args_, env, err_ctx);
-    return LispType.Array.initList(allocator, args);
+    if (s.len != 2) {
+        return err_ctx.wrongNumberOfArguments(2, s.len);
+    }
+
+    if (s[0] != .symbol) {
+        return err_ctx.wrongParameterType("First argument", "symbol");
+    }
+
+    const val = try eval(allocator, s[1], env, err_ctx);
+    return env.putClone(s[0].symbol.getStr(), val);
 }
 
-pub fn listQuestion(
+pub fn defmacro(
     allocator: std.mem.Allocator,
-    args: []LispType,
+    s: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
-    if (args.len == 0) {
-        return LispType.lisp_false;
+    if (s.len != 2) {
+        return err_ctx.wrongNumberOfArguments(2, s.len);
     }
 
-    if (args.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+    if (s[0] != .symbol) {
+        return err_ctx.wrongParameterType("First argument", "symbol");
     }
 
-    const arg = try eval.eval(allocator, args[0], env, err_ctx);
-    return .{ .boolean = arg == .list };
-}
-
-pub fn emptyQuestion(
-    allocator: std.mem.Allocator,
-    args: []LispType,
-    env: *Env,
-    err_ctx: *errors.Context,
-) LispError!LispType {
-    if (args.len == 0) {
-        return .{ .boolean = true };
-    }
-
-    if (args.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
-    }
-
-    const arg = try eval.eval(allocator, args[0], env, err_ctx);
-    return switch (arg) {
-        .list, .vector => |arr| .{ .boolean = arr.getItems().len == 0 },
-        .dict => |d| .{ .boolean = d.map.size == 0 },
-        else => LispType.lisp_false,
-    };
-}
-
-pub fn count(
-    allocator: std.mem.Allocator,
-    args: []LispType,
-    env: *Env,
-    err_ctx: *errors.Context,
-) LispError!LispType {
-    if (args.len == 0) {
-        return .{ .int = 0 };
-    }
-
-    if (args.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
-    }
-
-    const arg = try eval.eval(allocator, args[0], env, err_ctx);
-    return switch (arg) {
-        .list, .vector => |arr| .{ .int = @intCast(arr.getItems().len) },
-        .dict => |d| .{ .int = @intCast(d.map.size) },
-        else => .{ .int = 0 },
-    };
-}
-
-pub fn cons(
-    allocator: std.mem.Allocator,
-    args_: []LispType,
-    env: *Env,
-    err_ctx: *errors.Context,
-) LispError!LispType {
-    if (args_.len != 2) {
-        return err_ctx.wrongNumberOfArguments(2, args_.len);
-    }
-
-    const args = try evalArgs(allocator, args_, env, err_ctx);
-
-    const arr = switch (args[1]) {
-        .list, .vector => |arr| arr,
-        else => return err_ctx.wrongParameterType("'const' second argument", "list or vector"),
-    };
-    return LispType.Array.prepend(allocator, args[0], arr);
-}
-
-pub fn concat(
-    allocator: std.mem.Allocator,
-    args_: []LispType,
-    env: *Env,
-    err_ctx: *errors.Context,
-) LispError!LispType {
-    const args = try evalArgs(allocator, args_, env, err_ctx);
-
-    if (args.len == 0) {
-        return LispType.Array.emptyList();
-    }
-
-    return switch (args[0]) {
-        inline .list, .vector => add(allocator, args, env, err_ctx),
-        else => return err_ctx.wrongParameterType("'concat' arguments", "list or vector"),
-    };
-}
-
-pub fn atom(
-    allocator: std.mem.Allocator,
-    args: []LispType,
-    env: *Env,
-    err_ctx: *errors.Context,
-) LispError!LispType {
-    if (args.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
-    }
-
-    const val = try eval.eval(allocator, args[0], env, err_ctx);
-    return LispType.Atom.init(allocator, val);
-}
-
-pub fn atomQuestion(
-    allocator: std.mem.Allocator,
-    args: []LispType,
-    env: *Env,
-    err_ctx: *errors.Context,
-) LispError!LispType {
-    if (args.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
-    }
-
-    const val = try eval.eval(allocator, args[0], env, err_ctx);
-    return .{ .boolean = val == .atom };
-}
-
-pub fn deref(
-    allocator: std.mem.Allocator,
-    args: []LispType,
-    env: *Env,
-    err_ctx: *errors.Context,
-) LispError!LispType {
-    if (args.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
-    }
-
-    const val = try eval.eval(allocator, args[0], env, err_ctx);
+    const err = err_ctx.wrongParameterType("'defmacro' second argument", "function");
+    var val = try eval(allocator, s[1], env, err_ctx);
     return switch (val) {
-        .atom => |a| a.get(),
-        else => err_ctx.wrongParameterType("'deref' argument", "atom"),
+        .function => |*f| switch (f.*) {
+            .fn_ => |*func| {
+                func.is_macro = true;
+                return env.putClone(s[0].symbol.getStr(), val);
+            },
+            else => err,
+        },
+        else => err,
     };
 }
 
-pub fn resetBang(
+pub fn if_(
+    allocator: std.mem.Allocator,
+    s: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (s.len != 2 and s.len != 3) {
+        return err_ctx.wrongNumberOfArgumentsTwoChoices(2, 3, s.len);
+    }
+
+    const cond = try eval(allocator, s[0], env, err_ctx);
+    const new_s = switch (cond) {
+        .nil => if (s.len == 3) s[2] else .nil,
+        .boolean => if (cond.eql(LispType.lisp_true))
+            s[1]
+        else if (s.len == 3)
+            s[2]
+        else
+            .nil,
+        else => s[1],
+    };
+    return eval(allocator, new_s, env, err_ctx);
+}
+
+pub fn let(
     allocator: std.mem.Allocator,
     args: []LispType,
     env: *Env,
@@ -481,76 +220,205 @@ pub fn resetBang(
         return err_ctx.wrongNumberOfArguments(2, args.len);
     }
 
-    var val = try eval.eval(allocator, args[0], env, err_ctx);
-    return switch (val) {
-        .atom => |*a| a.reset(allocator, args[1]),
-        else => err_ctx.wrongParameterType("'reset!' first argument", "atom"),
+    var new_env = Env.initFromParent(env);
+    defer new_env.deinit();
+
+    const arr = switch (args[0]) {
+        .list, .vector => |arr| blk: {
+            if (arr.getItems().len % 2 != 0) {
+                return err_ctx.wrongNumberOfArguments(args.len + 1, args.len);
+            }
+            break :blk arr;
+        },
+        else => return err_ctx.wrongParameterType("First argument", "vector"),
     };
+
+    const args_items = arr.getItems();
+    for (0..args_items.len / 2) |_i| {
+        const i = 2 * _i;
+
+        var arg_env = Env.initFromParent(new_env);
+        defer arg_env.deinit();
+
+        const key = args_items[i];
+        const value = try eval(allocator, args_items[i + 1], arg_env, err_ctx);
+        switch (key) {
+            .symbol => |new_symbol| {
+                _ = new_env.put(new_symbol.getStr(), value);
+            },
+            else => return err_ctx.wrongParameterType("'let' key", "symbol"),
+        }
+    }
+    return eval(allocator, args[1], new_env, err_ctx);
 }
 
-pub fn str(
+pub fn fn_(
     allocator: std.mem.Allocator,
-    args_: []LispType,
+    s: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
-    const args = try evalArgs(allocator, args_, env, err_ctx);
-
-    if (args.len == 0) {
-        return LispType.String.initString(allocator, "");
+    if (s.len != 2 and s.len != 3) {
+        return err_ctx.wrongNumberOfArgumentsTwoChoices(2, 3, s.len);
     }
 
-    var acc = LispType.String.initString(allocator, "");
-    for (args) |arg| {
-        const s = switch (arg) {
-            .string => |s| s.getStr(),
-            else => arg.toStringFull(allocator) catch outOfMemory(),
-        };
-        acc.string.addChars(allocator, s);
+    var args_symbol = if (s.len == 2) s[0] else s[1];
+    if (args_symbol != .vector) {
+        return err_ctx.wrongParameterType("Parameter list", "vector");
     }
-    return acc;
+
+    const items = args_symbol.vector.getItems();
+    var args = std.ArrayListUnmanaged([]const u8).initCapacity(allocator, items.len) catch outOfMemory();
+    for (items) |a| {
+        if (a != .symbol) {
+            return err_ctx.wrongParameterType("Parameter list arguments", "symbol");
+        }
+
+        args.appendAssumeCapacity(a.symbol.getStr());
+    }
+
+    var closure_names: std.ArrayListUnmanaged([]const u8) = .empty;
+    var closure_vals: std.ArrayListUnmanaged(LispType) = .empty;
+    if (s.len == 3) {
+        const closure_symbols = s[0];
+        if (closure_symbols != .vector) {
+            return err_ctx.wrongParameterType("Parameter list", "vector");
+        }
+
+        const c_items = closure_symbols.vector.getItems();
+        closure_names.ensureTotalCapacity(allocator, c_items.len) catch outOfMemory();
+        closure_vals.ensureTotalCapacity(allocator, c_items.len) catch outOfMemory();
+        for (c_items) |item| {
+            if (item != .symbol) {
+                return err_ctx.wrongParameterType("Parameter list arguments", "symbol");
+            }
+
+            closure_names.appendAssumeCapacity(item.symbol.getStr());
+            closure_vals.appendAssumeCapacity(try eval(allocator, item, env, err_ctx));
+        }
+    }
+
+    return LispType.Fn.init(
+        allocator,
+        s[s.len - 1],
+        args.items,
+        closure_names.items,
+        closure_vals.items,
+    );
 }
 
-pub fn readStr(
+pub fn do(
     allocator: std.mem.Allocator,
-    args: []LispType,
+    s: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
-    if (args.len != 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+    var res: LispType = .nil;
+    for (s) |item| {
+        res = try eval(allocator, item, env, err_ctx);
     }
-
-    const val = try eval.eval(allocator, args[0], env, err_ctx);
-    return switch (val) {
-        .string => |s| reader.readStr(allocator, s.getStr()) catch |err| err_ctx.parserError(err),
-        else => err_ctx.wrongParameterType("'readStr' argument", "string"),
-    };
+    return res;
 }
 
-pub fn slurp(
+pub fn eval(
     allocator: std.mem.Allocator,
-    args: []LispType,
+    ast: LispType,
+    root_env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    var s = ast;
+    var env = root_env;
+
+    while (true) {
+        const is_eval = env.get("DEBUG-EVAL");
+        if (is_eval) |flag| {
+            if (flag != .nil and !flag.eql(LispType.lisp_false)) {
+                const str_value = s.toStringFull(allocator) catch outOfMemory();
+                std.debug.print("EVAL {s}\n", .{str_value});
+            }
+        }
+
+        switch (s) {
+            .symbol => |symbol| {
+                return if (env.getPtr(symbol.getStr())) |value|
+                    value.*
+                else
+                    err_ctx.symbolNotFound(symbol.getStr());
+            },
+            .list => |v| {
+                const items = v.getItems();
+                if (items.len == 0) {
+                    return s;
+                }
+
+                const function = switch (items[0]) {
+                    .function => |function| function,
+                    .symbol, .list => sym: {
+                        const res = try eval(allocator, items[0], env, err_ctx);
+                        if (res != .function) {
+                            return err_ctx.wrongParameterType("First argument", "function");
+                        }
+                        break :sym res.function;
+                    },
+                    else => return err_ctx.wrongParameterType("First argument", "function"),
+                };
+
+                switch (function) {
+                    .builtin => |builtin| {
+                        return try builtin(allocator, items[1..], env, err_ctx);
+                    },
+                    .fn_ => |func| {
+                        if (func.args.len != items[1..].len) {
+                            return err_ctx.wrongNumberOfArguments(func.args.len, items[1..].len);
+                        }
+
+                        var new_env = func.env.clone(allocator);
+                        new_env.parent = env;
+                        for (items[1..], func.args) |item, arg| {
+                            const val = if (func.is_macro) item else try eval(allocator, item, env, err_ctx);
+                            _ = new_env.put(arg, val);
+                        }
+
+                        s = if (func.is_macro) try eval(allocator, func.ast.*, new_env, err_ctx) else func.ast.*;
+                        env = new_env;
+                        continue;
+                    },
+                }
+            },
+            .vector => |v| {
+                var new_v = LispType.Array.emptyVector();
+                for (v.getItems()) |item| {
+                    const new_item = try eval(allocator, item, env, err_ctx);
+                    new_v.vector.append(allocator, new_item);
+                }
+                return new_v;
+            },
+            .dict => |dict| {
+                var new_dict = LispType.Dict.init();
+
+                var iter = dict.map.iterator();
+                while (iter.next()) |entry| {
+                    const key_value = try eval(allocator, entry.key_ptr.*, env, err_ctx);
+                    const value = try eval(allocator, entry.value_ptr.*, env, err_ctx);
+
+                    try new_dict.dict.add(allocator, key_value, value);
+                }
+                return new_dict;
+            },
+            else => return s,
+        }
+    }
+}
+
+pub fn evalWrapper(
+    allocator: std.mem.Allocator,
+    s: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
-    if (args.len != 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+    if (s.len != 1) {
+        return err_ctx.wrongNumberOfArguments(1, s.len);
     }
 
-    const val = try eval.eval(allocator, args[0], env, err_ctx);
-    const path = switch (val) {
-        .string => |s| s.getStr(),
-        else => return err_ctx.wrongParameterType("'slurp' argument", "string"),
-    };
-
-    var file = std.fs.cwd().openFile(path, .{}) catch return err_ctx.fileDoesNotExit(path);
-    defer file.close();
-
-    const file_size = file.getEndPos() catch return err_ctx.ioError();
-    const buffer = allocator.alloc(u8, file_size) catch outOfMemory();
-    defer allocator.free(buffer);
-
-    _ = file.readAll(buffer) catch return err_ctx.ioError();
-    return LispType.String.initString(allocator, buffer);
+    return eval(allocator, s[0], env, err_ctx);
 }
