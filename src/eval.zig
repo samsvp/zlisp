@@ -245,7 +245,6 @@ pub fn fn_(
         args.items,
         closure_names.items,
         closure_vals.items,
-        env,
     );
 }
 
@@ -301,7 +300,8 @@ pub fn eval(
                             return err_ctx.wrongNumberOfArguments(func.args.len, items[1..].len);
                         }
 
-                        var new_env = Env.initFromParent(func.env);
+                        var new_env = func.env.clone(allocator);
+                        new_env.parent = env;
                         for (items[1..], func.args) |item, arg| {
                             const val = if (func.is_macro) item else try eval(allocator, item, env, err_ctx);
                             _ = new_env.put(arg, val);

@@ -236,10 +236,8 @@ pub const LispType = union(enum) {
             args: [][]const u8,
             closure_names: [][]const u8,
             closure_vals: []LispType,
-            base_env: *Env,
         ) LispType {
             var env = Env.init(allocator);
-            env.parent = base_env;
             for (closure_vals, closure_names) |v, name| {
                 _ = env.putClone(name, v);
             }
@@ -261,7 +259,7 @@ pub const LispType = union(enum) {
         }
 
         pub fn clone(self: Fn, allocator: std.mem.Allocator) LispType {
-            var fn_ = init(allocator, self.ast.*, self.args, &[0][]u8{}, &[0]LispType{}, self.env.getRoot());
+            var fn_ = init(allocator, self.ast.*, self.args, &[0][]u8{}, &[0]LispType{});
             fn_.function.fn_.is_macro = self.is_macro;
 
             var iter = self.env.mapping.iterator();

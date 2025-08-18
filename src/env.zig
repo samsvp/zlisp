@@ -92,12 +92,12 @@ pub const Env = struct {
     }
 
     pub fn clone(self: *Self, allocator: std.mem.Allocator) *Self {
-        var env = initFromParent(self.parent);
-        env.mapping.ensureTotalCapacity(allocator, self.mapping.size) catch outOfMemory();
+        var env = if (self.parent) |parent| initFromParent(parent) else init(allocator);
+        env.mapping.ensureTotalCapacity(allocator, self.mapping.count()) catch outOfMemory();
 
         var iter = self.mapping.iterator();
         while (iter.next()) |entry| {
-            env.putAssumeCapacity(entry.key_ptr.*, entry.value_ptr.*);
+            _ = env.putAssumeCapacity(entry.key_ptr.*, entry.value_ptr.*);
         }
         return env;
     }
