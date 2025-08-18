@@ -655,6 +655,51 @@ pub fn swapBang(
     return args[0].atom.reset(allocator, val);
 }
 
+/// Returns a symbol named after the contents of the string.
+/// @argument 1: str
+/// @return: symbol
+pub fn symbol(
+    allocator: std.mem.Allocator,
+    args: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args.len != 1) {
+        return err_ctx.wrongNumberOfArguments(1, args.len);
+    }
+
+    const val = try core.eval(allocator, args[0], env, err_ctx);
+    return switch (val) {
+        .string => |s| LispType.String.initSymbol(allocator, s.getStr()),
+        else => err_ctx.wrongParameterType("'symbol' argument", "string"),
+    };
+}
+
+/// Returns a keyword named after the contents of the string.
+/// @argument 1: str | keyword
+/// @return: keyword
+pub fn keyword(
+    allocator: std.mem.Allocator,
+    args: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args.len != 1) {
+        return err_ctx.wrongNumberOfArguments(1, args.len);
+    }
+
+    const val = try core.eval(allocator, args[0], env, err_ctx);
+    return switch (val) {
+        .string => |s| blk: {
+            var k = LispType.String.initKeyword(allocator, ":");
+            k.keyword.addMut(allocator, s);
+            break :blk k;
+        },
+        .keyword => val,
+        else => err_ctx.wrongParameterType("'keyword' argument", "string or keyword"),
+    };
+}
+
 /// Returns true if the first argument is nil.
 /// @argument 1: any
 /// @return: bool
