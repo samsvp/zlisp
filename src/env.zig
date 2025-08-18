@@ -113,6 +113,8 @@ pub const Env = struct {
         self.mapping.put(allocator, "quote", .{ .function = .{ .builtin = eval.quote } }) catch outOfMemory();
         self.mapping.put(allocator, "quasiquote", .{ .function = .{ .builtin = eval.quasiquote } }) catch outOfMemory();
         self.mapping.put(allocator, "eval", .{ .function = .{ .builtin = eval.evalWrapper } }) catch outOfMemory();
+        self.mapping.put(allocator, "try", .{ .function = .{ .builtin = eval.try_ } }) catch outOfMemory();
+        self.mapping.put(allocator, "throw", .{ .function = .{ .builtin = eval.throw } }) catch outOfMemory();
 
         self.mapping.put(allocator, "=", .{ .function = .{ .builtin = core.eql } }) catch outOfMemory();
         self.mapping.put(allocator, "!=", .{ .function = .{ .builtin = core.notEql } }) catch outOfMemory();

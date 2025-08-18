@@ -5,6 +5,65 @@ const errors = @import("errors.zig");
 const LispError = errors.LispError;
 const outOfMemory = @import("utils.zig").outOfMemory;
 
+pub fn try_(
+    allocator: std.mem.Allocator,
+    s: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (s.len != 2) {
+        return err_ctx.wrongNumberOfArguments(2, s.len);
+    }
+
+    if (s[1] != .list) {
+        return err_ctx.wrongParameterType("'try' second argument", "list");
+    }
+
+    const catch_form = s[1].list.getItems();
+    if (catch_form.len != 3) {
+        return err_ctx.wrongNumberOfArguments(3, catch_form.len);
+    }
+
+    if (catch_form[0] == .symbol) {
+        if (!std.mem.eql(u8, catch_form[0].symbol.getStr(), "catch"))
+            return err_ctx.missingCatch();
+    } else {
+        return err_ctx.missingCatch();
+    }
+
+    if (catch_form[1] != .symbol) {
+        return err_ctx.wrongParameterType("'catch' first argument", "symbol");
+    }
+
+    const ret = eval(allocator, s[0], env, err_ctx) catch {
+        const err_str = err_ctx.toLispString(allocator);
+        var new_env = Env.initFromParent(env);
+        defer new_env.deinit();
+
+        _ = new_env.put(catch_form[1].symbol.getStr(), err_str);
+        return eval(allocator, catch_form[2], new_env, err_ctx);
+    };
+
+    return ret;
+}
+
+pub fn throw(
+    _: std.mem.Allocator,
+    s: []LispType,
+    _: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (s.len != 1) {
+        return err_ctx.wrongNumberOfArguments(1, s.len);
+    }
+
+    if (s[0] != .string) {
+        return err_ctx.wrongParameterType("'throw' first argument", "string");
+    }
+
+    return err_ctx.customError(s[0].string.getStr());
+}
+
 pub fn quote(
     _: std.mem.Allocator,
     s: []LispType,

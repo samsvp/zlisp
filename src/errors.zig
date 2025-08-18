@@ -1,13 +1,16 @@
 const std = @import("std");
+const LispType = @import("types.zig").LispType;
 const ParserError = @import("reader.zig").ParserError;
 const outOfMemory = @import("utils.zig").outOfMemory;
 
 pub const LispError = error{
     DivisionByZero,
+    MissingCatch,
     ParserError,
     WrongArgumentType,
     SymbolNotFound,
     UnhashableType,
+    UserError,
     WrongNumberOfArguments,
 
     FileDoesNotExist,
@@ -28,6 +31,12 @@ pub const Context = struct {
         };
     }
 
+    pub fn customError(self: *Self, msg: []const u8) LispError {
+        self.clear();
+        self.buffer.appendSlice(self.allocator, msg) catch outOfMemory();
+        return LispError.UserError;
+    }
+
     pub fn atLeastNArguments(self: *Self, at_least: usize) LispError {
         self.clear();
         std.fmt.format(
@@ -36,6 +45,16 @@ pub const Context = struct {
             .{at_least},
         ) catch outOfMemory();
         return LispError.WrongNumberOfArguments;
+    }
+
+    pub fn missingCatch(self: *Self) LispError {
+        self.clear();
+        std.fmt.format(
+            self.buffer.writer(self.allocator),
+            "Missing 'catch' keyword from 'try-catch' block",
+            .{},
+        ) catch outOfMemory();
+        return LispError.MissingCatch;
     }
 
     pub fn divisionByZero(self: *Self) LispError {
@@ -124,6 +143,15 @@ pub const Context = struct {
             .{ arg_name, expected },
         ) catch outOfMemory();
         return LispError.WrongArgumentType;
+    }
+
+    pub fn toLispString(self: Self, allocator: std.mem.Allocator) LispType {
+        const err_str = std.fmt.allocPrint(
+            allocator,
+            "ERROR: {s}\n",
+            .{self.buffer.items},
+        ) catch outOfMemory();
+        return LispType.String.initString(allocator, err_str);
     }
 
     pub fn getMessage(self: Self) []const u8 {
