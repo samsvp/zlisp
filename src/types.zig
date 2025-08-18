@@ -17,7 +17,7 @@ pub const LispType = union(enum) {
     dict: Dict,
     atom: Atom,
     function: Function,
-    record: UserStruct,
+    record: Record,
 
     pub const lisp_true = LispType{ .boolean = true };
     pub const lisp_false = LispType{ .boolean = false };
@@ -355,7 +355,7 @@ pub const LispType = union(enum) {
         }
     };
 
-    pub const UserStruct = struct {
+    pub const Record = struct {
         bytes: []u8,
         type_info: TypeInfo,
 
@@ -391,19 +391,19 @@ pub const LispType = union(enum) {
             return initFromBytes(allocator, src, type_info);
         }
 
-        pub fn deinit(self: *UserStruct, allocator: std.mem.Allocator) void {
+        pub fn deinit(self: *Record, allocator: std.mem.Allocator) void {
             allocator.free(self.bytes);
         }
 
-        pub fn clone(self: UserStruct, allocator: std.mem.Allocator) LispType {
+        pub fn clone(self: Record, allocator: std.mem.Allocator) LispType {
             return initFromBytes(allocator, self.bytes, self.type_info);
         }
 
-        pub fn eql(self: UserStruct, other: UserStruct) bool {
+        pub fn eql(self: Record, other: Record) bool {
             return std.mem.eql(u8, self.bytes, other.bytes);
         }
 
-        pub fn as(self: UserStruct, comptime T: type) ?*T {
+        pub fn as(self: Record, comptime T: type) ?*T {
             if (!std.mem.eql(u8, self.type_info.name, @typeName(T))) {
                 return null;
             }
