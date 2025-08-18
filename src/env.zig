@@ -145,6 +145,15 @@ pub const Env = struct {
         self.mapping.put(allocator, "reset!", .{ .function = .{ .builtin = lisp_std.resetBang } }) catch outOfMemory();
         self.mapping.put(allocator, "swap!", .{ .function = .{ .builtin = lisp_std.swapBang } }) catch outOfMemory();
 
+        self.mapping.put(allocator, "nil?", .{ .function = .{ .builtin = lisp_std.nilQuestion } }) catch outOfMemory();
+        self.mapping.put(allocator, "int?", .{ .function = .{ .builtin = lisp_std.intQuestion } }) catch outOfMemory();
+        self.mapping.put(allocator, "float?", .{ .function = .{ .builtin = lisp_std.floatQuestion } }) catch outOfMemory();
+        self.mapping.put(allocator, "symbol?", .{ .function = .{ .builtin = lisp_std.symbolQuestion } }) catch outOfMemory();
+        self.mapping.put(allocator, "keyword?", .{ .function = .{ .builtin = lisp_std.keywordQuestion } }) catch outOfMemory();
+        self.mapping.put(allocator, "vector?", .{ .function = .{ .builtin = lisp_std.vectorQuestion } }) catch outOfMemory();
+        self.mapping.put(allocator, "dict?", .{ .function = .{ .builtin = lisp_std.dictQuestion } }) catch outOfMemory();
+        self.mapping.put(allocator, "sequential?", .{ .function = .{ .builtin = lisp_std.sequentialQuestion } }) catch outOfMemory();
+
         self.mapping.put(allocator, "str", .{ .function = .{ .builtin = lisp_std.str } }) catch outOfMemory();
         self.mapping.put(allocator, "slurp", .{ .function = .{ .builtin = lisp_std.slurp } }) catch outOfMemory();
         self.mapping.put(allocator, "readStr", .{ .function = .{ .builtin = lisp_std.readStr } }) catch outOfMemory();

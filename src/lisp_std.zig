@@ -646,7 +646,6 @@ pub fn swapBang(
 
     var fn_arr = [_]LispType{ args[1], args[0].atom.get() };
     var fn_list = LispType.Array.initList(allocator, &fn_arr);
-    defer fn_list.deinit(allocator);
 
     for (args[2..]) |arg| {
         fn_list.list.append(allocator, arg);
@@ -656,6 +655,145 @@ pub fn swapBang(
     return args[0].atom.reset(allocator, val);
 }
 
+/// Returns true if the first argument is nil.
+/// @argument 1: any
+/// @return: bool
+pub fn nilQuestion(
+    allocator: std.mem.Allocator,
+    args: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args.len > 1) {
+        return err_ctx.wrongNumberOfArguments(1, args.len);
+    }
+
+    const val = try core.eval(allocator, args[0], env, err_ctx);
+    return .{ .boolean = val == .nil };
+}
+
+/// Returns true if the first argument is a symbol.
+/// @argument 1: any
+/// @return: bool
+pub fn symbolQuestion(
+    allocator: std.mem.Allocator,
+    args: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args.len > 1) {
+        return err_ctx.wrongNumberOfArguments(1, args.len);
+    }
+
+    const val = try core.eval(allocator, args[0], env, err_ctx);
+    return .{ .boolean = val == .symbol };
+}
+
+/// Returns true if the first argument is a keyword.
+/// @argument 1: any
+/// @return: bool
+pub fn keywordQuestion(
+    allocator: std.mem.Allocator,
+    args: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args.len > 1) {
+        return err_ctx.wrongNumberOfArguments(1, args.len);
+    }
+
+    const val = try core.eval(allocator, args[0], env, err_ctx);
+    return .{ .boolean = val == .keyword };
+}
+
+/// Returns true if the first argument is an interger.
+/// @argument 1: any
+/// @return: bool
+pub fn dictQuestion(
+    allocator: std.mem.Allocator,
+    args: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args.len > 1) {
+        return err_ctx.wrongNumberOfArguments(1, args.len);
+    }
+
+    const val = try core.eval(allocator, args[0], env, err_ctx);
+    return .{ .boolean = val == .dict };
+}
+
+/// Returns true if the first argument is a vector.
+/// @argument 1: any
+/// @return: bool
+pub fn vectorQuestion(
+    allocator: std.mem.Allocator,
+    args: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args.len > 1) {
+        return err_ctx.wrongNumberOfArguments(1, args.len);
+    }
+
+    const val = try core.eval(allocator, args[0], env, err_ctx);
+    return .{ .boolean = val == .vector };
+}
+
+/// Returns true if the first argument is a list or vector.
+/// @argument 1: any
+/// @return: bool
+pub fn sequentialQuestion(
+    allocator: std.mem.Allocator,
+    args: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args.len > 1) {
+        return err_ctx.wrongNumberOfArguments(1, args.len);
+    }
+
+    const val = try core.eval(allocator, args[0], env, err_ctx);
+    return .{ .boolean = val == .vector or val == .list };
+}
+
+/// Returns true if the first argument is a float.
+/// @argument 1: any
+/// @return: bool
+pub fn floatQuestion(
+    allocator: std.mem.Allocator,
+    args: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args.len > 1) {
+        return err_ctx.wrongNumberOfArguments(1, args.len);
+    }
+
+    const val = try core.eval(allocator, args[0], env, err_ctx);
+    return .{ .boolean = val == .float };
+}
+
+/// Returns true if the first argument is an interger.
+/// @argument 1: any
+/// @return: bool
+pub fn intQuestion(
+    allocator: std.mem.Allocator,
+    args: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args.len > 1) {
+        return err_ctx.wrongNumberOfArguments(1, args.len);
+    }
+
+    const val = try core.eval(allocator, args[0], env, err_ctx);
+    return .{ .boolean = val == .int };
+}
+
+/// Transforms the given arguments to string and concatenates it.
+/// @argument &: any
+/// @return: string
 pub fn str(
     allocator: std.mem.Allocator,
     args_: []LispType,
@@ -679,6 +817,9 @@ pub fn str(
     return acc;
 }
 
+/// Evaluates the given expression into a lisp value.
+/// @argument 1: string
+/// @return: any
 pub fn readStr(
     allocator: std.mem.Allocator,
     args: []LispType,
@@ -696,6 +837,9 @@ pub fn readStr(
     };
 }
 
+/// Returns the given file content as a string.
+/// @argument 1: string
+/// @return: string
 pub fn slurp(
     allocator: std.mem.Allocator,
     args: []LispType,
