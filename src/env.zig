@@ -143,6 +143,7 @@ pub const Env = struct {
         self.mapping.put(allocator, "atom?", .{ .function = .{ .builtin = lisp_std.atomQuestion } }) catch outOfMemory();
         self.mapping.put(allocator, "deref", .{ .function = .{ .builtin = lisp_std.deref } }) catch outOfMemory();
         self.mapping.put(allocator, "reset!", .{ .function = .{ .builtin = lisp_std.resetBang } }) catch outOfMemory();
+        self.mapping.put(allocator, "swap!", .{ .function = .{ .builtin = lisp_std.swapBang } }) catch outOfMemory();
 
         self.mapping.put(allocator, "str", .{ .function = .{ .builtin = lisp_std.str } }) catch outOfMemory();
         self.mapping.put(allocator, "slurp", .{ .function = .{ .builtin = lisp_std.slurp } }) catch outOfMemory();

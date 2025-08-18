@@ -73,9 +73,8 @@ pub const LispType = union(enum) {
             return self.array.items;
         }
 
-        // value should be a pointer and we should clone
         pub fn append(self: *Array, allocator: std.mem.Allocator, value: LispType) void {
-            self.array.append(allocator, value) catch outOfMemory();
+            self.array.append(allocator, value.clone(allocator)) catch outOfMemory();
         }
 
         pub fn prepend(allocator: std.mem.Allocator, item: LispType, self: Array) LispType {

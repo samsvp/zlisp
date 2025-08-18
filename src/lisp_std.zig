@@ -597,6 +597,10 @@ pub fn deref(
     };
 }
 
+/// Switches the value which the given atom currently holds to the new passed value.
+/// @argument 1: atom
+/// @argument 2: any
+/// @return: any
 pub fn resetBang(
     allocator: std.mem.Allocator,
     args: []LispType,
@@ -612,6 +616,44 @@ pub fn resetBang(
         .atom => |*a| a.reset(allocator, args[1]),
         else => err_ctx.wrongParameterType("'reset!' first argument", "atom"),
     };
+}
+
+/// Switches the value which the given atom currently holds to the result of the passed function with
+/// the atom's current value as the first argument. Any other arguments will be passed into the function in
+/// order.
+/// @argument 1: atom
+/// @argument 2: function
+/// @argument &: any
+/// @return: any
+pub fn swapBang(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len < 2) {
+        return err_ctx.atLeastNArguments(2);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+    if (args[0] != .atom) {
+        return err_ctx.wrongParameterType("'swap!' first argument", "atom");
+    }
+
+    if (args[1] != .function) {
+        return err_ctx.wrongParameterType("'swap!' second argument", "function");
+    }
+
+    var fn_arr = [_]LispType{ args[1], args[0].atom.get() };
+    var fn_list = LispType.Array.initList(allocator, &fn_arr);
+    defer fn_list.deinit(allocator);
+
+    for (args[2..]) |arg| {
+        fn_list.list.append(allocator, arg);
+    }
+
+    const val = try core.eval(allocator, fn_list, env, err_ctx);
+    return args[0].atom.reset(allocator, val);
 }
 
 pub fn str(
