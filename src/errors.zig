@@ -5,6 +5,8 @@ const outOfMemory = @import("utils.zig").outOfMemory;
 
 pub const LispError = error{
     DivisionByZero,
+    IndexOutOfRange,
+    EmptyCollection,
     MissingCatch,
     ParserError,
     WrongArgumentType,
@@ -45,6 +47,26 @@ pub const Context = struct {
             .{at_least},
         ) catch outOfMemory();
         return LispError.WrongNumberOfArguments;
+    }
+
+    pub fn indexOutOfRange(self: *Self, index: usize, len: usize) LispError {
+        self.clear();
+        std.fmt.format(
+            self.buffer.writer(self.allocator),
+            "Index {} out of range. Collection size: {}",
+            .{ index, len },
+        ) catch outOfMemory();
+        return LispError.IndexOutOfRange;
+    }
+
+    pub fn emptyCollection(self: *Self) LispError {
+        self.clear();
+        std.fmt.format(
+            self.buffer.writer(self.allocator),
+            "Collection is empty",
+            .{},
+        ) catch outOfMemory();
+        return LispError.EmptyCollection;
     }
 
     pub fn missingCatch(self: *Self) LispError {

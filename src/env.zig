@@ -130,6 +130,9 @@ pub const Env = struct {
         self.mapping.put(allocator, "/", .{ .function = .{ .builtin = lisp_std.div } }) catch outOfMemory();
 
         self.mapping.put(allocator, "list", .{ .function = .{ .builtin = lisp_std.list } }) catch outOfMemory();
+        self.mapping.put(allocator, "nth", .{ .function = .{ .builtin = lisp_std.nth } }) catch outOfMemory();
+        self.mapping.put(allocator, "head", .{ .function = .{ .builtin = lisp_std.head } }) catch outOfMemory();
+        self.mapping.put(allocator, "tail", .{ .function = .{ .builtin = lisp_std.tail } }) catch outOfMemory();
         self.mapping.put(allocator, "list?", .{ .function = .{ .builtin = lisp_std.listQuestion } }) catch outOfMemory();
         self.mapping.put(allocator, "empty", .{ .function = .{ .builtin = lisp_std.emptyQuestion } }) catch outOfMemory();
         self.mapping.put(allocator, "count", .{ .function = .{ .builtin = lisp_std.count } }) catch outOfMemory();

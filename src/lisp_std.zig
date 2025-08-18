@@ -142,6 +142,10 @@ pub fn evalArgs(
     return args_arr.items;
 }
 
+/// Adds all elements of the list/vector.
+/// The return type is based on the first argument of the function.
+/// @argument &: int | float | string | list | vector
+/// @return: int | float | string | list | vector
 pub fn add(
     allocator: std.mem.Allocator,
     args_: []LispType,
@@ -199,6 +203,10 @@ pub fn add(
     }
 }
 
+/// Subtracts all element from the tail of the argument list from the head. If only one
+/// argument is passed, then it will be negated and returned.
+/// @argument &: int | float
+/// @return: int | float
 pub fn sub(
     allocator: std.mem.Allocator,
     args_: []LispType,
@@ -241,6 +249,9 @@ pub fn sub(
     }
 }
 
+/// Multiplies all arguments.
+/// @argument &: int | float
+/// @return: int | float
 pub fn mul(
     allocator: std.mem.Allocator,
     args_: []LispType,
@@ -277,6 +288,10 @@ pub fn mul(
     }
 }
 
+/// Divides the head of the argument list to its tail. Raises a division by zero error if the tail
+/// contains '0' as an element.
+/// @argument &: int | float
+/// @return: int | float
 pub fn div(
     allocator: std.mem.Allocator,
     args_: []LispType,
@@ -317,6 +332,9 @@ pub fn div(
     }
 }
 
+/// Returns the arguments as a list.
+/// @argument &: any
+/// @return: list
 pub fn list(
     allocator: std.mem.Allocator,
     args_: []LispType,
@@ -327,6 +345,93 @@ pub fn list(
     return LispType.Array.initList(allocator, args);
 }
 
+/// Returns the nth element of the list/vector.
+/// @argument 1: list | vector
+/// @argument 2: int
+/// @return: any
+pub fn nth(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len > 2) {
+        return err_ctx.wrongNumberOfArguments(2, args_.len);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+    switch (args[0]) {
+        .list, .vector, .string => {},
+        else => return err_ctx.wrongParameterType("'nth' first argument", "list or vector"),
+    }
+
+    if (args[1] != .int) {
+        return err_ctx.wrongParameterType("'nth' second argument", "int");
+    }
+
+    const n: usize = @intCast(args[1].int);
+    switch (args[0]) {
+        .list, .vector => |arr| {
+            const collection = arr.getItems();
+            if (n >= collection.len) {
+                return err_ctx.indexOutOfRange(n, collection.len);
+            }
+            return collection[n];
+        },
+        .string => |s| {
+            const collection = s.getStr();
+            if (n >= collection.len) {
+                return err_ctx.indexOutOfRange(n, collection.len);
+            }
+            return LispType.String.initString(allocator, collection[n .. n + 1]);
+        },
+        else => unreachable,
+    }
+}
+
+/// Returns the first element of the collection.
+/// @argument 1: list | vector | string
+/// @return: any
+pub fn head(
+    allocator: std.mem.Allocator,
+    args: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args.len > 1) {
+        return err_ctx.wrongNumberOfArguments(1, args.len);
+    }
+
+    var new_args = [_]LispType{ args[0], .{ .int = 0 } };
+    return if (nth(allocator, &new_args, env, err_ctx)) |v| v else |err| switch (err) {
+        errors.LispError.IndexOutOfRange => err_ctx.emptyCollection(),
+        else => err,
+    };
+}
+
+/// Returns the last elements of the collection.
+/// @argument 1: list | vector
+/// @return: any
+pub fn tail(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len > 1) {
+        return err_ctx.wrongNumberOfArguments(1, args_.len);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+    return switch (args[0]) {
+        inline .list, .vector, .string => |c| if (c.tail(allocator)) |tail_| tail_ else err_ctx.emptyCollection(),
+        else => err_ctx.wrongParameterType("'tail' argument", "list, vector or string"),
+    };
+}
+
+/// Returns true if the first argument is a list.
+/// @argument 1: any
+/// @return: bool
 pub fn listQuestion(
     allocator: std.mem.Allocator,
     args: []LispType,
@@ -345,6 +450,9 @@ pub fn listQuestion(
     return .{ .boolean = arg == .list };
 }
 
+/// Returns true if the first argument is an empty collection. Returns false otherwise.
+/// @argument 1: any
+/// @return: bool
 pub fn emptyQuestion(
     allocator: std.mem.Allocator,
     args: []LispType,
@@ -367,6 +475,9 @@ pub fn emptyQuestion(
     };
 }
 
+/// Returns the amount of items in the collection.
+/// @argument 1: list | vector | dict
+/// @return: int
 pub fn count(
     allocator: std.mem.Allocator,
     args: []LispType,
@@ -389,6 +500,10 @@ pub fn count(
     };
 }
 
+/// Returns the first argument prepended to the second argument.
+/// @argument 1: any
+/// @argument 2: list | vector
+/// @return: list | vector
 pub fn cons(
     allocator: std.mem.Allocator,
     args_: []LispType,
@@ -408,6 +523,9 @@ pub fn cons(
     return LispType.Array.prepend(allocator, args[0], arr);
 }
 
+/// Concatenates all lists/vectors together.
+/// @argument 1: list | vector
+/// @return: list | vector
 pub fn concat(
     allocator: std.mem.Allocator,
     args_: []LispType,
@@ -426,6 +544,8 @@ pub fn concat(
     };
 }
 
+/// Returns an atom holding the value of the first argument.
+/// @argument 1: any
 pub fn atom(
     allocator: std.mem.Allocator,
     args: []LispType,
@@ -440,6 +560,9 @@ pub fn atom(
     return LispType.Atom.init(allocator, val);
 }
 
+/// Returns true if the first argument is an atom.
+/// @argument 1: any
+/// @return: bool
 pub fn atomQuestion(
     allocator: std.mem.Allocator,
     args: []LispType,
@@ -454,6 +577,9 @@ pub fn atomQuestion(
     return .{ .boolean = val == .atom };
 }
 
+/// Returns the value which the given atom currently holds.
+/// @argument 1: atom
+/// @return: any
 pub fn deref(
     allocator: std.mem.Allocator,
     args: []LispType,

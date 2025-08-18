@@ -91,6 +91,19 @@ pub const LispType = union(enum) {
             return .{ .list = .{ .array = items, .array_type = self.array_type } };
         }
 
+        pub fn tail(self: Array, allocator: std.mem.Allocator) ?LispType {
+            const items = self.getItems();
+            if (items.len == 0) {
+                return null;
+            }
+
+            var tail_ = std.ArrayListUnmanaged(LispType).initCapacity(allocator, self.getItems().len - 1) catch {
+                outOfMemory();
+            };
+            tail_.appendSliceAssumeCapacity(items[1..]);
+            return .{ .list = .{ .array = tail_, .array_type = self.array_type } };
+        }
+
         pub fn addMutSlice(self: *Array, allocator: std.mem.Allocator, other: []LispType) void {
             self.array.ensureUnusedCapacity(allocator, other.len) catch {
                 outOfMemory();
@@ -324,6 +337,23 @@ pub const LispType = union(enum) {
 
         pub fn getStr(self: String) []const u8 {
             return self.chars.items;
+        }
+
+        pub fn getItems(self: String) []const u8 {
+            return self.getStr();
+        }
+
+        pub fn tail(self: String, allocator: std.mem.Allocator) ?LispType {
+            const items = self.getItems();
+            if (items.len == 0) {
+                return null;
+            }
+
+            var tail_ = Chars.initCapacity(allocator, self.getItems().len - 1) catch {
+                outOfMemory();
+            };
+            tail_.appendSliceAssumeCapacity(items[1..]);
+            return .{ .string = .{ .chars = tail_ } };
         }
 
         /// Concatenates s1 and s2 on a new string
