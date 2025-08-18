@@ -307,6 +307,19 @@ pub fn fn_(
     );
 }
 
+pub fn do(
+    allocator: std.mem.Allocator,
+    s: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    var res: LispType = .nil;
+    for (s) |item| {
+        res = try eval(allocator, item, env, err_ctx);
+    }
+    return res;
+}
+
 pub fn eval(
     allocator: std.mem.Allocator,
     ast: LispType,
