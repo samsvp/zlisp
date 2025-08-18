@@ -259,18 +259,17 @@ fn readDict(allocator: std.mem.Allocator, reader: *Reader) ParserError!LispType 
     return ParserError.EOFCollectionReadError;
 }
 
-// we have a leak here
-//fn translate(allocator: std.mem.Allocator, reader: *Reader, name: []const u8) ParserError!ZType {
-//    var deref = try ZType.String.initSymbol(allocator, name);
-//    defer deref.deinit(allocator) catch unreachable;
-//
-//    _ = reader.next();
-//    var next = try readForm(allocator, reader);
-//    defer next.deinit(allocator) catch unreachable;
-//
-//    var lst = [_]ZType{ deref, next };
-//    return ZType.Array.initList(allocator, &lst);
-//}
+fn translate(allocator: std.mem.Allocator, reader: *Reader, name: []const u8) ParserError!LispType {
+    var deref = LispType.String.initSymbol(allocator, name);
+    defer deref.deinit(allocator);
+
+    _ = reader.next();
+    var next = try readForm(allocator, reader);
+    defer next.deinit(allocator);
+
+    var lst = [_]LispType{ deref, next };
+    return LispType.Array.initList(allocator, &lst);
+}
 
 fn readForm(allocator: std.mem.Allocator, reader: *Reader) !LispType {
     const maybe_token = reader.peek();
@@ -287,16 +286,16 @@ fn readForm(allocator: std.mem.Allocator, reader: *Reader) !LispType {
         '(' => try readCollection(allocator, reader, .list),
         '[' => try readCollection(allocator, reader, .vector),
         '{' => try readDict(allocator, reader),
-        //        '@' => try translate(allocator, reader, "deref"),
-        //        '\'' => try translate(allocator, reader, "quote"),
-        //        '`' => try translate(allocator, reader, "quasiquote"),
-        //        '~' => blk: {
-        //            if (token.len == 1)
-        //                break :blk translate(allocator, reader, "unquote");
-        //            if (token.len == 2 and token[1] == '@')
-        //                break :blk translate(allocator, reader, "splice-unquote");
-        //            break :blk try readAtom(allocator, reader);
-        //        },
+        '@' => try translate(allocator, reader, "deref"),
+        '\'' => try translate(allocator, reader, "quote"),
+        '`' => try translate(allocator, reader, "quasiquote"),
+        '~' => blk: {
+            if (token.len == 1)
+                break :blk translate(allocator, reader, "unquote");
+            if (token.len == 2 and token[1] == '@')
+                break :blk translate(allocator, reader, "splice-unquote");
+            break :blk try readAtom(allocator, reader);
+        },
         else => try readAtom(allocator, reader),
     };
 }

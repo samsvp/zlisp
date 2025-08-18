@@ -261,12 +261,14 @@ pub const LispType = union(enum) {
         }
 
         pub fn clone(self: Fn, allocator: std.mem.Allocator) LispType {
-            const fn_ = init(allocator, self.ast.*, self.args, &[0][]u8{}, &[0]LispType{}, self.env.getRoot());
+            var fn_ = init(allocator, self.ast.*, self.args, &[0][]u8{}, &[0]LispType{}, self.env.getRoot());
+            fn_.function.fn_.is_macro = self.is_macro;
 
             var iter = self.env.mapping.iterator();
             while (iter.next()) |entry| {
                 _ = fn_.function.fn_.env.putClone(entry.key_ptr.*, entry.value_ptr.*);
             }
+
             return fn_;
         }
 

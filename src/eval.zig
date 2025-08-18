@@ -99,6 +99,34 @@ pub fn def(
     return env.putClone(s[0].symbol.getStr(), val);
 }
 
+pub fn defmacro(
+    allocator: std.mem.Allocator,
+    s: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (s.len != 2) {
+        return err_ctx.wrongNumberOfArguments(2, s.len);
+    }
+
+    if (s[0] != .symbol) {
+        return err_ctx.wrongParameterType("First argument", "symbol");
+    }
+
+    const err = err_ctx.wrongParameterType("'defmacro' second argument", "function");
+    var val = try eval(allocator, s[1], env, err_ctx);
+    return switch (val) {
+        .function => |*f| switch (f.*) {
+            .fn_ => |*func| {
+                func.is_macro = true;
+                return env.putClone(s[0].symbol.getStr(), val);
+            },
+            else => err,
+        },
+        else => err,
+    };
+}
+
 pub fn if_(
     allocator: std.mem.Allocator,
     s: []LispType,
@@ -275,11 +303,11 @@ pub fn eval(
 
                         var new_env = Env.initFromParent(func.env);
                         for (items[1..], func.args) |item, arg| {
-                            const val = try eval(allocator, item, env, err_ctx);
+                            const val = if (func.is_macro) item else try eval(allocator, item, env, err_ctx);
                             _ = new_env.put(arg, val);
                         }
 
-                        s = func.ast.*;
+                        s = if (func.is_macro) try eval(allocator, func.ast.*, new_env, err_ctx) else func.ast.*;
                         env = new_env;
                         continue;
                     },
