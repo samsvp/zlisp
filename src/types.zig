@@ -172,24 +172,36 @@ pub const LispType = union(enum) {
             std.hash_map.default_max_load_percentage,
         );
 
-        pub fn add(self: *Dict, allocator: std.mem.Allocator, key: LispType, value: LispType) LispError!void {
-            switch (key) {
-                .int, .string, .keyword, .symbol => {
-                    self.map.put(allocator, key, value) catch {
-                        outOfMemory();
-                    };
-                },
-                else => return LispError.UnhashableType,
-            }
+        pub fn add(self: Dict, allocator: std.mem.Allocator, key: LispType, value: LispType) LispError!LispType {
+            var dict = self.clone(allocator);
+            return dict.dict.addMut(allocator, key, value);
+        }
+
+        pub fn isHashable(value: LispType) bool {
+            return switch (value) {
+                .int, .string, .keyword, .symbol => true,
+                else => false,
+            };
+        }
+
+        pub fn addMut(self: *Dict, allocator: std.mem.Allocator, key: LispType, value: LispType) LispError!void {
+            if (isHashable(key)) {
+                self.map.put(allocator, key, value) catch {
+                    outOfMemory();
+                };
+            } else return LispError.UnhashableType;
+        }
+
+        pub fn remove(self: *Dict, key: LispType) LispError!void {
+            if (isHashable(key)) {
+                _ = self.map.remove(key);
+            } else return LispError.UnhashableType;
         }
 
         pub fn addAssumeCapactity(self: *Dict, key: LispType, value: LispType) !void {
-            switch (key) {
-                .int, .string, .keyword, .symbol => {
-                    self.map.putAssumeCapacity(key, value);
-                },
-                else => return LispError.UnhashableType,
-            }
+            if (isHashable(key)) {
+                self.map.putAssumeCapacity(key, value);
+            } else return LispError.UnhashableType;
         }
 
         pub fn init() LispType {

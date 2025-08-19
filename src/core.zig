@@ -401,7 +401,7 @@ pub fn eval(
                     const key_value = try eval(allocator, entry.key_ptr.*, env, err_ctx);
                     const value = try eval(allocator, entry.value_ptr.*, env, err_ctx);
 
-                    try new_dict.dict.add(allocator, key_value, value);
+                    try new_dict.dict.addMut(allocator, key_value, value);
                 }
                 return new_dict;
             },

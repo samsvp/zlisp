@@ -145,6 +145,14 @@ pub const Env = struct {
         self.mapping.put(allocator, "reset!", .{ .function = .{ .builtin = lisp_std.resetBang } }) catch outOfMemory();
         self.mapping.put(allocator, "swap!", .{ .function = .{ .builtin = lisp_std.swapBang } }) catch outOfMemory();
 
+        self.mapping.put(allocator, "dict", .{ .function = .{ .builtin = lisp_std.dict } }) catch outOfMemory();
+        self.mapping.put(allocator, "assoc", .{ .function = .{ .builtin = lisp_std.assoc } }) catch outOfMemory();
+        self.mapping.put(allocator, "dissoc", .{ .function = .{ .builtin = lisp_std.dissoc } }) catch outOfMemory();
+        self.mapping.put(allocator, "get", .{ .function = .{ .builtin = lisp_std.get } }) catch outOfMemory();
+        self.mapping.put(allocator, "contains", .{ .function = .{ .builtin = lisp_std.contains } }) catch outOfMemory();
+        self.mapping.put(allocator, "keys", .{ .function = .{ .builtin = lisp_std.keys } }) catch outOfMemory();
+        self.mapping.put(allocator, "values", .{ .function = .{ .builtin = lisp_std.values } }) catch outOfMemory();
+
         self.mapping.put(allocator, "symbol", .{ .function = .{ .builtin = lisp_std.symbol } }) catch outOfMemory();
         self.mapping.put(allocator, "keyword", .{ .function = .{ .builtin = lisp_std.keyword } }) catch outOfMemory();
 

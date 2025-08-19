@@ -332,6 +332,209 @@ pub fn div(
     }
 }
 
+/// Returns the arguments as a dict.
+/// @argument &: any
+/// @return: dict
+pub fn dict(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len % 2 != 0) {
+        return err_ctx.wrongNumberOfArguments(args_.len + 1, args_.len);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+
+    var dict_ = LispType.Dict.init();
+    for (0..args.len / 2) |i_| {
+        const i = 2 * i_;
+        const key = args[i];
+        const value = args[i + 1];
+        if (dict_.dict.addMut(allocator, key, value)) |_| {} else |err| switch (err) {
+            errors.LispError.UnhashableType => return err_ctx.unhashableType(),
+            else => return err,
+        }
+    }
+    return dict_;
+}
+
+/// Returns a new dict with the given key value pair.
+/// @argument dict: dict
+/// @argument &: any
+/// @return: dict
+pub fn assoc(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len < 3) {
+        return err_ctx.atLeastNArguments(3);
+    }
+    if (args_.len % 2 != 1) {
+        return err_ctx.wrongNumberOfArguments(args_.len + 1, args_.len);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+
+    var dict_ = switch (args[0]) {
+        .dict => |d| d.clone(allocator),
+        else => return err_ctx.wrongParameterType("'assoc' first argument", "dict"),
+    };
+    for (0..args.len / 2) |i_| {
+        const i = 2 * i_ + 1;
+        const key = args[i];
+        const value = args[i + 1];
+        if (dict_.dict.addMut(allocator, key, value)) |_| {} else |err| switch (err) {
+            errors.LispError.UnhashableType => return err_ctx.unhashableType(),
+            else => return err,
+        }
+    }
+    return dict_;
+}
+
+/// Returns a new dict without the given keys.
+/// @argument dict: dict
+/// @argument &: int, string, symbol, keyword
+/// @return: dict
+pub fn dissoc(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len < 2) {
+        return err_ctx.atLeastNArguments(2);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+
+    var dict_ = switch (args[0]) {
+        .dict => |d| d.clone(allocator),
+        else => return err_ctx.wrongParameterType("'assoc' first argument", "dict"),
+    };
+    for (args[1..]) |key| {
+        try dict_.dict.remove(key);
+    }
+    return dict_;
+}
+
+/// Returns the value associated with the given key.
+/// @argument dict: dict
+/// @argument key: int, string, symbol, keyword
+/// @return: any
+pub fn get(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len < 2) {
+        return err_ctx.wrongNumberOfArguments(2, args_.len);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+
+    const dict_ = switch (args[0]) {
+        .dict => args[0],
+        else => return err_ctx.wrongParameterType("'assoc' first argument", "dict"),
+    };
+
+    if (!LispType.Dict.isHashable(args[1])) return err_ctx.unhashableType();
+
+    return dict_.dict.map.get(args[1]) orelse .nil;
+}
+
+/// Returns true if the given key is present at the given dictionary.
+/// @argument dict: dict
+/// @argument key: int, string, symbol, keyword
+/// @return: any
+pub fn contains(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len < 2) {
+        return err_ctx.wrongNumberOfArguments(2, args_.len);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+
+    const dict_ = switch (args[0]) {
+        .dict => args[0],
+        else => return err_ctx.wrongParameterType("'assoc' first argument", "dict"),
+    };
+
+    if (!LispType.Dict.isHashable(args[1])) return err_ctx.unhashableType();
+
+    return .{ .boolean = dict_.dict.map.contains(args[1]) };
+}
+
+fn dictIterator(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+    iterator: anytype,
+) LispError!LispType {
+    if (args_.len != 1) {
+        return err_ctx.wrongNumberOfArguments(1, args_.len);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+
+    const dict_ = switch (args[0]) {
+        .dict => |d| d.map,
+        else => return err_ctx.wrongParameterType("'keys' first argument", "dict"),
+    };
+
+    var list_ = std.ArrayListUnmanaged(LispType).initCapacity(allocator, dict_.count()) catch outOfMemory();
+    var key_iter = iterator(dict_);
+    while (key_iter.next()) |key| {
+        list_.appendAssumeCapacity(key.*);
+    }
+    return .{ .list = .{ .array = list_, .array_type = .list } };
+}
+
+/// Returns a list with the given dict keys.
+/// @argument dict: dict
+/// @return: list
+pub fn keys(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    return dictIterator(
+        allocator,
+        args_,
+        env,
+        err_ctx,
+        LispType.Dict.Map.keyIterator,
+    );
+}
+
+/// Returns a list with the given dict values.
+/// @argument dict: dict
+/// @return: list
+pub fn values(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    return dictIterator(
+        allocator,
+        args_,
+        env,
+        err_ctx,
+        LispType.Dict.Map.valueIterator,
+    );
+}
+
 /// Returns the arguments as a list.
 /// @argument &: any
 /// @return: list

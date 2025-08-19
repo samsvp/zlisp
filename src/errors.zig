@@ -167,6 +167,16 @@ pub const Context = struct {
         return LispError.WrongArgumentType;
     }
 
+    pub fn unhashableType(self: *Self) LispError {
+        self.clear();
+        std.fmt.format(
+            self.buffer.writer(self.allocator),
+            "Unhashable type. Hashable types: string, int, keyword and symbol.",
+            .{},
+        ) catch outOfMemory();
+        return LispError.UnhashableType;
+    }
+
     pub fn toLispString(self: Self, allocator: std.mem.Allocator) LispType {
         const err_str = std.fmt.allocPrint(
             allocator,
