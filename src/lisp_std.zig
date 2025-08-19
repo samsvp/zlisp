@@ -54,13 +54,13 @@ pub fn cmp(
         args_eval.appendAssumeCapacity(val);
     }
 
-    const v1: f32 = switch (args[0]) {
+    const v1: f32 = switch (args_eval.items[0]) {
         .int => |i| @floatFromInt(i),
         .float => |f| f,
         else => return err_ctx.wrongParameterType("Operands", "int or float"),
     };
 
-    return for (args[1..]) |a| {
+    return for (args_eval.items[1..]) |a| {
         const v2: f32 = switch (a) {
             .int => |i| @floatFromInt(i),
             .float => |f| f,
