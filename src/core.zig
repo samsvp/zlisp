@@ -155,7 +155,7 @@ pub fn def(
     }
 
     const val = try eval(allocator, s[1], env, err_ctx);
-    return env.putClone(s[0].symbol.getStr(), val);
+    return env.getRoot().putClone(s[0].symbol.getStr(), val);
 }
 
 pub fn defmacro(
@@ -420,5 +420,6 @@ pub fn evalWrapper(
         return err_ctx.wrongNumberOfArguments(1, s.len);
     }
 
-    return eval(allocator, s[0], env, err_ctx);
+    const fst = try eval(allocator, s[0], env, err_ctx);
+    return eval(allocator, fst, env, err_ctx);
 }

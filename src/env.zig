@@ -178,7 +178,8 @@ pub const Env = struct {
 
         // misc
         self.mapping.put(allocator, "slurp", .{ .function = .{ .builtin = lisp_std.slurp } }) catch outOfMemory();
-        self.mapping.put(allocator, "readStr", .{ .function = .{ .builtin = lisp_std.readStr } }) catch outOfMemory();
+        self.mapping.put(allocator, "read-str", .{ .function = .{ .builtin = lisp_std.readStr } }) catch outOfMemory();
+        self.mapping.put(allocator, "load-file", .{ .function = .{ .builtin = lisp_std.loadFile } }) catch outOfMemory();
 
         return self;
     }

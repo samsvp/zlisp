@@ -1144,3 +1144,17 @@ pub fn slurp(
     _ = file.readAll(buffer) catch return err_ctx.ioError();
     return LispType.String.initString(allocator, buffer);
 }
+
+pub fn loadFile(
+    allocator: std.mem.Allocator,
+    args: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    const ret = try slurp(allocator, args, env, err_ctx);
+    const src = std.fmt.allocPrint(allocator, "(do {s} nil)", .{ret.string.getStr()}) catch outOfMemory();
+    const ast = reader.readStr(allocator, src) catch |err| {
+        return err_ctx.parserError(err);
+    };
+    return core.eval(allocator, ast, env, err_ctx);
+}
