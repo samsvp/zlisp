@@ -548,6 +548,19 @@ pub fn list(
     return LispType.Array.initList(allocator, args);
 }
 
+/// Returns the arguments as a vector.
+/// @argument &: any
+/// @return: vector
+pub fn vector(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+    return LispType.Array.initVector(allocator, args);
+}
+
 /// Returns the nth element of the list/vector.
 /// @argument 1: list | vector
 /// @argument 2: int
@@ -918,6 +931,23 @@ pub fn nilQuestion(
 
     const val = try core.eval(allocator, args[0], env, err_ctx);
     return .{ .boolean = val == .nil };
+}
+
+/// Returns true if the first argument is a boolean.
+/// @argument 1: any
+/// @return: bool
+pub fn boolQuestion(
+    allocator: std.mem.Allocator,
+    args: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args.len > 1) {
+        return err_ctx.wrongNumberOfArguments(1, args.len);
+    }
+
+    const val = try core.eval(allocator, args[0], env, err_ctx);
+    return .{ .boolean = val == .boolean };
 }
 
 /// Returns true if the first argument is a symbol.
