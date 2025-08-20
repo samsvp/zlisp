@@ -425,8 +425,8 @@ pub const LispType = union(enum) {
             const cloneFn = struct {
                 fn cloneFn(ptr: *anyopaque, alloc: std.mem.Allocator) LispType {
                     const original: *T = @alignCast(@ptrCast(ptr));
-                    const cloned = @call(.auto, T.clonePtr, .{ original, alloc });
-                    return LispType.Record.init(alloc, cloned.*);
+                    const cloned = @call(.auto, T.clone, .{ original.*, alloc });
+                    return LispType.Record.init(alloc, cloned);
                 }
             }.cloneFn;
 
@@ -671,22 +671,20 @@ pub const Enum = struct {
         };
     }
 
-    /// Any value that can become a lisp type must implement a clonePtr function.
+    /// Any value that can become a lisp type must implement a clone function.
     /// This will be called when setting the value to the global environment (i.e. when using the
     /// `def` function) or when returning the value from an expression.
-    pub fn clonePtr(self: *Self, allocator: std.mem.Allocator) *Self {
+    pub fn clone(self: Self, allocator: std.mem.Allocator) Self {
         var new_options = std.ArrayListUnmanaged([]const u8).initCapacity(allocator, self.options.len) catch outOfMemory();
         for (self.options) |opts| {
             const o = allocator.dupe(u8, opts) catch outOfMemory();
             new_options.appendAssumeCapacity(o);
         }
 
-        const ret = allocator.create(Self) catch outOfMemory();
-        ret.* = .{
+        return .{
             .options = new_options.items,
             .selected = self.selected,
         };
-        return ret;
     }
 
     pub fn setSelected(self: *Self, option: []const u8) !void {
