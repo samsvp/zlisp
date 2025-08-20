@@ -39,7 +39,7 @@ pub const LispType = union(enum) {
 
         const ZArray = std.ArrayListUnmanaged(LispType);
 
-        fn initArr(allocator: std.mem.Allocator, arr: []LispType) ZArray {
+        fn initArr(allocator: std.mem.Allocator, arr: []const LispType) ZArray {
             var items = std.ArrayListUnmanaged(LispType).initCapacity(allocator, arr.len) catch outOfMemory();
 
             for (arr) |*a| {
@@ -49,7 +49,7 @@ pub const LispType = union(enum) {
             return items;
         }
 
-        pub fn initList(allocator: std.mem.Allocator, arr: []LispType) LispType {
+        pub fn initList(allocator: std.mem.Allocator, arr: []const LispType) LispType {
             const new_arr = initArr(allocator, arr);
             const list = Array{ .array = new_arr, .array_type = .list };
             return .{ .list = list };
@@ -59,7 +59,7 @@ pub const LispType = union(enum) {
             return .{ .list = .{ .array = ZArray.empty, .array_type = .list } };
         }
 
-        pub fn initVector(allocator: std.mem.Allocator, arr: []LispType) LispType {
+        pub fn initVector(allocator: std.mem.Allocator, arr: []const LispType) LispType {
             const new_arr = initArr(allocator, arr);
             const vector = Array{ .array = new_arr, .array_type = .vector };
             return .{ .vector = vector };
@@ -77,10 +77,7 @@ pub const LispType = union(enum) {
             var items = std.ArrayListUnmanaged(LispType).initCapacity(allocator, self.getItems().len + 1) catch {
                 outOfMemory();
             };
-
-            for (self.array.items) |val| {
-                items.appendAssumeCapacity(val.clone(allocator));
-            }
+            items.appendSliceAssumeCapacity(self.array.items);
             items.appendAssumeCapacity(item.clone(allocator));
 
             return .{ .list = .{ .array = items, .array_type = self.array_type } };
@@ -90,15 +87,23 @@ pub const LispType = union(enum) {
             self.array.append(allocator, value.clone(allocator)) catch outOfMemory();
         }
 
+        pub fn insert(self: Array, allocator: std.mem.Allocator, i: usize, item: LispType) LispType {
+            var items = std.ArrayListUnmanaged(LispType).initCapacity(allocator, self.getItems().len + 1) catch {
+                outOfMemory();
+            };
+            items.appendSliceAssumeCapacity(self.array.items);
+            items.insertAssumeCapacity(i, item);
+
+            return .{ .list = .{ .array = items, .array_type = self.array_type } };
+        }
+
         pub fn prepend(allocator: std.mem.Allocator, item: LispType, self: Array) LispType {
             var items = std.ArrayListUnmanaged(LispType).initCapacity(allocator, self.getItems().len + 1) catch {
                 outOfMemory();
             };
 
-            items.appendAssumeCapacity(item.clone(allocator));
-            for (self.array.items) |val| {
-                items.appendAssumeCapacity(val.clone(allocator));
-            }
+            items.appendAssumeCapacity(item);
+            items.appendSliceAssumeCapacity(self.array.items);
 
             return .{ .list = .{ .array = items, .array_type = self.array_type } };
         }
