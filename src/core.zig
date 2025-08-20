@@ -351,41 +351,37 @@ pub fn eval(
                     return s;
                 }
 
-                const fst = switch (items[0]) {
-                    .symbol, .list => try eval(allocator, items[0], env, err_ctx),
-                    else => items[0],
+                const function = switch (items[0]) {
+                    .function => |function| function,
+                    .symbol, .list => sym: {
+                        const res = try eval(allocator, items[0], env, err_ctx);
+                        if (res != .function) {
+                            return err_ctx.wrongParameterType("List first argument", "function");
+                        }
+                        break :sym res.function;
+                    },
+                    else => return err_ctx.wrongParameterType("List first argument", "function"),
                 };
 
-                switch (fst) {
-                    .function => |function| switch (function) {
-                        .builtin => |builtin| {
-                            return try builtin(allocator, items[1..], env, err_ctx);
-                        },
-                        .fn_ => |func| {
-                            if (func.args.len != items[1..].len) {
-                                return err_ctx.wrongNumberOfArguments(func.args.len, items[1..].len);
-                            }
-
-                            var new_env = func.env.clone(allocator);
-                            new_env.parent = env;
-                            for (items[1..], func.args) |item, arg| {
-                                const val = if (func.is_macro) item else try eval(allocator, item, env, err_ctx);
-                                _ = new_env.put(arg, val);
-                            }
-
-                            s = if (func.is_macro) try eval(allocator, func.ast.*, new_env, err_ctx) else func.ast.*;
-                            env = new_env;
-                            continue;
-                        },
+                switch (function) {
+                    .builtin => |builtin| {
+                        return try builtin(allocator, items[1..], env, err_ctx);
                     },
-                    else => {
-                        var new_lst = LispType.Array.emptyList();
-                        new_lst.list.appendMut(allocator, fst);
-                        for (items[1..]) |item| {
-                            const new_item = try eval(allocator, item, env, err_ctx);
-                            new_lst.list.appendMut(allocator, new_item);
+                    .fn_ => |func| {
+                        if (func.args.len != items[1..].len) {
+                            return err_ctx.wrongNumberOfArguments(func.args.len, items[1..].len);
                         }
-                        return new_lst;
+
+                        var new_env = func.env.clone(allocator);
+                        new_env.parent = env;
+                        for (items[1..], func.args) |item, arg| {
+                            const val = if (func.is_macro) item else try eval(allocator, item, env, err_ctx);
+                            _ = new_env.put(arg, val);
+                        }
+
+                        s = if (func.is_macro) try eval(allocator, func.ast.*, new_env, err_ctx) else func.ast.*;
+                        env = new_env;
+                        continue;
                     },
                 }
             },
