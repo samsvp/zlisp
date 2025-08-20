@@ -1,6 +1,7 @@
 const std = @import("std");
 const Env = @import("env.zig").Env;
 const errors = @import("errors.zig");
+const Enum = @import("types.zig").Enum;
 const LispType = @import("types.zig").LispType;
 const LispError = errors.LispError;
 const reader = @import("reader.zig");
@@ -1111,7 +1112,7 @@ pub fn readStr(
     const val = try core.eval(allocator, args[0], env, err_ctx);
     return switch (val) {
         .string => |s| reader.readStr(allocator, s.getStr()) catch |err| err_ctx.parserError(err),
-        else => err_ctx.wrongParameterType("'readStr' argument", "string"),
+        else => err_ctx.wrongParameterType("'read-str' argument", "string"),
     };
 }
 
@@ -1157,4 +1158,148 @@ pub fn loadFile(
         return err_ctx.parserError(err);
     };
     return core.eval(allocator, ast, env, err_ctx);
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
+/// These functions are examples on how to integrate a custom type (zig struct to lisp record) ///
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// Create an enum
+/// @argument selected: int
+/// @argument &: keyword
+/// @return: the newly created enum.
+pub fn enumInit(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len < 2) {
+        return err_ctx.atLeastNArguments(2);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+    const selected: usize = switch (args[0]) {
+        .int => |i_| blk: {
+            const i: usize = @intCast(i_);
+            break :blk if (i < args.len) i else return err_ctx.indexOutOfRange(i, args.len - 1);
+        },
+        else => return err_ctx.wrongParameterType("'init-enum' first argument", "int"),
+    };
+
+    var option_array = std.ArrayListUnmanaged([]const u8).initCapacity(allocator, args.len - 1) catch outOfMemory();
+    for (args[1..]) |v| {
+        if (v != .keyword) {
+            return err_ctx.wrongParameterType("'init-enum' options", "keyword");
+        }
+        option_array.appendAssumeCapacity(v.keyword.getStr());
+    }
+
+    const enum_ = Enum.init(option_array.items, selected) catch |err| {
+        const msg = std.fmt.allocPrint(allocator, "Could not create enum: {any}.", .{err}) catch outOfMemory();
+        return err_ctx.customError(msg);
+    };
+    return LispType.Record.init(allocator, enum_);
+}
+
+fn enumGet(
+    allocator: std.mem.Allocator,
+    arg_: LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+    arg_name: []const u8,
+) LispError!*Enum {
+    const arg = try core.eval(allocator, arg_, env, err_ctx);
+    return switch (arg) {
+        .record => |r| r.as(Enum) orelse err_ctx.wrongParameterType(arg_name, "enum"),
+        else => err_ctx.wrongParameterType(arg_name, "enum"),
+    };
+}
+
+/// Get an enum selected value
+/// @argument 1: record
+/// @return: keyword
+pub fn enumSelected(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len != 1) {
+        return err_ctx.wrongNumberOfArguments(1, args_.len);
+    }
+
+    const enum_ = try enumGet(allocator, args_[0], env, err_ctx, "'enum-selected' argument");
+    return LispType.String.initKeyword(allocator, enum_.getSelected());
+}
+
+/// Get an enum selected index
+/// @argument 1: record
+/// @return: int
+pub fn enumIndex(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len != 1) {
+        return err_ctx.wrongNumberOfArguments(1, args_.len);
+    }
+
+    const enum_ = try enumGet(allocator, args_[0], env, err_ctx, "'enum-index' argument");
+    return .{ .int = @intCast(enum_.getSelectedIndex()) };
+}
+
+/// We can add mutability to our functions, although not recommended.
+/// This changes the enum option.
+/// @argument 1: record
+/// @argument 2: keyword
+/// @return: nil
+pub fn enumSetSelected(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len != 2) {
+        return err_ctx.wrongNumberOfArguments(2, args_.len);
+    }
+
+    const new_keyword = switch (try core.eval(allocator, args_[1], env, err_ctx)) {
+        .keyword => |k| k.getStr(),
+        else => return err_ctx.wrongParameterType("'enum-set-option' second argument", "keyword"),
+    };
+
+    var enum_ = try enumGet(allocator, args_[0], env, err_ctx, "'enum-index' argument");
+    enum_.setSelected(new_keyword) catch {
+        const msg = std.fmt.allocPrint(allocator, "Option does not exist on enum: {s}.", .{new_keyword}) catch outOfMemory();
+        return err_ctx.customError(msg);
+    };
+    return .nil;
+}
+
+/// Changes the enum index.
+/// @argument 1: record
+/// @argument 2: int
+/// @return: nil
+pub fn enumSetIndex(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len != 2) {
+        return err_ctx.wrongNumberOfArguments(2, args_.len);
+    }
+
+    const new_index: usize = switch (try core.eval(allocator, args_[1], env, err_ctx)) {
+        .int => |i| @intCast(i),
+        else => return err_ctx.wrongParameterType("'enum-set-option' second argument", "keyword"),
+    };
+
+    var enum_ = try enumGet(allocator, args_[0], env, err_ctx, "'enum-index' argument");
+    enum_.setIndex(new_index) catch {
+        return err_ctx.indexOutOfRange(new_index, enum_.options.len);
+    };
+    return .nil;
 }

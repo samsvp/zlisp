@@ -399,6 +399,9 @@ pub const LispType = union(enum) {
     pub const Record = struct {
         bytes: []u8,
         type_info: TypeInfo,
+        clone_fn: CloneFn,
+
+        const CloneFn = *const fn (*anyopaque, std.mem.Allocator) LispType;
 
         pub const TypeInfo = struct {
             name: []const u8,
@@ -412,24 +415,28 @@ pub const LispType = union(enum) {
             }
         };
 
-        pub fn initFromBytes(allocator: std.mem.Allocator, src: []const u8, type_info: TypeInfo) LispType {
-            const buf = allocator.alloc(u8, type_info.size) catch outOfMemory();
-            @memcpy(buf, src);
-
-            return .{
-                .record = .{
-                    .bytes = buf,
-                    .type_info = type_info,
-                },
-            };
-        }
-
         pub fn init(allocator: std.mem.Allocator, val: anytype) LispType {
             const T = @TypeOf(val);
             const type_info = TypeInfo.init(T);
 
             const src = std.mem.asBytes(&val);
-            return initFromBytes(allocator, src, type_info);
+            const buf = allocator.alloc(u8, type_info.size) catch outOfMemory();
+            @memcpy(buf, src);
+            const cloneFn = struct {
+                fn cloneFn(ptr: *anyopaque, alloc: std.mem.Allocator) LispType {
+                    const original: *T = @alignCast(@ptrCast(ptr));
+                    const cloned = @call(.auto, T.cloneLisp, .{ original, alloc });
+                    return LispType.Record.init(alloc, cloned.*);
+                }
+            }.cloneFn;
+
+            return .{
+                .record = .{
+                    .bytes = buf,
+                    .type_info = type_info,
+                    .clone_fn = cloneFn,
+                },
+            };
         }
 
         pub fn deinit(self: *Record, allocator: std.mem.Allocator) void {
@@ -437,7 +444,7 @@ pub const LispType = union(enum) {
         }
 
         pub fn clone(self: Record, allocator: std.mem.Allocator) LispType {
-            return initFromBytes(allocator, self.bytes, self.type_info);
+            return self.clone_fn(@ptrCast(self.bytes), allocator);
         }
 
         pub fn eql(self: Record, other: Record) bool {
@@ -642,5 +649,65 @@ pub const LispType = union(enum) {
             },
             .nil, .int, .float, .boolean => return,
         }
+    }
+};
+
+/// An example on how to use a record to hold user defined data types.
+/// This is just a C like enum, with names and an int value.
+pub const Enum = struct {
+    options: [][]const u8,
+    selected: usize,
+
+    const Self = @This();
+
+    pub fn init(options: [][]const u8, selected: usize) !Self {
+        if (selected >= options.len) {
+            return error.ValueOutOfRange;
+        }
+
+        return Self{
+            .options = options,
+            .selected = selected,
+        };
+    }
+
+    pub fn cloneLisp(self: *Self, allocator: std.mem.Allocator) *Self {
+        var new_options = std.ArrayListUnmanaged([]const u8).initCapacity(allocator, self.options.len) catch outOfMemory();
+        for (self.options) |opts| {
+            const o = allocator.dupe(u8, opts) catch outOfMemory();
+            new_options.appendAssumeCapacity(o);
+        }
+
+        const ret = allocator.create(Self) catch outOfMemory();
+        ret.* = .{
+            .options = new_options.items,
+            .selected = self.selected,
+        };
+        return ret;
+    }
+
+    pub fn setSelected(self: *Self, option: []const u8) !void {
+        for (self.options, 0..) |opt, i| if (std.mem.eql(u8, opt, option)) {
+            self.selected = i;
+            return;
+        };
+
+        return error.ValueOutOfRange;
+    }
+
+    pub fn setIndex(self: *Self, s: usize) !void {
+        if (s >= self.options.len) {
+            return error.ValueOutOfRange;
+        }
+
+        self.selected = s;
+    }
+
+    pub fn getSelected(self: Self) []const u8 {
+        return self.options[self.selected];
+    }
+
+    pub fn getSelectedIndex(self: Self) usize {
+        return self.selected;
     }
 };

@@ -181,6 +181,13 @@ pub const Env = struct {
         self.mapping.put(allocator, "read-str", .{ .function = .{ .builtin = lisp_std.readStr } }) catch outOfMemory();
         self.mapping.put(allocator, "load-file", .{ .function = .{ .builtin = lisp_std.loadFile } }) catch outOfMemory();
 
+        // custom enum
+        self.mapping.put(allocator, "enum-init", .{ .function = .{ .builtin = lisp_std.enumInit } }) catch outOfMemory();
+        self.mapping.put(allocator, "enum-selected", .{ .function = .{ .builtin = lisp_std.enumSelected } }) catch outOfMemory();
+        self.mapping.put(allocator, "enum-index", .{ .function = .{ .builtin = lisp_std.enumIndex } }) catch outOfMemory();
+        self.mapping.put(allocator, "enum-set-selected", .{ .function = .{ .builtin = lisp_std.enumSetSelected } }) catch outOfMemory();
+        self.mapping.put(allocator, "enum-set-index", .{ .function = .{ .builtin = lisp_std.enumSetIndex } }) catch outOfMemory();
+
         return self;
     }
 };
