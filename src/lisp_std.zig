@@ -137,10 +137,7 @@ pub fn evalArgs(
 ) LispError![]LispType {
     var args_arr = std.ArrayListUnmanaged(LispType).initCapacity(allocator, uneval_args.len) catch outOfMemory();
     for (uneval_args) |arg| {
-        const val = switch (arg) {
-            .symbol => try core.eval(allocator, arg, env, err_ctx),
-            else => arg,
-        };
+        const val = try core.eval(allocator, arg, env, err_ctx);
         args_arr.appendAssumeCapacity(val);
     }
     return args_arr.items;
