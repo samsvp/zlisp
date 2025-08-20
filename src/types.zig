@@ -73,7 +73,20 @@ pub const LispType = union(enum) {
             return self.array.items;
         }
 
-        pub fn append(self: *Array, allocator: std.mem.Allocator, value: LispType) void {
+        pub fn append(self: Array, allocator: std.mem.Allocator, item: LispType) LispType {
+            var items = std.ArrayListUnmanaged(LispType).initCapacity(allocator, self.getItems().len + 1) catch {
+                outOfMemory();
+            };
+
+            for (self.array.items) |val| {
+                items.appendAssumeCapacity(val.clone(allocator));
+            }
+            items.appendAssumeCapacity(item.clone(allocator));
+
+            return .{ .list = .{ .array = items, .array_type = self.array_type } };
+        }
+
+        pub fn appendMut(self: *Array, allocator: std.mem.Allocator, value: LispType) void {
             self.array.append(allocator, value.clone(allocator)) catch outOfMemory();
         }
 

@@ -389,7 +389,7 @@ pub fn eval(
                 var new_v = LispType.Array.emptyVector();
                 for (v.getItems()) |item| {
                     const new_item = try eval(allocator, item, env, err_ctx);
-                    new_v.vector.append(allocator, new_item);
+                    new_v.vector.appendMut(allocator, new_item);
                 }
                 return new_v;
             },

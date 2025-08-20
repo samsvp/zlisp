@@ -188,6 +188,8 @@ pub const Env = struct {
         self.mapping.put(allocator, "enum-set-selected", .{ .function = .{ .builtin = lisp_std.enumSetSelected } }) catch outOfMemory();
         self.mapping.put(allocator, "enum-set-index", .{ .function = .{ .builtin = lisp_std.enumSetIndex } }) catch outOfMemory();
 
+        self.mapping.put(allocator, "->", .{ .function = .{ .builtin = lisp_std.arrow } }) catch outOfMemory();
+
         return self;
     }
 };

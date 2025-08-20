@@ -865,7 +865,7 @@ pub fn swapBang(
     var fn_list = LispType.Array.initList(allocator, &fn_arr);
 
     for (args[2..]) |arg| {
-        fn_list.list.append(allocator, arg);
+        fn_list.list.appendMut(allocator, arg);
     }
 
     const val = try core.eval(allocator, fn_list, env, err_ctx);
@@ -1302,4 +1302,55 @@ pub fn enumSetIndex(
         return err_ctx.indexOutOfRange(new_index, enum_.options.len);
     };
     return .nil;
+}
+
+fn arrowApply(
+    allocator: std.mem.Allocator,
+    val: LispType,
+    ast: LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    return switch (ast) {
+        .function => blk: {
+            var l = [_]LispType{ ast, val };
+            break :blk core.eval(
+                allocator,
+                LispType.Array.initList(allocator, &l),
+                env,
+                err_ctx,
+            );
+        },
+        .list => |l| try core.eval(allocator, l.append(allocator, val), env, err_ctx),
+        else => err_ctx.wrongParameterType("'arrow' tail arguments", "list or function"),
+    };
+}
+
+/// Applies the first argument to the subsequent functions
+/// @argument 1: any
+/// @argument &: function
+/// @return: any
+pub fn arrow(
+    allocator: std.mem.Allocator,
+    args: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args.len < 2) {
+        return err_ctx.atLeastNArguments(2);
+    }
+
+    var val = try core.eval(allocator, args[0], env, err_ctx);
+    for (args[1..]) |arg| {
+        val = switch (arg) {
+            .symbol => blk: {
+                const ast = try core.eval(allocator, arg, env, err_ctx);
+                break :blk try arrowApply(allocator, val, ast, env, err_ctx);
+            },
+            .list, .function => try arrowApply(allocator, val, arg, env, err_ctx),
+            else => return err_ctx.wrongParameterType("'->' tail arguments", "list or function"),
+        };
+    }
+
+    return val;
 }
