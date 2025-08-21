@@ -282,7 +282,7 @@ pub fn fn_(
     if (s.len == 3) {
         const closure_symbols = s[0];
         if (closure_symbols != .vector) {
-            return err_ctx.wrongParameterType("Parameter list", "vector");
+            return err_ctx.wrongParameterType("'fn' parameter list", "vector");
         }
 
         const c_items = closure_symbols.vector.getItems();
