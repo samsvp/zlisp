@@ -125,6 +125,7 @@ pub const Env = struct {
         self.mapping.put(allocator, "<=", .{ .function = .{ .builtin = lisp_std.lessEql } }) catch outOfMemory();
         self.mapping.put(allocator, ">", .{ .function = .{ .builtin = lisp_std.bigger } }) catch outOfMemory();
         self.mapping.put(allocator, ">=", .{ .function = .{ .builtin = lisp_std.biggerEql } }) catch outOfMemory();
+        self.mapping.put(allocator, "not", .{ .function = .{ .builtin = lisp_std.not } }) catch outOfMemory();
 
         // math
         self.mapping.put(allocator, "+", .{ .function = .{ .builtin = lisp_std.add } }) catch outOfMemory();
@@ -136,7 +137,7 @@ pub const Env = struct {
         self.mapping.put(allocator, "nth", .{ .function = .{ .builtin = lisp_std.nth } }) catch outOfMemory();
         self.mapping.put(allocator, "head", .{ .function = .{ .builtin = lisp_std.head } }) catch outOfMemory();
         self.mapping.put(allocator, "tail", .{ .function = .{ .builtin = lisp_std.tail } }) catch outOfMemory();
-        self.mapping.put(allocator, "empty", .{ .function = .{ .builtin = lisp_std.emptyQuestion } }) catch outOfMemory();
+        self.mapping.put(allocator, "empty?", .{ .function = .{ .builtin = lisp_std.emptyQuestion } }) catch outOfMemory();
         self.mapping.put(allocator, "count", .{ .function = .{ .builtin = lisp_std.count } }) catch outOfMemory();
         self.mapping.put(allocator, "cons", .{ .function = .{ .builtin = lisp_std.cons } }) catch outOfMemory();
         self.mapping.put(allocator, "concat", .{ .function = .{ .builtin = lisp_std.concat } }) catch outOfMemory();

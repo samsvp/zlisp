@@ -51,11 +51,16 @@ pub const Interpreter = struct {
         return value.toStringFull(self.print_arena.allocator()) catch outOfMemory();
     }
 
-    pub fn rep(self: *Self, text: []const u8) ![]const u8 {
+    pub fn re(self: *Self, text: []const u8) !LispType {
         _ = self.arena.reset(.retain_capacity);
         const allocator = self.arena.allocator();
         const val = try Reader.readStr(allocator, text);
-        const ret = self.run(allocator, val) catch blk: {
+        return self.run(allocator, val);
+    }
+
+    pub fn rep(self: *Self, text: []const u8) ![]const u8 {
+        const allocator = self.arena.allocator();
+        const ret = self.re(text) catch blk: {
             const err_str = std.fmt.allocPrint(
                 allocator,
                 "ERROR: {s}\n",

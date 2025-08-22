@@ -1,5 +1,4 @@
 const std = @import("std");
-const Reader = @import("reader.zig");
 const Linenoise = @import("linenoize").Linenoise;
 const Interpreter = @import("interpreter.zig").Interpreter;
 
@@ -11,7 +10,7 @@ pub fn main() !void {
     }
 
     const allocator = gpa.allocator();
-    var interpreter = Interpreter.init(gpa.allocator());
+    var interpreter = Interpreter.init(allocator);
     defer interpreter.deinit();
 
     var ln = Linenoise.init(allocator);
@@ -33,4 +32,8 @@ pub fn main() !void {
         try stdout.print("{s}\n", .{res});
         try ln.history.add(input);
     }
+}
+
+test {
+    _ = @import("tests.zig");
 }

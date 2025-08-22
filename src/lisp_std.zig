@@ -8,6 +8,24 @@ const reader = @import("reader.zig");
 const core = @import("core.zig");
 const outOfMemory = @import("utils.zig").outOfMemory;
 
+pub fn not(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len != 1) {
+        return err_ctx.wrongNumberOfArguments(1, args_.len);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+    return switch (args[0]) {
+        .boolean => |b| .{ .boolean = !b },
+        .nil => LispType.lisp_true,
+        else => LispType.lisp_false,
+    };
+}
+
 pub fn eql(
     allocator: std.mem.Allocator,
     args: []LispType,
