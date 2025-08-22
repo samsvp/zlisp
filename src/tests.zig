@@ -11,9 +11,13 @@ test "math ops" {
 
     const allocator = gpa.allocator();
 
+    var interpreter = Interpreter.init(allocator);
+    defer interpreter.deinit();
+
     for ([_][]const u8{
         "src/test-files/eval.lisp",
         "src/test-files/if_fn_do.lisp",
+        "src/test-files/tco.lisp",
     }) |filename| {
         var file = try std.fs.cwd().openFile(filename, .{});
         defer file.close();
@@ -23,9 +27,6 @@ test "math ops" {
         defer allocator.free(buffer);
 
         _ = try file.readAll(buffer);
-
-        var interpreter = Interpreter.init(allocator);
-        defer interpreter.deinit();
 
         var it = std.mem.splitScalar(u8, buffer, '\n');
         var i: usize = 0;

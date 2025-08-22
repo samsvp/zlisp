@@ -37,8 +37,7 @@ pub fn try_(
 
     const ret = eval(allocator, s[0], env, err_ctx) catch {
         const err_str = err_ctx.toLispString(allocator);
-        var new_env = Env.initFromParent(env);
-        defer new_env.deinit();
+        const new_env = Env.initFromParent(env);
 
         _ = new_env.put(catch_form[1].symbol.getStr(), err_str);
         return eval(allocator, catch_form[2], new_env, err_ctx);
@@ -221,8 +220,6 @@ pub fn let(
     }
 
     var new_env = Env.initFromParent(env);
-    defer new_env.deinit();
-
     const arr = switch (args[0]) {
         .list, .vector => |arr| blk: {
             if (arr.getItems().len % 2 != 0) {
@@ -237,9 +234,7 @@ pub fn let(
     for (0..args_items.len / 2) |_i| {
         const i = 2 * _i;
 
-        var arg_env = Env.initFromParent(new_env);
-        defer arg_env.deinit();
-
+        const arg_env = Env.initFromParent(new_env);
         const key = args_items[i];
         const value = try eval(allocator, args_items[i + 1], arg_env, err_ctx);
         switch (key) {
@@ -304,6 +299,7 @@ pub fn fn_(
         args.items,
         closure_names.items,
         closure_vals.items,
+        env,
     );
 }
 
@@ -366,8 +362,7 @@ pub fn eval(
                                 return err_ctx.wrongNumberOfArguments(func.args.len, items[1..].len);
                             }
 
-                            var new_env = func.env.clone(allocator);
-                            new_env.parent = env;
+                            var new_env = Env.initFromParent(func.env);
                             for (items[1..], func.args) |item, arg| {
                                 const val = if (func.is_macro) item else try eval(allocator, item, env, err_ctx);
                                 _ = new_env.put(arg, val);
