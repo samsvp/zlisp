@@ -124,9 +124,7 @@
 (= (fib 2) 2)
 (= (fib 4) 5)
 
-(= (let (f (fn [] x) x 3) (f)) 3)
-(= (let (cst (fn [n] (if (= n 0) nil (cst (- n 1))))) (cst 1)) nil)
-(= (let (f (fn [n] (if (= n 0) 0 (g (- n 1)))) g (fn [n] (f n))) (f 2)) 0)
+(= (let [x 3 f (fn [x] [] x)] (f)) 3)
 
 (= (if "" 7 8) 7)
 

@@ -280,8 +280,7 @@ pub const LispType = union(enum) {
             closure_vals: []LispType,
             base_env: *Env,
         ) LispType {
-            var env = Env.init(allocator);
-            env.parent = base_env;
+            var env = Env.initFromParent(base_env.getRoot());
             for (closure_vals, closure_names) |v, name| {
                 _ = env.putClone(name, v);
             }

@@ -15,6 +15,7 @@ test "math ops" {
     defer interpreter.deinit();
 
     for ([_][]const u8{
+        "src/test-files/env.lisp",
         "src/test-files/eval.lisp",
         "src/test-files/if_fn_do.lisp",
         "src/test-files/tco.lisp",
