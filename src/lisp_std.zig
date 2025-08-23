@@ -580,6 +580,25 @@ pub fn vector(
     return LispType.Array.initVector(allocator, args);
 }
 
+/// Converts the given list into a vector.
+/// @argument 1: list
+/// @return: vector
+pub fn vec(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len != 1) {
+        return err_ctx.wrongNumberOfArguments(1, args_.len);
+    }
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+    return switch (args[0]) {
+        .list, .vector => |l| LispType.Array.initVector(allocator, l.getItems()),
+        else => err_ctx.wrongParameterType("'vec' argument", "list or vector"),
+    };
+}
+
 /// Returns the nth element of the list/vector.
 /// @argument 1: list | vector
 /// @argument 2: int

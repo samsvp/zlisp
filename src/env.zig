@@ -156,6 +156,7 @@ pub const Env = struct {
 
         // type conversions
         self.mapping.put(allocator, "list", .{ .function = .{ .builtin = lisp_std.list } }) catch outOfMemory();
+        self.mapping.put(allocator, "vec", .{ .function = .{ .builtin = lisp_std.vec } }) catch outOfMemory();
         self.mapping.put(allocator, "vector", .{ .function = .{ .builtin = lisp_std.vector } }) catch outOfMemory();
         self.mapping.put(allocator, "dict", .{ .function = .{ .builtin = lisp_std.dict } }) catch outOfMemory();
         self.mapping.put(allocator, "str", .{ .function = .{ .builtin = lisp_std.str } }) catch outOfMemory();
