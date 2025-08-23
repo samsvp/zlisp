@@ -5,3 +5,7 @@
               (if (= n total)
                 acc (f (+ n 1) col total (+ acc ((n (nth col n)))))))]
       (f 0 col total ()))))
+
+
+(defmacro infix [infixed] (list (nth infixed 1) (nth infixed 0) (nth infixed 2)))
+

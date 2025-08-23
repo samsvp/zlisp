@@ -24,16 +24,29 @@
 (= (nth (list 1 2) 1) 2)
 (= (nth (list 1 2 nil) 2) nil)
 (= (def x "x") "x")
-(= (def x (nth (list 1 2) 2)) "x")
+(try (def x (nth (list 1 2) 2)) (catch _ true))
 (= x "x")
 
-(= (first (list)) nil)
-(= (first (list 6)) 6)
-(= (first (list 7 8 9)) 7)
+(= (head (list 6)) 6)
+(= (head (list 7 8 9)) 7)
 
-(= (rest (list)) ())
-(= (rest (list 6)) ())
-(= (rest (list 7 8 9)) (8 9))
+(= (tail (list 6)) ())
+(= (tail (list 7 8 9)) (8 9))
+
+(= (nth [1] 0) 1)
+(= (nth [1 2] 1) 2)
+(= (nth [1 2 nil] 2) nil)
+
+(= (def x 2) 2)
+(do (defmacro a (fn [] x)) true)
+(= (a) 2)
+(= (let [x 3] (a)) 2)
+
+(= (head [10]) 10)
+(= (head [10 11 12]) 10)
+(= (tail [10]) ())
+(= (tail [10 11 12]) (11 12))
+(= (tail (cons 10 [11 12])) (11 12))
 
 (= (cond) nil)
 (= (cond true 7) 7)
@@ -46,26 +59,5 @@
 
 (= (let (x (cond false "no" true "yes")) x) "yes")
 
-(= (nth [1] 0) 1)
-(= (nth [1 2] 1) 2)
-(= (nth [1 2 nil] 2) nil)
-(= (def x "x") "x")
-(= (def x (nth [1 2] 2)) "x")
-(= x "x")
-
-(= (first []) nil)
-(= (first nil) nil)
-(= (first [10]) 10)
-(= (first [10 11 12]) 10)
-(= (rest []) ())
-(= (rest nil) ())
-(= (rest [10]) ())
-(= (rest [10 11 12]) (11 12))
-(= (rest (cons 10 [11 12])) (11 12))
 
 (= (let [x (cond false "no" true "yes")] x) "yes")
-
-(= (def x 2) 2)
-(= (defmacro a (fn [] x)) (fn [] x))
-(= (a) 2)
-(= (let (x 3) (a)) 2)

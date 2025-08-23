@@ -364,7 +364,7 @@ pub fn eval(
 
                             var new_env = Env.initFromParent(func.env);
                             for (items[1..], func.args) |item, arg| {
-                                const val = if (func.is_macro) item else try eval(allocator, item, env, err_ctx);
+                                const val = try eval(allocator, item, env, err_ctx);
                                 _ = new_env.put(arg, val);
                             }
 
