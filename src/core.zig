@@ -84,11 +84,11 @@ pub fn quasiquote(
 ) LispError!LispType {
     const isSpliceUnquote = struct {
         pub fn f(elt: LispType) bool {
-            if (elt != .list) {
-                return false;
-            }
+            const arr = switch (elt) {
+                .list, .vector => |arr| arr,
+                else => return false,
+            };
 
-            const arr = elt.list;
             const items = arr.getItems();
             return items.len > 0 and
                 items[0] == .symbol and
@@ -102,11 +102,11 @@ pub fn quasiquote(
 
     const ast = args_[0];
 
-    if (ast != .list) {
-        return ast;
-    }
+    const args_arr = switch (ast) {
+        .list, .vector => |arr| arr,
+        else => return ast,
+    };
 
-    const args_arr = ast.list;
     const args = args_arr.getItems();
     if (args.len == 2) {
         if (args[0] == .symbol and std.mem.eql(u8, args[0].symbol.getStr(), "unquote")) {
@@ -136,7 +136,11 @@ pub fn quasiquote(
         }
     }
 
-    return LispType.Array.initList(allocator, res_arr.items);
+    return switch (ast) {
+        .list => LispType.Array.initList(allocator, res_arr.items),
+        .vector => LispType.Array.initVector(allocator, res_arr.items),
+        else => unreachable,
+    };
 }
 
 pub fn def(

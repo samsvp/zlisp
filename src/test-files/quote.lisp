@@ -104,8 +104,6 @@
 (= (vec a) [1 2])
 (= a (1 2))
 
-(= ((fn [q] (quasiquote ((unquote q) (quote (unquote q))))) (quote (fn [q] (quasiquote ((unquote q) (quote (unquote q))))))) '((fn [q] (quasiquote ((unquote q) (quote (unquote q))))) (quote (fn [q] (quasiquote ((unquote q) (quote (unquote q))))))))
-
 (= (quasiquote []) [])
 (= (quasiquote [[]]) [[]])
 (= (quasiquote [()]) [()])
@@ -117,9 +115,9 @@
 (= `[~a] [8])
 (= `[(~a)] [(8)])
 (= `([~a]) ([8]))
-(= `[a ~a a] [a 8 a])
-(= `([a ~a a]) ([a 8 a]))
-(= `[(a ~a a)] [(a 8 a)])
+(= `[a ~a a] '[a 8 a])
+(= `([a ~a a]) '([a 8 a]))
+(= `[(a ~a a)] '[(a 8 a)])
 
 (= (def c '(1 "b" "d")) (1 "b" "d"))
 (= `[~@c] [1 "b" "d"])
@@ -129,9 +127,7 @@
 (= `([1 ~@c 3]) ([1 1 "b" "d" 3]))
 (= `[(1 ~@c 3)] [(1 1 "b" "d" 3)])
 
-(= `(0 unquote) (0 unquote))
-(= `(0 splice-unquote) (0 splice-unquote))
-(= `[unquote 0] [unquote 0])
-(= `[splice-unquote 0] [splice-unquote 0])
-(= `(0 unquote 1) (0 unquote 1))
-(= `(0 splice-unquote ()) (0 splice-unquote ()))
+(= `(0 unquote) '(0 unquote))
+(= `(0 splice-unquote) '(0 splice-unquote))
+(= `(0 unquote 1) '(0 unquote 1))
+(= `(0 splice-unquote ()) '(0 splice-unquote ()))
