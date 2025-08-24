@@ -387,6 +387,41 @@ pub fn map(
     };
 }
 
+pub fn apply(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len < 2) {
+        return err_ctx.atLeastNArguments(2);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+
+    const func = switch (args[0]) {
+        .function => args[0],
+        else => return err_ctx.wrongParameterType("'map' first argument", "function"),
+    };
+
+    var new_args = std.ArrayListUnmanaged(LispType).initCapacity(allocator, args.len + 1) catch outOfMemory();
+    new_args.appendAssumeCapacity(func);
+    for (args[1 .. args.len - 1]) |arg| {
+        new_args.appendAssumeCapacity(arg);
+    }
+
+    const last = args[args.len - 1];
+    switch (last) {
+        .list, .vector => |arr| for (arr.getItems()) |val| {
+            new_args.append(allocator, val) catch outOfMemory();
+        },
+        else => new_args.appendAssumeCapacity(last),
+    }
+
+    const ast = LispType{ .list = .{ .array = new_args, .array_type = .list } };
+    return core.eval(allocator, ast, env, err_ctx);
+}
+
 /// Returns the arguments as a dict.
 /// @argument &: any
 /// @return: dict

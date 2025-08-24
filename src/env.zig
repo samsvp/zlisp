@@ -135,7 +135,9 @@ pub const Env = struct {
         self.mapping.put(allocator, "map", .{ .function = .{ .builtin = lisp_std.map } }) catch outOfMemory();
         self.mapping.put(allocator, "nth", .{ .function = .{ .builtin = lisp_std.nth } }) catch outOfMemory();
         self.mapping.put(allocator, "head", .{ .function = .{ .builtin = lisp_std.head } }) catch outOfMemory();
+        self.mapping.put(allocator, "first", .{ .function = .{ .builtin = lisp_std.head } }) catch outOfMemory();
         self.mapping.put(allocator, "tail", .{ .function = .{ .builtin = lisp_std.tail } }) catch outOfMemory();
+        self.mapping.put(allocator, "rest", .{ .function = .{ .builtin = lisp_std.tail } }) catch outOfMemory();
         self.mapping.put(allocator, "empty?", .{ .function = .{ .builtin = lisp_std.emptyQuestion } }) catch outOfMemory();
         self.mapping.put(allocator, "count", .{ .function = .{ .builtin = lisp_std.count } }) catch outOfMemory();
         self.mapping.put(allocator, "cons", .{ .function = .{ .builtin = lisp_std.cons } }) catch outOfMemory();
@@ -181,6 +183,7 @@ pub const Env = struct {
         self.mapping.put(allocator, "slurp", .{ .function = .{ .builtin = lisp_std.slurp } }) catch outOfMemory();
         self.mapping.put(allocator, "read-str", .{ .function = .{ .builtin = lisp_std.readStr } }) catch outOfMemory();
         self.mapping.put(allocator, "load-file", .{ .function = .{ .builtin = lisp_std.loadFile } }) catch outOfMemory();
+        self.mapping.put(allocator, "apply", .{ .function = .{ .builtin = lisp_std.apply } }) catch outOfMemory();
 
         // custom enum
         self.mapping.put(allocator, "enum-init", .{ .function = .{ .builtin = lisp_std.enumInit } }) catch outOfMemory();
