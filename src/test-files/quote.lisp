@@ -129,5 +129,7 @@
 
 (= `(0 unquote) '(0 unquote))
 (= `(0 splice-unquote) '(0 splice-unquote))
+(= `[unquote 0] '[unquote 0])
+(= `[splice-unquote 0] '[splice-unquote 0])
 (= `(0 unquote 1) '(0 unquote 1))
 (= `(0 splice-unquote ()) '(0 splice-unquote ()))

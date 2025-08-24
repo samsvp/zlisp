@@ -277,7 +277,7 @@ pub fn quasiquote(
 
     const args = args_arr.getItems();
     if (args.len == 2) {
-        if (args[0] == .symbol and std.mem.eql(u8, args[0].symbol.getStr(), "unquote")) {
+        if (args[0] == .symbol and ast == .list and std.mem.eql(u8, args[0].symbol.getStr(), "unquote")) {
             return eval(allocator, args[1], env, err_ctx);
         }
     }
