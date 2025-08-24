@@ -362,14 +362,39 @@ pub fn eval(
                             return try builtin(allocator, items[1..], env, err_ctx);
                         },
                         .fn_ => |func| {
-                            if (func.args.len != items[1..].len) {
-                                return err_ctx.wrongNumberOfArguments(func.args.len, items[1..].len);
-                            }
+                            const args = items[1..];
+                            const fn_args_len = func.args.len;
+                            const is_variadic = fn_args_len > 0 and func.args[fn_args_len - 1][0] == '&';
 
                             var new_env = Env.initFromParent(func.env);
-                            for (items[1..], func.args) |item, arg| {
-                                const val = try eval(allocator, item, env, err_ctx);
-                                _ = new_env.put(arg, val);
+                            if (is_variadic) {
+                                if (args.len < fn_args_len - 1) {
+                                    return err_ctx.wrongNumberOfArguments(fn_args_len, args.len);
+                                }
+
+                                for (args[0 .. fn_args_len - 1], func.args[0 .. fn_args_len - 1]) |item, arg_name| {
+                                    const val = try eval(allocator, item, env, err_ctx);
+                                    _ = new_env.put(arg_name, val);
+                                }
+
+                                const arg_name = func.args[fn_args_len - 1][1..]; // remove &
+                                var list = LispType.Array.emptyList();
+                                const var_args = args[fn_args_len - 1 ..];
+                                list.list.array.ensureTotalCapacity(allocator, var_args.len) catch outOfMemory();
+                                for (var_args) |arg| {
+                                    const val = try eval(allocator, arg, env, err_ctx);
+                                    list.list.array.appendAssumeCapacity(val);
+                                }
+                                _ = new_env.put(arg_name, list);
+                            } else {
+                                if (fn_args_len != args.len) {
+                                    return err_ctx.wrongNumberOfArguments(fn_args_len, args.len);
+                                }
+
+                                for (args, func.args) |item, arg_name| {
+                                    const val = try eval(allocator, item, env, err_ctx);
+                                    _ = new_env.put(arg_name, val);
+                                }
                             }
 
                             s = if (func.is_macro) try eval(allocator, func.ast.*, new_env, err_ctx) else func.ast.*;

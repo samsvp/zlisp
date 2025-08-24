@@ -181,3 +181,13 @@
 
 (= ( (fn [] 4) ) 4)
 (= ( (fn [f x] (f x)) (fn [a] (+ 1 a)) 7) 8)
+
+
+(= ( (fn [&more] (count more)) 1 2 3) 3)
+(= ( (fn [&more] (list? more)) 1 2 3) true)
+(= ( (fn [&more] (count more)) 1) 1)
+(= ( (fn [&more] (count more)) ) 0)
+(= ( (fn [&more] (list? more)) ) true)
+(= ( (fn [a &more] (count more)) 1 2 3) 2)
+(= ( (fn [a &more] (count more)) 1) 0)
+(= ( (fn [a &more] (list? more)) 1) true)
