@@ -1,10 +1,11 @@
-(def my-enumerate
+(def enumerate
   (fn [col]
-    (let [total (count col)
-          f (fn [n col total acc]
-              (if (= n total)
-                acc (f (+ n 1) col total (+ acc ((n (nth col n)))))))]
-      (f 0 col total ()))))
+    (let [i (atom -1)]
+      (map
+        (fn [i] [v]
+          (let [_ (swap! i (fn [a b] (+ a b)) 1)]
+            ((deref i) v)))
+        col))))
 
 
 (defmacro infix [infixed]

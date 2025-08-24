@@ -8,6 +8,20 @@ const reader = @import("reader.zig");
 const core = @import("core.zig");
 const outOfMemory = @import("utils.zig").outOfMemory;
 
+fn evalArgs(
+    allocator: std.mem.Allocator,
+    uneval_args: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError![]LispType {
+    var args_arr = std.ArrayListUnmanaged(LispType).initCapacity(allocator, uneval_args.len) catch outOfMemory();
+    for (uneval_args) |arg| {
+        const val = try core.eval(allocator, arg, env, err_ctx);
+        args_arr.appendAssumeCapacity(val);
+    }
+    return args_arr.items;
+}
+
 pub fn not(
     allocator: std.mem.Allocator,
     args_: []LispType,
@@ -145,20 +159,6 @@ pub fn biggerEql(
         }
     }.f;
     return cmp(allocator, args, err_ctx, env, lessFn);
-}
-
-pub fn evalArgs(
-    allocator: std.mem.Allocator,
-    uneval_args: []LispType,
-    env: *Env,
-    err_ctx: *errors.Context,
-) LispError![]LispType {
-    var args_arr = std.ArrayListUnmanaged(LispType).initCapacity(allocator, uneval_args.len) catch outOfMemory();
-    for (uneval_args) |arg| {
-        const val = try core.eval(allocator, arg, env, err_ctx);
-        args_arr.appendAssumeCapacity(val);
-    }
-    return args_arr.items;
 }
 
 /// Adds all elements of the list/vector.
@@ -349,6 +349,42 @@ pub fn div(
         },
         else => return err_ctx.wrongParameterType("'/' arguments", "int or float"),
     }
+}
+
+pub fn map(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len != 2) {
+        return err_ctx.wrongNumberOfArguments(2, args_.len);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+
+    const func = switch (args[0]) {
+        .function => args[0],
+        else => return err_ctx.wrongParameterType("'map' first argument", "function"),
+    };
+
+    const arr = switch (args[1]) {
+        .list, .vector => |arr| arr.getItems(),
+        else => return err_ctx.wrongParameterType("'map' second argument", "list or vector"),
+    };
+
+    var ast = LispType.Array.initList(allocator, &[2]LispType{ func, undefined });
+    var res = std.ArrayListUnmanaged(LispType).initCapacity(allocator, arr.len) catch outOfMemory();
+    for (arr) |val| {
+        ast.list.array.items[1] = val;
+        const ret = try core.eval(allocator, ast, env, err_ctx);
+        res.appendAssumeCapacity(ret);
+    }
+    return switch (args[1]) {
+        .list => LispType{ .list = .{ .array = res, .array_type = .list } },
+        .vector => LispType{ .vector = .{ .array = res, .array_type = .vector } },
+        else => undefined,
+    };
 }
 
 /// Returns the arguments as a dict.

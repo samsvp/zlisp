@@ -132,6 +132,7 @@ pub const Env = struct {
         self.mapping.put(allocator, "/", .{ .function = .{ .builtin = lisp_std.div } }) catch outOfMemory();
 
         // list / vector
+        self.mapping.put(allocator, "map", .{ .function = .{ .builtin = lisp_std.map } }) catch outOfMemory();
         self.mapping.put(allocator, "nth", .{ .function = .{ .builtin = lisp_std.nth } }) catch outOfMemory();
         self.mapping.put(allocator, "head", .{ .function = .{ .builtin = lisp_std.head } }) catch outOfMemory();
         self.mapping.put(allocator, "tail", .{ .function = .{ .builtin = lisp_std.tail } }) catch outOfMemory();
