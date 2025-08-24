@@ -1105,9 +1105,6 @@ pub fn symbolQuestion(
         return err_ctx.wrongNumberOfArguments(1, args.len);
     }
 
-    if (args[0] == .symbol) {
-        return LispType.lisp_true;
-    }
     const val = try core.eval(allocator, args[0], env, err_ctx);
     return .{ .boolean = val == .symbol };
 }

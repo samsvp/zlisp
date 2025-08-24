@@ -40,7 +40,7 @@
 (= (apply + (list 2 3)) 5)
 (= (apply + 4 (list 5)) 9)
 (= (apply list (list)) ())
-(= (apply symbol? (list (quote two))) true)
+(= (apply symbol? '((quote two))) true)
 
 (= (apply (fn [a b] (+ a b)) (list 2 3)) 5)
 (= (apply (fn [a b] (+ a b)) 4 (list 5)) 9)
@@ -53,7 +53,7 @@
 (do (def double (fn [a] (* 2 a))) true)
 (= (double 3) 6)
 (= (map double nums) (2 4 6))
-(= (map symbol? (list 1 (quote two) "three")) (false true false))
+(= (map symbol? '(1 (quote two) "three")) (false true false))
 (= () (map str ()))
 
 (= (symbol? :abc) false)
