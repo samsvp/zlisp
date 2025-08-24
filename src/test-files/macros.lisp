@@ -59,7 +59,4 @@
 (= (cond false 7 (= 2 2) 8 "else" 9) 8)
 (= (cond false 7 false 8 false 9) nil)
 
-(= (let (x (cond false "no" true "yes")) x) "yes")
-
-
 (= (let [x (cond false "no" true "yes")] x) "yes")

@@ -5,6 +5,174 @@ const errors = @import("errors.zig");
 const LispError = errors.LispError;
 const outOfMemory = @import("utils.zig").outOfMemory;
 
+pub fn eval(
+    allocator: std.mem.Allocator,
+    ast: LispType,
+    root_env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    var s = ast;
+    var env = root_env;
+
+    while (true) {
+        const is_eval = env.get("DEBUG-EVAL");
+        if (is_eval) |flag| {
+            if (flag != .nil and !flag.eql(LispType.lisp_false)) {
+                const str_value = s.toStringFull(allocator) catch outOfMemory();
+                std.debug.print("EVAL {s}\n", .{str_value});
+            }
+        }
+
+        switch (s) {
+            .symbol => |symbol| {
+                return if (env.getPtr(symbol.getStr())) |value|
+                    value.*
+                else
+                    err_ctx.symbolNotFound(symbol.getStr());
+            },
+            .list => |v| {
+                const items = v.getItems();
+                if (items.len == 0) {
+                    return s;
+                }
+
+                const fst = switch (items[0]) {
+                    .symbol, .list => try eval(allocator, items[0], env, err_ctx),
+                    else => items[0],
+                };
+
+                switch (fst) {
+                    .function => |function| switch (function) {
+                        .builtin => |builtin| {
+                            return try builtin(allocator, items[1..], env, err_ctx);
+                        },
+                        .fn_ => |func| {
+                            const args = items[1..];
+                            env, s = try Fn.apply(allocator, args, func, env, err_ctx);
+                            continue;
+                        },
+                    },
+                    else => {
+                        var new_lst = LispType.Array.emptyList();
+                        new_lst.list.appendMut(allocator, fst);
+                        for (items[1..]) |item| {
+                            const new_item = try eval(allocator, item, env, err_ctx);
+                            new_lst.list.appendMut(allocator, new_item);
+                        }
+                        return new_lst;
+                    },
+                }
+            },
+            .vector => |v| {
+                var new_v = LispType.Array.emptyVector();
+                for (v.getItems()) |item| {
+                    const new_item = try eval(allocator, item, env, err_ctx);
+                    new_v.vector.appendMut(allocator, new_item);
+                }
+                return new_v;
+            },
+            .dict => |dict| {
+                var new_dict = LispType.Dict.init();
+
+                var iter = dict.map.iterator();
+                while (iter.next()) |entry| {
+                    const key_value = try eval(allocator, entry.key_ptr.*, env, err_ctx);
+                    const value = try eval(allocator, entry.value_ptr.*, env, err_ctx);
+
+                    try new_dict.dict.addMut(allocator, key_value, value);
+                }
+                return new_dict;
+            },
+            else => return s,
+        }
+    }
+}
+
+pub fn evalWrapper(
+    allocator: std.mem.Allocator,
+    s: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (s.len != 1) {
+        return err_ctx.wrongNumberOfArguments(1, s.len);
+    }
+
+    const fst = try eval(allocator, s[0], env, err_ctx);
+    return eval(allocator, fst, env, err_ctx);
+}
+
+const Fn = struct {
+    const Ret = std.meta.Tuple(&.{ *Env, LispType });
+
+    pub fn apply(
+        allocator: std.mem.Allocator,
+        args: []LispType,
+        func: LispType.Fn,
+        env: *Env,
+        err_ctx: *errors.Context,
+    ) LispError!Ret {
+        const is_variadic = func.args.len > 0 and func.args[func.args.len - 1][0] == '&';
+        const new_env = try if (is_variadic)
+            apply_variadic(allocator, args, func, env, err_ctx)
+        else
+            apply_base(allocator, args, func, env, err_ctx);
+
+        const ast = if (func.is_macro) try eval(allocator, func.ast.*, new_env, err_ctx) else func.ast.*;
+        return .{ new_env, ast };
+    }
+
+    fn apply_base(
+        alloc: std.mem.Allocator,
+        args: []LispType,
+        func: LispType.Fn,
+        env_: *Env,
+        err_ctx_: *errors.Context,
+    ) LispError!*Env {
+        const fn_args_len = func.args.len;
+        var new_env = Env.initFromParent(func.env);
+        if (fn_args_len != args.len) {
+            return err_ctx_.wrongNumberOfArguments(fn_args_len, args.len);
+        }
+
+        for (args, func.args) |item, arg_name| {
+            const val = try eval(alloc, item, env_, err_ctx_);
+            _ = new_env.put(arg_name, val);
+        }
+        return new_env;
+    }
+
+    fn apply_variadic(
+        allocator: std.mem.Allocator,
+        args: []LispType,
+        func: LispType.Fn,
+        env: *Env,
+        err_ctx: *errors.Context,
+    ) LispError!*Env {
+        const fn_args_len = func.args.len;
+        var new_env = Env.initFromParent(func.env);
+        if (args.len < fn_args_len - 1) {
+            return err_ctx.wrongNumberOfArguments(fn_args_len, args.len);
+        }
+
+        for (args[0 .. fn_args_len - 1], func.args[0 .. fn_args_len - 1]) |item, arg_name| {
+            const val = try eval(allocator, item, env, err_ctx);
+            _ = new_env.put(arg_name, val);
+        }
+
+        const arg_name = func.args[fn_args_len - 1][1..]; // remove &
+        var list = LispType.Array.emptyList();
+        const var_args = args[fn_args_len - 1 ..];
+        list.list.array.ensureTotalCapacity(allocator, var_args.len) catch outOfMemory();
+        for (var_args) |arg| {
+            const val = try eval(allocator, arg, env, err_ctx);
+            list.list.array.appendAssumeCapacity(val);
+        }
+        _ = new_env.put(arg_name, list);
+        return new_env;
+    }
+};
+
 pub fn try_(
     allocator: std.mem.Allocator,
     s: []LispType,
@@ -318,172 +486,4 @@ pub fn do(
         res = try eval(allocator, item, env, err_ctx);
     }
     return res;
-}
-
-const Fn = struct {
-    const Ret = std.meta.Tuple(&.{ *Env, LispType });
-
-    pub fn apply(
-        allocator: std.mem.Allocator,
-        args: []LispType,
-        func: LispType.Fn,
-        env: *Env,
-        err_ctx: *errors.Context,
-    ) LispError!Ret {
-        const is_variadic = func.args.len > 0 and func.args[func.args.len - 1][0] == '&';
-        const new_env = try if (is_variadic)
-            apply_variadic(allocator, args, func, env, err_ctx)
-        else
-            apply_base(allocator, args, func, env, err_ctx);
-
-        const ast = if (func.is_macro) try eval(allocator, func.ast.*, new_env, err_ctx) else func.ast.*;
-        return .{ new_env, ast };
-    }
-
-    fn apply_base(
-        alloc: std.mem.Allocator,
-        args: []LispType,
-        func: LispType.Fn,
-        env_: *Env,
-        err_ctx_: *errors.Context,
-    ) LispError!*Env {
-        const fn_args_len = func.args.len;
-        var new_env = Env.initFromParent(func.env);
-        if (fn_args_len != args.len) {
-            return err_ctx_.wrongNumberOfArguments(fn_args_len, args.len);
-        }
-
-        for (args, func.args) |item, arg_name| {
-            const val = try eval(alloc, item, env_, err_ctx_);
-            _ = new_env.put(arg_name, val);
-        }
-        return new_env;
-    }
-
-    fn apply_variadic(
-        allocator: std.mem.Allocator,
-        args: []LispType,
-        func: LispType.Fn,
-        env: *Env,
-        err_ctx: *errors.Context,
-    ) LispError!*Env {
-        const fn_args_len = func.args.len;
-        var new_env = Env.initFromParent(func.env);
-        if (args.len < fn_args_len - 1) {
-            return err_ctx.wrongNumberOfArguments(fn_args_len, args.len);
-        }
-
-        for (args[0 .. fn_args_len - 1], func.args[0 .. fn_args_len - 1]) |item, arg_name| {
-            const val = try eval(allocator, item, env, err_ctx);
-            _ = new_env.put(arg_name, val);
-        }
-
-        const arg_name = func.args[fn_args_len - 1][1..]; // remove &
-        var list = LispType.Array.emptyList();
-        const var_args = args[fn_args_len - 1 ..];
-        list.list.array.ensureTotalCapacity(allocator, var_args.len) catch outOfMemory();
-        for (var_args) |arg| {
-            const val = try eval(allocator, arg, env, err_ctx);
-            list.list.array.appendAssumeCapacity(val);
-        }
-        _ = new_env.put(arg_name, list);
-        return new_env;
-    }
-};
-
-pub fn eval(
-    allocator: std.mem.Allocator,
-    ast: LispType,
-    root_env: *Env,
-    err_ctx: *errors.Context,
-) LispError!LispType {
-    var s = ast;
-    var env = root_env;
-
-    while (true) {
-        const is_eval = env.get("DEBUG-EVAL");
-        if (is_eval) |flag| {
-            if (flag != .nil and !flag.eql(LispType.lisp_false)) {
-                const str_value = s.toStringFull(allocator) catch outOfMemory();
-                std.debug.print("EVAL {s}\n", .{str_value});
-            }
-        }
-
-        switch (s) {
-            .symbol => |symbol| {
-                return if (env.getPtr(symbol.getStr())) |value|
-                    value.*
-                else
-                    err_ctx.symbolNotFound(symbol.getStr());
-            },
-            .list => |v| {
-                const items = v.getItems();
-                if (items.len == 0) {
-                    return s;
-                }
-
-                const fst = switch (items[0]) {
-                    .symbol, .list => try eval(allocator, items[0], env, err_ctx),
-                    else => items[0],
-                };
-
-                switch (fst) {
-                    .function => |function| switch (function) {
-                        .builtin => |builtin| {
-                            return try builtin(allocator, items[1..], env, err_ctx);
-                        },
-                        .fn_ => |func| {
-                            const args = items[1..];
-                            env, s = try Fn.apply(allocator, args, func, env, err_ctx);
-                            continue;
-                        },
-                    },
-                    else => {
-                        var new_lst = LispType.Array.emptyList();
-                        new_lst.list.appendMut(allocator, fst);
-                        for (items[1..]) |item| {
-                            const new_item = try eval(allocator, item, env, err_ctx);
-                            new_lst.list.appendMut(allocator, new_item);
-                        }
-                        return new_lst;
-                    },
-                }
-            },
-            .vector => |v| {
-                var new_v = LispType.Array.emptyVector();
-                for (v.getItems()) |item| {
-                    const new_item = try eval(allocator, item, env, err_ctx);
-                    new_v.vector.appendMut(allocator, new_item);
-                }
-                return new_v;
-            },
-            .dict => |dict| {
-                var new_dict = LispType.Dict.init();
-
-                var iter = dict.map.iterator();
-                while (iter.next()) |entry| {
-                    const key_value = try eval(allocator, entry.key_ptr.*, env, err_ctx);
-                    const value = try eval(allocator, entry.value_ptr.*, env, err_ctx);
-
-                    try new_dict.dict.addMut(allocator, key_value, value);
-                }
-                return new_dict;
-            },
-            else => return s,
-        }
-    }
-}
-
-pub fn evalWrapper(
-    allocator: std.mem.Allocator,
-    s: []LispType,
-    env: *Env,
-    err_ctx: *errors.Context,
-) LispError!LispType {
-    if (s.len != 1) {
-        return err_ctx.wrongNumberOfArguments(1, s.len);
-    }
-
-    const fst = try eval(allocator, s[0], env, err_ctx);
-    return eval(allocator, fst, env, err_ctx);
 }
