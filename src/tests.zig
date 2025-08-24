@@ -22,6 +22,7 @@ test "math ops" {
         "src/test-files/atoms.lisp",
         "src/test-files/quote.lisp",
         "src/test-files/macros.lisp",
+        "src/test-files/try.lisp",
     }) |filename| {
         var file = try std.fs.cwd().openFile(filename, .{});
         defer file.close();

@@ -180,7 +180,7 @@ pub const Context = struct {
     pub fn toLispString(self: Self, allocator: std.mem.Allocator) LispType {
         const err_str = std.fmt.allocPrint(
             allocator,
-            "ERROR: {s}\n",
+            "ERROR: {s}",
             .{self.buffer.items},
         ) catch outOfMemory();
         return LispType.String.initString(allocator, err_str);

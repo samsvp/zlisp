@@ -40,6 +40,40 @@ pub fn not(
     };
 }
 
+pub fn trueQuestion(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len != 1) {
+        return err_ctx.wrongNumberOfArguments(1, args_.len);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+    return switch (args[0]) {
+        .boolean => args[0],
+        else => LispType.lisp_false,
+    };
+}
+
+pub fn falseQuestion(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len != 1) {
+        return err_ctx.wrongNumberOfArguments(1, args_.len);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+    return switch (args[0]) {
+        .boolean => |b| .{ .boolean = !b },
+        else => LispType.lisp_false,
+    };
+}
+
 pub fn eql(
     allocator: std.mem.Allocator,
     args: []LispType,
@@ -373,10 +407,10 @@ pub fn map(
         else => return err_ctx.wrongParameterType("'map' second argument", "list or vector"),
     };
 
-    var ast = LispType.Array.initList(allocator, &[2]LispType{ func, undefined });
+    var ast = LispType.Array.initList(allocator, &[2]LispType{ func, .nil });
     var res = std.ArrayListUnmanaged(LispType).initCapacity(allocator, arr.len) catch outOfMemory();
     for (arr) |val| {
-        ast.list.array.items[1] = val;
+        ast.list.array.items[1] = val.clone(allocator);
         const ret = try core.eval(allocator, ast, env, err_ctx);
         res.appendAssumeCapacity(ret);
     }
@@ -398,7 +432,6 @@ pub fn apply(
     }
 
     const args = try evalArgs(allocator, args_, env, err_ctx);
-
     const func = switch (args[0]) {
         .function => args[0],
         else => return err_ctx.wrongParameterType("'map' first argument", "function"),
@@ -1072,6 +1105,9 @@ pub fn symbolQuestion(
         return err_ctx.wrongNumberOfArguments(1, args.len);
     }
 
+    if (args[0] == .symbol) {
+        return LispType.lisp_true;
+    }
     const val = try core.eval(allocator, args[0], env, err_ctx);
     return .{ .boolean = val == .symbol };
 }

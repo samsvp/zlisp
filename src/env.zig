@@ -153,9 +153,9 @@ pub const Env = struct {
         self.mapping.put(allocator, "assoc", .{ .function = .{ .builtin = lisp_std.assoc } }) catch outOfMemory();
         self.mapping.put(allocator, "dissoc", .{ .function = .{ .builtin = lisp_std.dissoc } }) catch outOfMemory();
         self.mapping.put(allocator, "get", .{ .function = .{ .builtin = lisp_std.get } }) catch outOfMemory();
-        self.mapping.put(allocator, "contains", .{ .function = .{ .builtin = lisp_std.contains } }) catch outOfMemory();
+        self.mapping.put(allocator, "contains?", .{ .function = .{ .builtin = lisp_std.contains } }) catch outOfMemory();
         self.mapping.put(allocator, "keys", .{ .function = .{ .builtin = lisp_std.keys } }) catch outOfMemory();
-        self.mapping.put(allocator, "values", .{ .function = .{ .builtin = lisp_std.values } }) catch outOfMemory();
+        self.mapping.put(allocator, "vals", .{ .function = .{ .builtin = lisp_std.values } }) catch outOfMemory();
 
         // type conversions
         self.mapping.put(allocator, "list", .{ .function = .{ .builtin = lisp_std.list } }) catch outOfMemory();
@@ -178,6 +178,8 @@ pub const Env = struct {
         self.mapping.put(allocator, "vector?", .{ .function = .{ .builtin = lisp_std.vectorQuestion } }) catch outOfMemory();
         self.mapping.put(allocator, "dict?", .{ .function = .{ .builtin = lisp_std.dictQuestion } }) catch outOfMemory();
         self.mapping.put(allocator, "sequential?", .{ .function = .{ .builtin = lisp_std.sequentialQuestion } }) catch outOfMemory();
+        self.mapping.put(allocator, "true?", .{ .function = .{ .builtin = lisp_std.trueQuestion } }) catch outOfMemory();
+        self.mapping.put(allocator, "false?", .{ .function = .{ .builtin = lisp_std.falseQuestion } }) catch outOfMemory();
 
         // misc
         self.mapping.put(allocator, "slurp", .{ .function = .{ .builtin = lisp_std.slurp } }) catch outOfMemory();
