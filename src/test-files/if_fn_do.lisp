@@ -88,19 +88,19 @@
 
 
 (= (+ 1 2) 3)
-(= ( (fn [a b] (+ b a)) 3 4) 7)
+(= ( (fn [a b] "add b and a" (+ b a)) 3 4) 7)
 (= ( (fn [] 4) ) 4)
 (= ( (fn [] ()) ) ())
 
 (= ( (fn [f x] (f x)) (fn [a] (+ 1 a)) 7) 8)
 
-(= ( ( (fn [a] (fn [a] [b] (+ a b))) 5) 7) 12)
+(= ( ( (fn [a] (fn [a] [b] "add a and b" (+ a b))) 5) 7) 12)
 
 (do (def gen-plus5 (fn [] (fn [b] (+ 5 b)))) true)
 (do (def plus5 (gen-plus5)) true)
 (= (plus5 7) 12)
 
-(do (def gen-plusX (fn [x] (fn [x] [b] (+ x b)))) true)
+(do (def gen-plusX (fn [x] (fn [x] [b] "add x and b" (+ x b)))) true)
 (do (def plus7 (gen-plusX 7)) true)
 (= (plus7 8) 15)
 

@@ -425,11 +425,19 @@ pub fn fn_(
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
-    if (s.len != 2 and s.len != 3) {
-        return err_ctx.wrongNumberOfArgumentsTwoChoices(2, 3, s.len);
+    if (s.len != 2 and s.len != 3 and s.len != 4) {
+        return err_ctx.wrongNumberOfArgumentsThreeChoices(2, 3, 4, s.len);
     }
 
-    var args_symbol = if (s.len == 2) s[0] else s[1];
+    var args_symbol =
+        if (s.len == 2)
+            s[0]
+        else if (s.len == 3 and s[0] == .vector and s[1] == .vector)
+            s[1]
+        else if (s.len == 3 and s[0] == .vector and s[1] == .string)
+            s[0]
+        else
+            s[1];
     if (args_symbol != .vector) {
         return err_ctx.wrongParameterType("Parameter list", "vector");
     }
@@ -446,7 +454,7 @@ pub fn fn_(
 
     var closure_names: std.ArrayListUnmanaged([]const u8) = .empty;
     var closure_vals: std.ArrayListUnmanaged(LispType) = .empty;
-    if (s.len == 3) {
+    if ((s.len == 3 and s[1] != .string) or s.len == 4) {
         const closure_symbols = s[0];
         if (closure_symbols != .vector) {
             return err_ctx.wrongParameterType("'fn' parameter list", "vector");
@@ -464,6 +472,7 @@ pub fn fn_(
             closure_vals.appendAssumeCapacity(try eval(allocator, item, env, err_ctx));
         }
     }
+    const docstring = if (s[s.len - 2] == .string) s[s.len - 2].string.getStr() else "";
 
     return LispType.Fn.init(
         allocator,
@@ -471,6 +480,7 @@ pub fn fn_(
         args.items,
         closure_names.items,
         closure_vals.items,
+        docstring,
         env,
     );
 }

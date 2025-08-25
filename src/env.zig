@@ -116,6 +116,9 @@ pub const Env = struct {
         self.mapping.put(allocator, "try", LispType.Function.createBuiltin(allocator, core.try_)) catch outOfMemory();
         self.mapping.put(allocator, "throw", LispType.Function.createBuiltin(allocator, core.throw)) catch outOfMemory();
 
+        // functions
+        self.mapping.put(allocator, "help", LispType.Function.createBuiltin(allocator, lisp_std.help)) catch outOfMemory();
+
         // comparison
         self.mapping.put(allocator, "=", LispType.Function.createBuiltin(allocator, lisp_std.eql)) catch outOfMemory();
         self.mapping.put(allocator, "!=", LispType.Function.createBuiltin(allocator, lisp_std.notEql)) catch outOfMemory();

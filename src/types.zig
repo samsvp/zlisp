@@ -270,6 +270,7 @@ pub const LispType = union(enum) {
         ast: *LispType,
         args: [][]const u8,
         env: *Env,
+        docstring: []const u8,
         is_macro: bool = false,
 
         pub fn init(
@@ -278,6 +279,7 @@ pub const LispType = union(enum) {
             args: [][]const u8,
             closure_names: [][]const u8,
             closure_vals: []LispType,
+            docstring: []const u8,
             base_env: *Env,
         ) LispType {
             var env = Env.initFromParent(base_env.getRoot());
@@ -294,16 +296,27 @@ pub const LispType = union(enum) {
             }
 
             const m_fn = allocator.create(Function) catch outOfMemory();
-            m_fn.* = .{ .fn_ = Fn{
-                .ast = ast,
-                .args = args_owned,
-                .env = env,
-            } };
+            m_fn.* = .{
+                .fn_ = Fn{
+                    .ast = ast,
+                    .args = args_owned,
+                    .env = env,
+                    .docstring = allocator.dupe(u8, docstring) catch outOfMemory(),
+                },
+            };
             return .{ .function = m_fn };
         }
 
         pub fn clone(self: Fn, allocator: std.mem.Allocator) LispType {
-            var fn_ = init(allocator, self.ast.*, self.args, &[0][]u8{}, &[0]LispType{}, self.env.getRoot());
+            var fn_ = init(
+                allocator,
+                self.ast.*,
+                self.args,
+                &[0][]u8{},
+                &[0]LispType{},
+                self.docstring,
+                self.env.getRoot(),
+            );
             fn_.function.fn_.is_macro = self.is_macro;
 
             var iter = self.env.mapping.iterator();

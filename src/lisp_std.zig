@@ -1287,6 +1287,26 @@ pub fn slurp(
     return LispType.String.initString(allocator, buffer);
 }
 
+pub fn help(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len != 1) {
+        return err_ctx.wrongNumberOfArguments(1, args_.len);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+    return switch (args[0]) {
+        .function => |f| switch (f.*) {
+            .fn_ => |func| LispType.String.initString(allocator, func.docstring),
+            .builtin => LispType.String.initString(allocator, "#builtint"),
+        },
+        else => args[0],
+    };
+}
+
 pub fn loadFile(
     allocator: std.mem.Allocator,
     args: []LispType,
