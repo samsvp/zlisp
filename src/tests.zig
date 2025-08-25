@@ -2,7 +2,88 @@ const std = @import("std");
 const LispType = @import("types.zig").LispType;
 const Interpreter = @import("interpreter.zig").Interpreter;
 
-test "struct conversions" {}
+test "struct conversions" {
+    const S = struct {
+        member_1: i32,
+        member_2: []const u8,
+        member_3: f32,
+        member_4: []const f32,
+        member_5: [][]const u8,
+        member_6: std.StringHashMapUnmanaged(i32),
+
+        const Self = @This();
+
+        pub fn clone(self: Self, _: std.mem.Allocator) Self {
+            return .{
+                .member_1 = self.member_1,
+                .member_2 = self.member_2,
+                .member_3 = self.member_3,
+                .member_4 = self.member_4,
+                .member_5 = self.member_5,
+                .member_6 = self.member_6,
+            };
+        }
+    };
+
+    var gpa = std.heap.DebugAllocator(.{}){};
+    const allocator = gpa.allocator();
+
+    // for some reason, if I remove this line I get
+    // src/types.zig:323:26: error: union 'types.LispType.Function' depends on itself
+    _ = Interpreter.init(allocator);
+
+    var map = std.StringHashMapUnmanaged(LispType).empty;
+    defer map.deinit(allocator);
+
+    // Insert values (simulate parsed data)
+    try map.put(allocator, "member_1", .{ .int = 42 });
+    try map.put(allocator, "member_2", LispType.String.initString(allocator, "hello"));
+    try map.put(allocator, "member_3", .{ .float = 3.14 });
+    try map.put(allocator, "member_4", LispType.Array.initList(
+        allocator,
+        &[_]LispType{ .{ .float = 3.5 }, .{ .float = 5.0 } },
+    ));
+    try map.put(allocator, "member_5", LispType.Array.initList(
+        allocator,
+        &[_]LispType{
+            LispType.String.initString(allocator, "hello"),
+            LispType.String.initSymbol(allocator, "world"),
+        },
+    ));
+    var dict = LispType.Dict.init();
+    try dict.dict.addMut(allocator, LispType.String.initString(allocator, "hello"), .{ .int = 6 });
+    try dict.dict.addMut(allocator, LispType.String.initString(allocator, "world"), .{ .int = 12 });
+    try map.put(allocator, "member_6", dict);
+
+    const v = try LispType.Record.fromHashMap(S, allocator, map);
+    const s = try v.cast(S, allocator);
+
+    try std.testing.expect(s.member_1 == map.get("member_1").?.int);
+    try std.testing.expect(std.mem.eql(u8, s.member_2, map.get("member_2").?.string.getItems()));
+    try std.testing.expect(s.member_3 == map.get("member_3").?.float);
+    for (s.member_5, map.get("member_5").?.list.getItems()) |m, i| {
+        const str = switch (i) {
+            .string, .symbol, .keyword => |str| str.getStr(),
+            else => {
+                try std.testing.expect(false);
+                unreachable;
+            },
+        };
+        try std.testing.expect(std.mem.eql(u8, str, m));
+    }
+
+    for (s.member_4, map.get("member_4").?.list.getItems()) |m, i| {
+        try std.testing.expect(m == i.float);
+    }
+
+    const lisp_map = map.get("member_6").?.dict.map;
+    var iter = lisp_map.iterator();
+    while (iter.next()) |kv| {
+        const key = kv.key_ptr.string.getStr();
+        const val = s.member_6.get(key).?;
+        try std.testing.expect(val == kv.value_ptr.int);
+    }
+}
 
 test "lisp mal" {
     var gpa = std.heap.DebugAllocator(.{}){};
