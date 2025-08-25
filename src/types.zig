@@ -16,7 +16,7 @@ pub const LispType = union(enum) {
     vector: Array,
     dict: Dict,
     atom: Atom,
-    function: Function,
+    function: *Function,
     record: Record,
 
     pub const lisp_true = LispType{ .boolean = true };
@@ -293,12 +293,13 @@ pub const LispType = union(enum) {
                 args_owned[i] = allocator.dupe(u8, arg) catch outOfMemory();
             }
 
-            const m_fn = Fn{
+            const m_fn = allocator.create(Function) catch outOfMemory();
+            m_fn.* = .{ .fn_ = Fn{
                 .ast = ast,
                 .args = args_owned,
                 .env = env,
-            };
-            return .{ .function = .{ .fn_ = m_fn } };
+            } };
+            return .{ .function = m_fn };
         }
 
         pub fn clone(self: Fn, allocator: std.mem.Allocator) LispType {
@@ -324,8 +325,14 @@ pub const LispType = union(enum) {
         fn_: Fn,
         builtin: BuiltinFunc,
 
-        pub fn clone(self: Function, allocator: std.mem.Allocator) LispType {
-            return switch (self) {
+        pub fn createBuiltin(allocator: std.mem.Allocator, b: BuiltinFunc) LispType {
+            const builtin = allocator.create(Function) catch outOfMemory();
+            builtin.* = .{ .builtin = b };
+            return .{ .function = builtin };
+        }
+
+        pub fn clone(self: *Function, allocator: std.mem.Allocator) LispType {
+            return switch (self.*) {
                 .fn_ => |fn_| fn_.clone(allocator),
                 .builtin => .{ .function = self },
             };
@@ -418,9 +425,15 @@ pub const LispType = union(enum) {
     pub const Record = struct {
         bytes: []u8,
         type_info: TypeInfo,
-        clone_fn: CloneFn,
+        vtable: *const VTable,
+
+        const VTable = struct {
+            clone: *const fn (*anyopaque, std.mem.Allocator) LispType,
+            equals: *const fn (*anyopaque, *anyopaque) bool,
+        };
 
         const CloneFn = *const fn (*anyopaque, std.mem.Allocator) LispType;
+        const EqualsFn = *const fn (*anyopaque, *anyopaque) bool;
 
         pub const TypeInfo = struct {
             name: []const u8,
@@ -436,24 +449,41 @@ pub const LispType = union(enum) {
 
         pub fn init(allocator: std.mem.Allocator, val: anytype) LispType {
             const T = @TypeOf(val);
+            if (@typeInfo(T) != .@"struct") {
+                @compileError("Record only accepts structs.");
+            }
+
             const type_info = TypeInfo.init(T);
 
             const src = std.mem.asBytes(&val);
-            const buf = allocator.alloc(u8, type_info.size) catch outOfMemory();
+            const alignment = @alignOf(T);
+            const buf = allocator.alignedAlloc(u8, alignment, type_info.size) catch outOfMemory();
             @memcpy(buf, src);
-            const cloneFn = struct {
+
+            const vtable = struct {
                 fn cloneFn(ptr: *anyopaque, alloc: std.mem.Allocator) LispType {
                     const original: *T = @alignCast(@ptrCast(ptr));
                     const cloned = @call(.auto, T.clone, .{ original.*, alloc });
                     return LispType.Record.init(alloc, cloned);
                 }
-            }.cloneFn;
+
+                fn equalsFn(a: *anyopaque, b: *anyopaque) bool {
+                    const ta: *T = @alignCast(@ptrCast(a));
+                    const tb: *T = @alignCast(@ptrCast(b));
+                    return std.meta.eql(ta.*, tb.*);
+                }
+
+                const vtable_instance = VTable{
+                    .clone = cloneFn,
+                    .equals = equalsFn,
+                };
+            }.vtable_instance;
 
             return .{
                 .record = .{
                     .bytes = buf,
                     .type_info = type_info,
-                    .clone_fn = cloneFn,
+                    .vtable = &vtable,
                 },
             };
         }
@@ -484,11 +514,15 @@ pub const LispType = union(enum) {
         }
 
         pub fn clone(self: Record, allocator: std.mem.Allocator) LispType {
-            return self.clone_fn(@ptrCast(self.bytes), allocator);
+            return self.vtable.clone(@ptrCast(self.bytes.ptr), allocator);
         }
 
         pub fn eql(self: Record, other: Record) bool {
-            return std.mem.eql(u8, self.bytes, other.bytes);
+            if (!std.mem.eql(u8, self.type_info.name, other.type_info.name)) {
+                return false;
+            }
+
+            return self.vtable.equals(self.bytes.ptr, other.bytes.ptr);
         }
 
         pub fn as(self: Record, comptime T: type) ?*T {
@@ -759,12 +793,10 @@ pub const LispType = union(enum) {
             .string,
             .keyword,
             .symbol,
-            .function,
             .atom,
             .record,
-            => |*f| {
-                f.deinit(allocator);
-            },
+            => |*f| f.deinit(allocator),
+            .function => |f| f.deinit(allocator),
             .nil, .int, .float, .boolean => return,
         }
     }

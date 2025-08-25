@@ -42,7 +42,7 @@ pub fn eval(
                 };
 
                 switch (fst) {
-                    .function => |function| switch (function) {
+                    .function => |function| switch (function.*) {
                         .builtin => |builtin| {
                             return try builtin(allocator, items[1..], env, err_ctx);
                         },
@@ -344,9 +344,9 @@ pub fn defmacro(
     }
 
     const err = err_ctx.wrongParameterType("'defmacro' second argument", "function");
-    var val = try eval(allocator, s[1], env, err_ctx);
+    const val = try eval(allocator, s[1], env, err_ctx);
     return switch (val) {
-        .function => |*f| switch (f.*) {
+        .function => |f| switch (f.*) {
             .fn_ => |*func| {
                 func.is_macro = true;
                 return env.putClone(s[0].symbol.getStr(), val);

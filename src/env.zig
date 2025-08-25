@@ -104,98 +104,98 @@ pub const Env = struct {
         const allocator = self.arena.allocator();
 
         // builtins
-        self.mapping.put(allocator, "def", .{ .function = .{ .builtin = core.def } }) catch outOfMemory();
-        self.mapping.put(allocator, "defmacro", .{ .function = .{ .builtin = core.defmacro } }) catch outOfMemory();
-        self.mapping.put(allocator, "if", .{ .function = .{ .builtin = core.if_ } }) catch outOfMemory();
-        self.mapping.put(allocator, "fn", .{ .function = .{ .builtin = core.fn_ } }) catch outOfMemory();
-        self.mapping.put(allocator, "do", .{ .function = .{ .builtin = core.do } }) catch outOfMemory();
-        self.mapping.put(allocator, "let", .{ .function = .{ .builtin = core.let } }) catch outOfMemory();
-        self.mapping.put(allocator, "quote", .{ .function = .{ .builtin = core.quote } }) catch outOfMemory();
-        self.mapping.put(allocator, "quasiquote", .{ .function = .{ .builtin = core.quasiquote } }) catch outOfMemory();
-        self.mapping.put(allocator, "eval", .{ .function = .{ .builtin = core.evalWrapper } }) catch outOfMemory();
-        self.mapping.put(allocator, "try", .{ .function = .{ .builtin = core.try_ } }) catch outOfMemory();
-        self.mapping.put(allocator, "throw", .{ .function = .{ .builtin = core.throw } }) catch outOfMemory();
+        self.mapping.put(allocator, "def", LispType.Function.createBuiltin(allocator, core.def)) catch outOfMemory();
+        self.mapping.put(allocator, "defmacro", LispType.Function.createBuiltin(allocator, core.defmacro)) catch outOfMemory();
+        self.mapping.put(allocator, "if", LispType.Function.createBuiltin(allocator, core.if_)) catch outOfMemory();
+        self.mapping.put(allocator, "fn", LispType.Function.createBuiltin(allocator, core.fn_)) catch outOfMemory();
+        self.mapping.put(allocator, "do", LispType.Function.createBuiltin(allocator, core.do)) catch outOfMemory();
+        self.mapping.put(allocator, "let", LispType.Function.createBuiltin(allocator, core.let)) catch outOfMemory();
+        self.mapping.put(allocator, "quote", LispType.Function.createBuiltin(allocator, core.quote)) catch outOfMemory();
+        self.mapping.put(allocator, "quasiquote", LispType.Function.createBuiltin(allocator, core.quasiquote)) catch outOfMemory();
+        self.mapping.put(allocator, "eval", LispType.Function.createBuiltin(allocator, core.evalWrapper)) catch outOfMemory();
+        self.mapping.put(allocator, "try", LispType.Function.createBuiltin(allocator, core.try_)) catch outOfMemory();
+        self.mapping.put(allocator, "throw", LispType.Function.createBuiltin(allocator, core.throw)) catch outOfMemory();
 
         // comparison
-        self.mapping.put(allocator, "=", .{ .function = .{ .builtin = lisp_std.eql } }) catch outOfMemory();
-        self.mapping.put(allocator, "!=", .{ .function = .{ .builtin = lisp_std.notEql } }) catch outOfMemory();
-        self.mapping.put(allocator, "<", .{ .function = .{ .builtin = lisp_std.less } }) catch outOfMemory();
-        self.mapping.put(allocator, "<=", .{ .function = .{ .builtin = lisp_std.lessEql } }) catch outOfMemory();
-        self.mapping.put(allocator, ">", .{ .function = .{ .builtin = lisp_std.bigger } }) catch outOfMemory();
-        self.mapping.put(allocator, ">=", .{ .function = .{ .builtin = lisp_std.biggerEql } }) catch outOfMemory();
-        self.mapping.put(allocator, "not", .{ .function = .{ .builtin = lisp_std.not } }) catch outOfMemory();
+        self.mapping.put(allocator, "=", LispType.Function.createBuiltin(allocator, lisp_std.eql)) catch outOfMemory();
+        self.mapping.put(allocator, "!=", LispType.Function.createBuiltin(allocator, lisp_std.notEql)) catch outOfMemory();
+        self.mapping.put(allocator, "<", LispType.Function.createBuiltin(allocator, lisp_std.less)) catch outOfMemory();
+        self.mapping.put(allocator, "<=", LispType.Function.createBuiltin(allocator, lisp_std.lessEql)) catch outOfMemory();
+        self.mapping.put(allocator, ">", LispType.Function.createBuiltin(allocator, lisp_std.bigger)) catch outOfMemory();
+        self.mapping.put(allocator, ">=", LispType.Function.createBuiltin(allocator, lisp_std.biggerEql)) catch outOfMemory();
+        self.mapping.put(allocator, "not", LispType.Function.createBuiltin(allocator, lisp_std.not)) catch outOfMemory();
 
         // math
-        self.mapping.put(allocator, "+", .{ .function = .{ .builtin = lisp_std.add } }) catch outOfMemory();
-        self.mapping.put(allocator, "-", .{ .function = .{ .builtin = lisp_std.sub } }) catch outOfMemory();
-        self.mapping.put(allocator, "*", .{ .function = .{ .builtin = lisp_std.mul } }) catch outOfMemory();
-        self.mapping.put(allocator, "/", .{ .function = .{ .builtin = lisp_std.div } }) catch outOfMemory();
+        self.mapping.put(allocator, "+", LispType.Function.createBuiltin(allocator, lisp_std.add)) catch outOfMemory();
+        self.mapping.put(allocator, "-", LispType.Function.createBuiltin(allocator, lisp_std.sub)) catch outOfMemory();
+        self.mapping.put(allocator, "*", LispType.Function.createBuiltin(allocator, lisp_std.mul)) catch outOfMemory();
+        self.mapping.put(allocator, "/", LispType.Function.createBuiltin(allocator, lisp_std.div)) catch outOfMemory();
 
         // list / vector
-        self.mapping.put(allocator, "map", .{ .function = .{ .builtin = lisp_std.map } }) catch outOfMemory();
-        self.mapping.put(allocator, "nth", .{ .function = .{ .builtin = lisp_std.nth } }) catch outOfMemory();
-        self.mapping.put(allocator, "head", .{ .function = .{ .builtin = lisp_std.head } }) catch outOfMemory();
-        self.mapping.put(allocator, "first", .{ .function = .{ .builtin = lisp_std.head } }) catch outOfMemory();
-        self.mapping.put(allocator, "tail", .{ .function = .{ .builtin = lisp_std.tail } }) catch outOfMemory();
-        self.mapping.put(allocator, "rest", .{ .function = .{ .builtin = lisp_std.tail } }) catch outOfMemory();
-        self.mapping.put(allocator, "empty?", .{ .function = .{ .builtin = lisp_std.emptyQuestion } }) catch outOfMemory();
-        self.mapping.put(allocator, "count", .{ .function = .{ .builtin = lisp_std.count } }) catch outOfMemory();
-        self.mapping.put(allocator, "cons", .{ .function = .{ .builtin = lisp_std.cons } }) catch outOfMemory();
-        self.mapping.put(allocator, "concat", .{ .function = .{ .builtin = lisp_std.concat } }) catch outOfMemory();
+        self.mapping.put(allocator, "map", LispType.Function.createBuiltin(allocator, lisp_std.map)) catch outOfMemory();
+        self.mapping.put(allocator, "nth", LispType.Function.createBuiltin(allocator, lisp_std.nth)) catch outOfMemory();
+        self.mapping.put(allocator, "head", LispType.Function.createBuiltin(allocator, lisp_std.head)) catch outOfMemory();
+        self.mapping.put(allocator, "first", LispType.Function.createBuiltin(allocator, lisp_std.head)) catch outOfMemory();
+        self.mapping.put(allocator, "tail", LispType.Function.createBuiltin(allocator, lisp_std.tail)) catch outOfMemory();
+        self.mapping.put(allocator, "rest", LispType.Function.createBuiltin(allocator, lisp_std.tail)) catch outOfMemory();
+        self.mapping.put(allocator, "empty?", LispType.Function.createBuiltin(allocator, lisp_std.emptyQuestion)) catch outOfMemory();
+        self.mapping.put(allocator, "count", LispType.Function.createBuiltin(allocator, lisp_std.count)) catch outOfMemory();
+        self.mapping.put(allocator, "cons", LispType.Function.createBuiltin(allocator, lisp_std.cons)) catch outOfMemory();
+        self.mapping.put(allocator, "concat", LispType.Function.createBuiltin(allocator, lisp_std.concat)) catch outOfMemory();
 
         // atoms
-        self.mapping.put(allocator, "atom", .{ .function = .{ .builtin = lisp_std.atom } }) catch outOfMemory();
-        self.mapping.put(allocator, "deref", .{ .function = .{ .builtin = lisp_std.deref } }) catch outOfMemory();
-        self.mapping.put(allocator, "reset!", .{ .function = .{ .builtin = lisp_std.resetBang } }) catch outOfMemory();
-        self.mapping.put(allocator, "swap!", .{ .function = .{ .builtin = lisp_std.swapBang } }) catch outOfMemory();
+        self.mapping.put(allocator, "atom", LispType.Function.createBuiltin(allocator, lisp_std.atom)) catch outOfMemory();
+        self.mapping.put(allocator, "deref", LispType.Function.createBuiltin(allocator, lisp_std.deref)) catch outOfMemory();
+        self.mapping.put(allocator, "reset!", LispType.Function.createBuiltin(allocator, lisp_std.resetBang)) catch outOfMemory();
+        self.mapping.put(allocator, "swap!", LispType.Function.createBuiltin(allocator, lisp_std.swapBang)) catch outOfMemory();
 
         // dict
-        self.mapping.put(allocator, "assoc", .{ .function = .{ .builtin = lisp_std.assoc } }) catch outOfMemory();
-        self.mapping.put(allocator, "dissoc", .{ .function = .{ .builtin = lisp_std.dissoc } }) catch outOfMemory();
-        self.mapping.put(allocator, "get", .{ .function = .{ .builtin = lisp_std.get } }) catch outOfMemory();
-        self.mapping.put(allocator, "contains?", .{ .function = .{ .builtin = lisp_std.contains } }) catch outOfMemory();
-        self.mapping.put(allocator, "keys", .{ .function = .{ .builtin = lisp_std.keys } }) catch outOfMemory();
-        self.mapping.put(allocator, "vals", .{ .function = .{ .builtin = lisp_std.values } }) catch outOfMemory();
+        self.mapping.put(allocator, "assoc", LispType.Function.createBuiltin(allocator, lisp_std.assoc)) catch outOfMemory();
+        self.mapping.put(allocator, "dissoc", LispType.Function.createBuiltin(allocator, lisp_std.dissoc)) catch outOfMemory();
+        self.mapping.put(allocator, "get", LispType.Function.createBuiltin(allocator, lisp_std.get)) catch outOfMemory();
+        self.mapping.put(allocator, "contains?", LispType.Function.createBuiltin(allocator, lisp_std.contains)) catch outOfMemory();
+        self.mapping.put(allocator, "keys", LispType.Function.createBuiltin(allocator, lisp_std.keys)) catch outOfMemory();
+        self.mapping.put(allocator, "vals", LispType.Function.createBuiltin(allocator, lisp_std.values)) catch outOfMemory();
 
         // type conversions
-        self.mapping.put(allocator, "list", .{ .function = .{ .builtin = lisp_std.list } }) catch outOfMemory();
-        self.mapping.put(allocator, "vec", .{ .function = .{ .builtin = lisp_std.vec } }) catch outOfMemory();
-        self.mapping.put(allocator, "vector", .{ .function = .{ .builtin = lisp_std.vector } }) catch outOfMemory();
-        self.mapping.put(allocator, "dict", .{ .function = .{ .builtin = lisp_std.dict } }) catch outOfMemory();
-        self.mapping.put(allocator, "str", .{ .function = .{ .builtin = lisp_std.str } }) catch outOfMemory();
-        self.mapping.put(allocator, "symbol", .{ .function = .{ .builtin = lisp_std.symbol } }) catch outOfMemory();
-        self.mapping.put(allocator, "keyword", .{ .function = .{ .builtin = lisp_std.keyword } }) catch outOfMemory();
+        self.mapping.put(allocator, "list", LispType.Function.createBuiltin(allocator, lisp_std.list)) catch outOfMemory();
+        self.mapping.put(allocator, "vec", LispType.Function.createBuiltin(allocator, lisp_std.vec)) catch outOfMemory();
+        self.mapping.put(allocator, "vector", LispType.Function.createBuiltin(allocator, lisp_std.vector)) catch outOfMemory();
+        self.mapping.put(allocator, "dict", LispType.Function.createBuiltin(allocator, lisp_std.dict)) catch outOfMemory();
+        self.mapping.put(allocator, "str", LispType.Function.createBuiltin(allocator, lisp_std.str)) catch outOfMemory();
+        self.mapping.put(allocator, "symbol", LispType.Function.createBuiltin(allocator, lisp_std.symbol)) catch outOfMemory();
+        self.mapping.put(allocator, "keyword", LispType.Function.createBuiltin(allocator, lisp_std.keyword)) catch outOfMemory();
 
         // type checks
-        self.mapping.put(allocator, "atom?", .{ .function = .{ .builtin = lisp_std.atomQuestion } }) catch outOfMemory();
-        self.mapping.put(allocator, "nil?", .{ .function = .{ .builtin = lisp_std.nilQuestion } }) catch outOfMemory();
-        self.mapping.put(allocator, "bool?", .{ .function = .{ .builtin = lisp_std.boolQuestion } }) catch outOfMemory();
-        self.mapping.put(allocator, "int?", .{ .function = .{ .builtin = lisp_std.intQuestion } }) catch outOfMemory();
-        self.mapping.put(allocator, "float?", .{ .function = .{ .builtin = lisp_std.floatQuestion } }) catch outOfMemory();
-        self.mapping.put(allocator, "symbol?", .{ .function = .{ .builtin = lisp_std.symbolQuestion } }) catch outOfMemory();
-        self.mapping.put(allocator, "keyword?", .{ .function = .{ .builtin = lisp_std.keywordQuestion } }) catch outOfMemory();
-        self.mapping.put(allocator, "list?", .{ .function = .{ .builtin = lisp_std.listQuestion } }) catch outOfMemory();
-        self.mapping.put(allocator, "vector?", .{ .function = .{ .builtin = lisp_std.vectorQuestion } }) catch outOfMemory();
-        self.mapping.put(allocator, "dict?", .{ .function = .{ .builtin = lisp_std.dictQuestion } }) catch outOfMemory();
-        self.mapping.put(allocator, "sequential?", .{ .function = .{ .builtin = lisp_std.sequentialQuestion } }) catch outOfMemory();
-        self.mapping.put(allocator, "true?", .{ .function = .{ .builtin = lisp_std.trueQuestion } }) catch outOfMemory();
-        self.mapping.put(allocator, "false?", .{ .function = .{ .builtin = lisp_std.falseQuestion } }) catch outOfMemory();
+        self.mapping.put(allocator, "atom?", LispType.Function.createBuiltin(allocator, lisp_std.atomQuestion)) catch outOfMemory();
+        self.mapping.put(allocator, "nil?", LispType.Function.createBuiltin(allocator, lisp_std.nilQuestion)) catch outOfMemory();
+        self.mapping.put(allocator, "bool?", LispType.Function.createBuiltin(allocator, lisp_std.boolQuestion)) catch outOfMemory();
+        self.mapping.put(allocator, "int?", LispType.Function.createBuiltin(allocator, lisp_std.intQuestion)) catch outOfMemory();
+        self.mapping.put(allocator, "float?", LispType.Function.createBuiltin(allocator, lisp_std.floatQuestion)) catch outOfMemory();
+        self.mapping.put(allocator, "symbol?", LispType.Function.createBuiltin(allocator, lisp_std.symbolQuestion)) catch outOfMemory();
+        self.mapping.put(allocator, "keyword?", LispType.Function.createBuiltin(allocator, lisp_std.keywordQuestion)) catch outOfMemory();
+        self.mapping.put(allocator, "list?", LispType.Function.createBuiltin(allocator, lisp_std.listQuestion)) catch outOfMemory();
+        self.mapping.put(allocator, "vector?", LispType.Function.createBuiltin(allocator, lisp_std.vectorQuestion)) catch outOfMemory();
+        self.mapping.put(allocator, "dict?", LispType.Function.createBuiltin(allocator, lisp_std.dictQuestion)) catch outOfMemory();
+        self.mapping.put(allocator, "sequential?", LispType.Function.createBuiltin(allocator, lisp_std.sequentialQuestion)) catch outOfMemory();
+        self.mapping.put(allocator, "true?", LispType.Function.createBuiltin(allocator, lisp_std.trueQuestion)) catch outOfMemory();
+        self.mapping.put(allocator, "false?", LispType.Function.createBuiltin(allocator, lisp_std.falseQuestion)) catch outOfMemory();
 
         // misc
-        self.mapping.put(allocator, "slurp", .{ .function = .{ .builtin = lisp_std.slurp } }) catch outOfMemory();
-        self.mapping.put(allocator, "read-str", .{ .function = .{ .builtin = lisp_std.readStr } }) catch outOfMemory();
-        self.mapping.put(allocator, "load-file", .{ .function = .{ .builtin = lisp_std.loadFile } }) catch outOfMemory();
-        self.mapping.put(allocator, "apply", .{ .function = .{ .builtin = lisp_std.apply } }) catch outOfMemory();
+        self.mapping.put(allocator, "slurp", LispType.Function.createBuiltin(allocator, lisp_std.slurp)) catch outOfMemory();
+        self.mapping.put(allocator, "read-str", LispType.Function.createBuiltin(allocator, lisp_std.readStr)) catch outOfMemory();
+        self.mapping.put(allocator, "load-file", LispType.Function.createBuiltin(allocator, lisp_std.loadFile)) catch outOfMemory();
+        self.mapping.put(allocator, "apply", LispType.Function.createBuiltin(allocator, lisp_std.apply)) catch outOfMemory();
 
         // custom enum
-        self.mapping.put(allocator, "enum-init", .{ .function = .{ .builtin = lisp_std.enumInit } }) catch outOfMemory();
-        self.mapping.put(allocator, "enum-selected", .{ .function = .{ .builtin = lisp_std.enumSelected } }) catch outOfMemory();
-        self.mapping.put(allocator, "enum-index", .{ .function = .{ .builtin = lisp_std.enumIndex } }) catch outOfMemory();
-        self.mapping.put(allocator, "enum-set-selected", .{ .function = .{ .builtin = lisp_std.enumSetSelected } }) catch outOfMemory();
-        self.mapping.put(allocator, "enum-set-index", .{ .function = .{ .builtin = lisp_std.enumSetIndex } }) catch outOfMemory();
+        self.mapping.put(allocator, "enum-init", LispType.Function.createBuiltin(allocator, lisp_std.enumInit)) catch outOfMemory();
+        self.mapping.put(allocator, "enum-selected", LispType.Function.createBuiltin(allocator, lisp_std.enumSelected)) catch outOfMemory();
+        self.mapping.put(allocator, "enum-index", LispType.Function.createBuiltin(allocator, lisp_std.enumIndex)) catch outOfMemory();
+        self.mapping.put(allocator, "enum-set-selected", LispType.Function.createBuiltin(allocator, lisp_std.enumSetSelected)) catch outOfMemory();
+        self.mapping.put(allocator, "enum-set-index", LispType.Function.createBuiltin(allocator, lisp_std.enumSetIndex)) catch outOfMemory();
 
-        self.mapping.put(allocator, "->", .{ .function = .{ .builtin = lisp_std.arrowFirst } }) catch outOfMemory();
-        self.mapping.put(allocator, "->>", .{ .function = .{ .builtin = lisp_std.arrowLast } }) catch outOfMemory();
+        self.mapping.put(allocator, "->", LispType.Function.createBuiltin(allocator, lisp_std.arrowFirst)) catch outOfMemory();
+        self.mapping.put(allocator, "->>", LispType.Function.createBuiltin(allocator, lisp_std.arrowLast)) catch outOfMemory();
 
         return self;
     }

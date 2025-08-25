@@ -26,16 +26,18 @@ test "struct conversions" {
     };
 
     var gpa = std.heap.DebugAllocator(.{}){};
-    const allocator = gpa.allocator();
+    defer {
+        const deinit_status = gpa.deinit();
+        if (deinit_status == .leak) std.debug.print("WARNING: memory leaked\n", .{});
+    }
 
-    // for some reason, if I remove this line I get
-    // src/types.zig:323:26: error: union 'types.LispType.Function' depends on itself
-    _ = Interpreter.init(allocator);
+    var arena = std.heap.ArenaAllocator.init(gpa.allocator());
+    defer arena.deinit();
+    const allocator = arena.allocator();
 
     var map = std.StringHashMapUnmanaged(LispType).empty;
     defer map.deinit(allocator);
 
-    // Insert values (simulate parsed data)
     try map.put(allocator, "member_1", .{ .int = 42 });
     try map.put(allocator, "member_2", LispType.String.initString(allocator, "hello"));
     try map.put(allocator, "member_3", .{ .float = 3.14 });
