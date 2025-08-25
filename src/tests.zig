@@ -104,6 +104,7 @@ test "lisp mal" {
         "src/test-files/eval.lisp",
         "src/test-files/if_fn_do.lisp",
         "src/test-files/tco.lisp",
+        "src/test-files/enum.lisp",
         "src/test-files/atoms.lisp",
         "src/test-files/quote.lisp",
         "src/test-files/macros.lisp",
