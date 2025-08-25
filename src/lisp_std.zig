@@ -1305,7 +1305,8 @@ pub fn loadFile(
 /// These functions are examples on how to integrate a custom type (zig struct to lisp record) ///
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-/// Create an enum
+/// Create an enum. Takes a dict containing the struct field as keys with its respective
+/// values. e.g. (enum-init { "selected" 1 "options" (:hello :world) }).
 /// @argument selected: int
 /// @argument &: keyword
 /// @return: the newly created enum.
@@ -1315,32 +1316,12 @@ pub fn enumInit(
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
-    if (args_.len < 2) {
-        return err_ctx.atLeastNArguments(2);
+    if (args_.len != 1) {
+        return err_ctx.wrongNumberOfArguments(1, args_.len);
     }
 
     const args = try evalArgs(allocator, args_, env, err_ctx);
-    const selected: usize = switch (args[0]) {
-        .int => |i_| blk: {
-            const i: usize = @intCast(i_);
-            break :blk if (i < args.len) i else return err_ctx.indexOutOfRange(i, args.len - 1);
-        },
-        else => return err_ctx.wrongParameterType("'init-enum' first argument", "int"),
-    };
-
-    var option_array = std.ArrayListUnmanaged([]const u8).initCapacity(allocator, args.len - 1) catch outOfMemory();
-    for (args[1..]) |v| {
-        if (v != .keyword) {
-            return err_ctx.wrongParameterType("'init-enum' options", "keyword");
-        }
-        option_array.appendAssumeCapacity(v.keyword.getStr());
-    }
-
-    const enum_ = Enum.init(option_array.items, selected) catch |err| {
-        const msg = std.fmt.allocPrint(allocator, "Could not create enum: {any}.", .{err}) catch outOfMemory();
-        return err_ctx.customError(msg);
-    };
-    return LispType.Record.init(allocator, enum_);
+    return LispType.Record.fromDict(Enum, allocator, args[0]) catch err_ctx.invalidCast("enum");
 }
 
 fn enumGet(

@@ -61,6 +61,16 @@ pub const Context = struct {
         return LispError.IndexOutOfRange;
     }
 
+    pub fn invalidCast(self: *Self, to_type: []const u8) LispError {
+        self.clear();
+        std.fmt.format(
+            self.buffer.writer(self.allocator),
+            "Could not convert type to {s}",
+            .{to_type},
+        ) catch outOfMemory();
+        return LispError.InvalidCast;
+    }
+
     pub fn emptyCollection(self: *Self) LispError {
         self.clear();
         std.fmt.format(

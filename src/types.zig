@@ -346,6 +346,133 @@ pub const LispType = union(enum) {
         }
     };
 
+    pub const Record = struct {
+        bytes: []u8,
+        type_info: TypeInfo,
+        vtable: *const VTable,
+
+        const VTable = struct {
+            clone: *const fn (*anyopaque, std.mem.Allocator) LispType,
+            equals: *const fn (*anyopaque, *anyopaque) bool,
+        };
+
+        const CloneFn = *const fn (*anyopaque, std.mem.Allocator) LispType;
+        const EqualsFn = *const fn (*anyopaque, *anyopaque) bool;
+
+        pub const TypeInfo = struct {
+            name: []const u8,
+            size: usize,
+
+            pub fn init(comptime T: type) TypeInfo {
+                return .{
+                    .name = @typeName(T),
+                    .size = @sizeOf(T),
+                };
+            }
+        };
+
+        pub fn init(allocator: std.mem.Allocator, val: anytype) LispType {
+            const T = @TypeOf(val);
+            if (@typeInfo(T) != .@"struct") {
+                @compileError("Record only accepts structs.");
+            }
+
+            const type_info = TypeInfo.init(T);
+
+            const src = std.mem.asBytes(&val);
+            const alignment = @alignOf(T);
+            const buf = allocator.alignedAlloc(u8, alignment, type_info.size) catch outOfMemory();
+            @memcpy(buf, src);
+
+            const vtable = struct {
+                fn cloneFn(ptr: *anyopaque, alloc: std.mem.Allocator) LispType {
+                    const original: *T = @alignCast(@ptrCast(ptr));
+                    const cloned = @call(.auto, T.clone, .{ original.*, alloc });
+                    return LispType.Record.init(alloc, cloned);
+                }
+
+                fn equalsFn(a: *anyopaque, b: *anyopaque) bool {
+                    const ta: *T = @alignCast(@ptrCast(a));
+                    const tb: *T = @alignCast(@ptrCast(b));
+                    return std.meta.eql(ta.*, tb.*);
+                }
+
+                const vtable_instance = VTable{
+                    .clone = cloneFn,
+                    .equals = equalsFn,
+                };
+            }.vtable_instance;
+
+            return .{
+                .record = .{
+                    .bytes = buf,
+                    .type_info = type_info,
+                    .vtable = &vtable,
+                },
+            };
+        }
+
+        pub fn deinit(self: *Record, allocator: std.mem.Allocator) void {
+            allocator.free(self.bytes);
+        }
+
+        /// Populates a value of type `T` from a string-keyed hash map and wraps it in a `LispType.Record`.
+        /// Expects each field of `T` to be present as a key in the map, with a `LispType`-encoded value.
+        /// Fails if a field is missing or conversion fails.
+        pub fn fromHashMap(
+            comptime T: type,
+            allocator: std.mem.Allocator,
+            map: std.StringHashMapUnmanaged(LispType),
+        ) LispError!LispType {
+            var result: T = undefined;
+
+            const fields = std.meta.fields(T);
+            inline for (fields) |field| {
+                const name = field.name;
+                const field_type = field.type;
+
+                const entry = map.get(name) orelse {
+                    return LispError.MissingRequiredField;
+                };
+                @field(result, name) = try entry.cast(field_type, allocator);
+            }
+
+            return init(allocator, result);
+        }
+
+        /// Populates a value of type `T` from a string-keyed (string, keyword or symbol) LispType dict and wraps it in a
+        /// `LispType.Record`. Expects each field of `T` to be present as a key in the map, with a `LispType`-encoded value.
+        /// Fails if a field is missing or if any key is non-string.
+        pub fn fromDict(
+            comptime T: type,
+            allocator: std.mem.Allocator,
+            dict: LispType,
+        ) LispError!LispType {
+            const map = try dict.cast(std.StringHashMapUnmanaged(LispType), allocator);
+            return fromHashMap(T, allocator, map);
+        }
+
+        pub fn clone(self: Record, allocator: std.mem.Allocator) LispType {
+            return self.vtable.clone(@ptrCast(self.bytes.ptr), allocator);
+        }
+
+        pub fn eql(self: Record, other: Record) bool {
+            if (!std.mem.eql(u8, self.type_info.name, other.type_info.name)) {
+                return false;
+            }
+
+            return self.vtable.equals(self.bytes.ptr, other.bytes.ptr);
+        }
+
+        pub fn as(self: Record, comptime T: type) ?*T {
+            if (!std.mem.eql(u8, self.type_info.name, @typeName(T))) {
+                return null;
+            }
+
+            return @alignCast(std.mem.bytesAsValue(T, self.bytes));
+        }
+    };
+
     pub const String = struct {
         chars: Chars,
 
@@ -422,119 +549,11 @@ pub const LispType = union(enum) {
         }
     };
 
-    pub const Record = struct {
-        bytes: []u8,
-        type_info: TypeInfo,
-        vtable: *const VTable,
-
-        const VTable = struct {
-            clone: *const fn (*anyopaque, std.mem.Allocator) LispType,
-            equals: *const fn (*anyopaque, *anyopaque) bool,
-        };
-
-        const CloneFn = *const fn (*anyopaque, std.mem.Allocator) LispType;
-        const EqualsFn = *const fn (*anyopaque, *anyopaque) bool;
-
-        pub const TypeInfo = struct {
-            name: []const u8,
-            size: usize,
-
-            pub fn init(comptime T: type) TypeInfo {
-                return .{
-                    .name = @typeName(T),
-                    .size = @sizeOf(T),
-                };
-            }
-        };
-
-        pub fn init(allocator: std.mem.Allocator, val: anytype) LispType {
-            const T = @TypeOf(val);
-            if (@typeInfo(T) != .@"struct") {
-                @compileError("Record only accepts structs.");
-            }
-
-            const type_info = TypeInfo.init(T);
-
-            const src = std.mem.asBytes(&val);
-            const alignment = @alignOf(T);
-            const buf = allocator.alignedAlloc(u8, alignment, type_info.size) catch outOfMemory();
-            @memcpy(buf, src);
-
-            const vtable = struct {
-                fn cloneFn(ptr: *anyopaque, alloc: std.mem.Allocator) LispType {
-                    const original: *T = @alignCast(@ptrCast(ptr));
-                    const cloned = @call(.auto, T.clone, .{ original.*, alloc });
-                    return LispType.Record.init(alloc, cloned);
-                }
-
-                fn equalsFn(a: *anyopaque, b: *anyopaque) bool {
-                    const ta: *T = @alignCast(@ptrCast(a));
-                    const tb: *T = @alignCast(@ptrCast(b));
-                    return std.meta.eql(ta.*, tb.*);
-                }
-
-                const vtable_instance = VTable{
-                    .clone = cloneFn,
-                    .equals = equalsFn,
-                };
-            }.vtable_instance;
-
-            return .{
-                .record = .{
-                    .bytes = buf,
-                    .type_info = type_info,
-                    .vtable = &vtable,
-                },
-            };
-        }
-
-        pub fn deinit(self: *Record, allocator: std.mem.Allocator) void {
-            allocator.free(self.bytes);
-        }
-
-        pub fn fromHashMap(
-            comptime T: type,
-            allocator: std.mem.Allocator,
-            map: std.StringHashMapUnmanaged(LispType),
-        ) LispError!LispType {
-            var result: T = undefined;
-
-            const fields = std.meta.fields(T);
-            inline for (fields) |field| {
-                const name = field.name;
-                const field_type = field.type;
-
-                const entry = map.get(name) orelse {
-                    return LispError.MissingRequiredField;
-                };
-                @field(result, name) = try entry.cast(field_type, allocator);
-            }
-
-            return init(allocator, result);
-        }
-
-        pub fn clone(self: Record, allocator: std.mem.Allocator) LispType {
-            return self.vtable.clone(@ptrCast(self.bytes.ptr), allocator);
-        }
-
-        pub fn eql(self: Record, other: Record) bool {
-            if (!std.mem.eql(u8, self.type_info.name, other.type_info.name)) {
-                return false;
-            }
-
-            return self.vtable.equals(self.bytes.ptr, other.bytes.ptr);
-        }
-
-        pub fn as(self: Record, comptime T: type) ?*T {
-            if (!std.mem.eql(u8, self.type_info.name, @typeName(T))) {
-                return null;
-            }
-
-            return @alignCast(std.mem.bytesAsValue(T, self.bytes));
-        }
-    };
-
     pub fn cast(self: LispType, comptime T: type, allocator: std.mem.Allocator) LispError!T {
+        if (T == LispType) {
+            return self;
+        }
+
         const info = @typeInfo(T);
         return switch (self) {
             .int => |i| switch (info) {
@@ -548,7 +567,7 @@ pub const LispType = union(enum) {
             },
             .string, .symbol, .keyword => |s| switch (info) {
                 .pointer => |p| if (p.child == u8)
-                    allocator.dupe(u8, s.getStr()) catch outOfMemory()
+                    s.getStr()
                 else
                     LispError.InvalidCast,
                 else => LispError.InvalidCast,
