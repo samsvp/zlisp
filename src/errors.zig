@@ -6,6 +6,8 @@ const outOfMemory = @import("utils.zig").outOfMemory;
 pub const LispError = error{
     DivisionByZero,
     IndexOutOfRange,
+    InvalidCast,
+    MissingRequiredField,
     EmptyCollection,
     MissingCatch,
     ParserError,

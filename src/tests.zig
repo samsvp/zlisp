@@ -2,7 +2,9 @@ const std = @import("std");
 const LispType = @import("types.zig").LispType;
 const Interpreter = @import("interpreter.zig").Interpreter;
 
-test "math ops" {
+test "struct conversions" {}
+
+test "lisp mal" {
     var gpa = std.heap.DebugAllocator(.{}){};
     defer {
         const deinit_status = gpa.deinit();

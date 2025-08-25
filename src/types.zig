@@ -462,6 +462,27 @@ pub const LispType = union(enum) {
             allocator.free(self.bytes);
         }
 
+        pub fn fromHashMap(
+            comptime T: type,
+            allocator: std.mem.Allocator,
+            map: std.StringHashMapUnmanaged(LispType),
+        ) LispError!LispType {
+            var result: T = undefined;
+
+            const fields = std.meta.fields(T);
+            inline for (fields) |field| {
+                const name = field.name;
+                const field_type = field.type;
+
+                const entry = map.get(name) orelse {
+                    return LispError.MissingRequiredField;
+                };
+                @field(result, name) = try entry.cast(field_type, allocator);
+            }
+
+            return init(allocator, result);
+        }
+
         pub fn clone(self: Record, allocator: std.mem.Allocator) LispType {
             return self.clone_fn(@ptrCast(self.bytes), allocator);
         }
@@ -478,6 +499,84 @@ pub const LispType = union(enum) {
             return @alignCast(std.mem.bytesAsValue(T, self.bytes));
         }
     };
+
+    pub fn cast(self: LispType, comptime T: type, allocator: std.mem.Allocator) LispError!T {
+        const info = @typeInfo(T);
+        return switch (self) {
+            .int => |i| switch (info) {
+                .int => @intCast(i),
+                .float => @floatFromInt(i),
+                else => LispError.InvalidCast,
+            },
+            .float => |f| switch (info) {
+                .float => @floatCast(f),
+                else => LispError.InvalidCast,
+            },
+            .string, .symbol, .keyword => |s| switch (info) {
+                .pointer => |p| if (p.child == u8)
+                    allocator.dupe(u8, s.getStr()) catch outOfMemory()
+                else
+                    LispError.InvalidCast,
+                else => LispError.InvalidCast,
+            },
+            .boolean => |b| switch (info) {
+                .bool => b,
+                else => LispError.InvalidCast,
+            },
+            .list, .vector => |array| {
+                if (info != .pointer) {
+                    return LispError.InvalidCast;
+                }
+
+                const p = info.pointer;
+                const child_T = p.child;
+                var arr = allocator.alloc(child_T, array.array.items.len) catch outOfMemory();
+                for (array.getItems(), 0..) |val, i| {
+                    arr[i] = try val.cast(child_T, allocator);
+                }
+                return arr;
+            },
+            .atom => |a| a.value.cast(T, allocator),
+            .record => |r| if (r.as(T)) |v| v.* else LispError.InvalidCast,
+            .nil, .function => LispError.InvalidCast,
+            .dict => |dict| {
+                const getType = struct {
+                    pub fn getType(t: std.builtin.Type) type {
+                        const k_info = switch (t) {
+                            .@"fn" => |func| if (func.return_type) |ret| @typeInfo(ret) else return LispError.InvalidCast,
+                            else => return LispError.InvalidCast,
+                        };
+                        if (k_info != .optional) {
+                            return LispError.InvalidCast;
+                        }
+                        return k_info.optional.child;
+                    }
+                }.getType;
+                if (info != .@"struct") {
+                    return LispError.InvalidCast;
+                }
+
+                if (!std.meta.hasMethod(T, "put") or
+                    !std.meta.hasMethod(T, "get") or
+                    !std.meta.hasMethod(T, "getKey"))
+                {
+                    return LispError.InvalidCast;
+                }
+
+                const K = getType(@typeInfo(@TypeOf(T.getKey)));
+                const V = getType(@typeInfo(@TypeOf(T.get)));
+
+                var map: T = .empty;
+                var iter = dict.map.iterator();
+                while (iter.next()) |kv| {
+                    const key = try kv.key_ptr.cast(K, allocator);
+                    const value = try kv.value_ptr.cast(V, allocator);
+                    map.put(allocator, key, value) catch outOfMemory();
+                }
+                return map;
+            },
+        };
+    }
 
     pub fn clone(self: LispType, allocator: std.mem.Allocator) LispType {
         return switch (self) {
