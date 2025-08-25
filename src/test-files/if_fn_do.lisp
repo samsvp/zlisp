@@ -100,9 +100,14 @@
 (do (def plus5 (gen-plus5)) true)
 (= (plus5 7) 12)
 
-(do (def gen-plusX (fn [x] (fn [x] [b] "add x and b" (+ x b)))) true)
+(do (def gen-plusX (fn [x] "sample" (fn [x] [b] (+ x b)))) true)
 (do (def plus7 (gen-plusX 7)) true)
 (= (plus7 8) 15)
+(= (help gen-plusX) "sample")
+
+(do (def mult (fn [] [a b] "multiply a and b" (* a b))) true)
+(= (mult 2 5) 10)
+(= (help mult) "multiply a and b")
 
 (= (let [b 0 f (fn [b] [] b)] (let [b 1] (f))) 0)
 
