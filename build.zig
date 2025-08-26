@@ -30,12 +30,6 @@ pub fn build(b: *std.Build) void {
         .root_module = exe_mod,
     });
 
-    const linenoize = b.dependency("linenoize", .{
-        .target = target,
-        .optimize = optimize,
-    }).module("linenoise");
-    exe.root_module.addImport("linenoize", linenoize);
-
     const pcre2_dep = b.dependency("pcre2", .{
         .target = target,
         .optimize = optimize,

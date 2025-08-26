@@ -103,13 +103,14 @@ test "lisp mal" {
         "src/test-files/env.lisp",
         "src/test-files/eval.lisp",
         "src/test-files/if_fn_do.lisp",
-        "src/test-files/tco.lisp",
         "src/test-files/enum.lisp",
         "src/test-files/atoms.lisp",
         "src/test-files/quote.lisp",
         "src/test-files/macros.lisp",
         "src/test-files/try.lisp",
+        "src/test-files/tco.lisp",
     }) |filename| {
+        std.debug.print("Testing {s}\n", .{filename});
         var file = try std.fs.cwd().openFile(filename, .{});
         defer file.close();
 

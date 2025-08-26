@@ -393,20 +393,19 @@ pub const LispType = union(enum) {
             const type_info = TypeInfo.init(T);
 
             const src = std.mem.asBytes(&val);
-            const alignment = @alignOf(T);
-            const buf = allocator.alignedAlloc(u8, alignment, type_info.size) catch outOfMemory();
+            const buf = allocator.alignedAlloc(u8, .of(T), type_info.size) catch outOfMemory();
             @memcpy(buf, src);
 
             const vtable = struct {
                 fn cloneFn(ptr: *anyopaque, alloc: std.mem.Allocator) LispType {
-                    const original: *T = @alignCast(@ptrCast(ptr));
+                    const original: *T = @ptrCast(@alignCast(ptr));
                     const cloned = @call(.auto, T.clone, .{ original.*, alloc });
                     return LispType.Record.init(alloc, cloned);
                 }
 
                 fn equalsFn(a: *anyopaque, b: *anyopaque) bool {
-                    const ta: *T = @alignCast(@ptrCast(a));
-                    const tb: *T = @alignCast(@ptrCast(b));
+                    const ta: *T = @ptrCast(@alignCast(a));
+                    const tb: *T = @ptrCast(@alignCast(b));
                     return std.meta.eql(ta.*, tb.*);
                 }
 
@@ -754,66 +753,61 @@ pub const LispType = union(enum) {
     /// Converts the type to a zig string. This will convert the whole type, as such, it needs an allocator
     /// and the result must be freed by the caller.
     pub fn toStringFull(self: LispType, allocator: std.mem.Allocator) ![]const u8 {
-        var buffer = std.ArrayList(u8).init(allocator);
-        try self.toStringInternal(&buffer);
-        return try buffer.toOwnedSlice();
+        var buffer: std.ArrayListUnmanaged(u8) = .empty;
+        try self.toStringInternal(allocator, &buffer);
+        return try buffer.toOwnedSlice(allocator);
     }
 
-    /// Converts the type to a zig string, prints as much as the buffer can old.
-    pub fn toString(self: LispType, buffer: []u8) []const u8 {
-        var fba = std.heap.FixedBufferAllocator.init(buffer);
-        const allocator = fba.allocator();
-        var str_buffer = std.ArrayList(u8).init(allocator);
-        self.toStringInternal(&str_buffer) catch {};
-        return str_buffer.items;
-    }
-
-    fn toStringInternal(self: LispType, buffer: *std.ArrayList(u8)) !void {
+    fn toStringInternal(
+        self: LispType,
+        allocator: std.mem.Allocator,
+        buffer: *std.ArrayList(u8),
+    ) !void {
         switch (self) {
-            .symbol, .keyword => |s| try buffer.appendSlice(s.getStr()),
-            .string => |s| try std.fmt.format(buffer.writer(), "\"{s}\"", .{s.getStr()}),
+            .symbol, .keyword => |s| try buffer.appendSlice(allocator, s.getStr()),
+            .string => |s| try std.fmt.format(buffer.writer(allocator), "\"{s}\"", .{s.getStr()}),
             .atom => |a| {
-                try buffer.appendSlice("(atom ");
-                try a.value.toStringInternal(buffer);
-                try buffer.append(')');
+                try buffer.appendSlice(allocator, "(atom ");
+                try a.value.toStringInternal(allocator, buffer);
+                try buffer.append(allocator, ')');
             },
-            .nil => try buffer.appendSlice("nil"),
+            .nil => try buffer.appendSlice(allocator, "nil"),
             .list => |l| {
-                try buffer.appendSlice("(");
+                try buffer.appendSlice(allocator, "(");
                 for (l.getItems(), 0..) |item, i| {
-                    if (i > 0) try buffer.append(' ');
-                    try item.toStringInternal(buffer);
+                    if (i > 0) try buffer.append(allocator, ' ');
+                    try item.toStringInternal(allocator, buffer);
                 }
-                try buffer.appendSlice(")");
+                try buffer.appendSlice(allocator, ")");
             },
             .vector => |a| {
-                try buffer.appendSlice("[");
+                try buffer.appendSlice(allocator, "[");
                 for (a.getItems(), 0..) |item, i| {
-                    if (i > 0) try buffer.append(' ');
-                    try item.toStringInternal(buffer);
+                    if (i > 0) try buffer.append(allocator, ' ');
+                    try item.toStringInternal(allocator, buffer);
                 }
-                try buffer.appendSlice("]");
+                try buffer.appendSlice(allocator, "]");
             },
             .dict => |d| {
-                try buffer.appendSlice("{");
+                try buffer.appendSlice(allocator, "{");
                 var iter = d.map.iterator();
                 var first: bool = true;
                 while (iter.next()) |entry| {
                     if (!first) {
-                        try buffer.append(' ');
+                        try buffer.append(allocator, ' ');
                     } else {
                         first = false;
                     }
 
-                    try entry.key_ptr.toStringInternal(buffer);
-                    try buffer.appendSlice(" ");
-                    try entry.value_ptr.toStringInternal(buffer);
+                    try entry.key_ptr.toStringInternal(allocator, buffer);
+                    try buffer.appendSlice(allocator, " ");
+                    try entry.value_ptr.toStringInternal(allocator, buffer);
                 }
-                try buffer.appendSlice("}");
+                try buffer.appendSlice(allocator, "}");
             },
-            .function => try buffer.appendSlice("#<function>"),
-            .record => |r| try std.fmt.format(buffer.writer(), "#record {s}", .{r.type_info.name}),
-            inline .int, .float, .boolean => |i| try std.fmt.format(buffer.writer(), "{}", .{i}),
+            .function => try buffer.appendSlice(allocator, "#<function>"),
+            .record => |r| try std.fmt.format(buffer.writer(allocator), "#record {s}", .{r.type_info.name}),
+            inline .int, .float, .boolean => |i| try std.fmt.format(buffer.writer(allocator), "{}", .{i}),
         }
     }
 
