@@ -14,14 +14,25 @@ pub fn main() !void {
     var interpreter = Interpreter.init(allocator);
     defer interpreter.deinit();
 
-    const stdout = std.fs.File.stdout();
-    while (ln.linenoise("hello> ")) |c_line| {
-        defer ln.linenoiseFree(c_line);
+    var buffer: [1024]u8 = undefined;
+    var writer = std.fs.File.stdout().writer(&buffer);
+    const stdout = &writer.interface;
 
-        const line: []const u8 = std.mem.span(c_line);
-        _ = try stdout.write(line);
-        _ = try stdout.write("\n");
+    _ = ln.linenoiseHistoryLoad("history.txt");
+    while (ln.linenoise("user> ")) |line| {
+        defer ln.linenoiseFree(line);
+        const input: []const u8 = std.mem.span(line);
+        const res = interpreter.rep(input) catch |err| {
+            try stdout.print("{any}\n", .{err});
+            continue;
+        };
+
+        try stdout.print("{s}\n", .{res});
+        try stdout.flush();
+        _ = ln.linenoiseHistoryAdd(line);
     }
+
+    _ = ln.linenoiseHistorySave("history.txt");
 }
 
 test {
