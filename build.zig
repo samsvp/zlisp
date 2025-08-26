@@ -35,6 +35,37 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     exe.linkLibrary(pcre2_dep.artifact("pcre2-8"));
+
+    const linenoise_dep = b.dependency("linenoise", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const linenoise_library = b.addLibrary(.{
+        .name = "linenoise",
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    linenoise_library.root_module.addSystemIncludePath(linenoise_dep.path("/usr/include"));
+    linenoise_library.root_module.addCSourceFiles(.{
+        .root = linenoise_dep.path("."),
+        .files = &.{"linenoise.c"},
+    });
+
+    const linenoise_translate = b.addTranslateC(.{
+        .root_source_file = linenoise_dep.path("linenoise.h"),
+        .target = target,
+        .optimize = optimize,
+    });
+    exe_mod.addImport("linenoise", b.createModule(.{
+        .root_source_file = linenoise_translate.getOutput(),
+        .target = target,
+        .optimize = optimize,
+    }));
+    lib_mod.linkLibrary(linenoise_library);
+
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);

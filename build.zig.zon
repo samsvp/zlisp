@@ -11,6 +11,10 @@
             .url = "https://github.com/PCRE2Project/pcre2/archive/7c7a27442279f5b53cd9c1c320e7a5fa662b48e7.tar.gz",
             .hash = "N-V-__8AAPaj4AA7tqCGizncMhl8gm8AX1wmXFaB7jH2tJoq",
         },
+        .linenoise = .{
+            .url = "git+https://github.com/antirez/linenoise.git#d895173d679be70bcd8b23041fff3e458e1a3506",
+            .hash = "N-V-__8AAGoRAQDx6biuV6HtPBEQ9sz7y-8mWYqZ7yJdaOFK",
+        },
     },
 
     .paths = .{
