@@ -95,7 +95,7 @@ pub fn evalWrapper(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (s.len != 1) {
-        return err_ctx.wrongNumberOfArguments(1, s.len);
+        return err_ctx.wrongNumberOfArguments("eval-wrapper", 1, s.len);
     }
 
     const fst = try eval(allocator, s[0], env, err_ctx);
@@ -193,7 +193,7 @@ pub fn try_(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (s.len != 2) {
-        return err_ctx.wrongNumberOfArguments(2, s.len);
+        return err_ctx.wrongNumberOfArguments("try", 2, s.len);
     }
 
     if (s[1] != .list) {
@@ -202,7 +202,7 @@ pub fn try_(
 
     const catch_form = s[1].list.getItems();
     if (catch_form.len != 3) {
-        return err_ctx.wrongNumberOfArguments(3, catch_form.len);
+        return err_ctx.wrongNumberOfArguments("catch", 3, catch_form.len);
     }
 
     if (catch_form[0] == .symbol) {
@@ -234,7 +234,7 @@ pub fn throw(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (s.len != 1) {
-        return err_ctx.wrongNumberOfArguments(1, s.len);
+        return err_ctx.wrongNumberOfArguments("throw", 1, s.len);
     }
 
     if (s[0] != .string) {
