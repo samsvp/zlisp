@@ -51,7 +51,7 @@
 (= (quasiquote (1 (unquote b) 3)) (1 (1 "b" "d") 3))
 (= (quasiquote ((unquote 1) (unquote 2))) (1 2))
 
-(= (let (x 0) (quasiquote (unquote x))) 0)
+(= (let [x 0] (quasiquote (unquote x))) 0)
 
 (= (def c (quote (1 "b" "d"))) (1 "b" "d"))
 (= (quasiquote (1 c 3)) (1 'c 3))

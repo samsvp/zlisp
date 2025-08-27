@@ -7,13 +7,13 @@
 (defn enumerate [col]
   "Returns a tuple containing the index and value of each item in the collection.
    e.g '(= (enumerate [5 9 10]) [(0 5) (1 9) (2 10)])'"
-  ([col]
-    (let [i (atom -1)]
-      (map
-        (fn [i] [v]
-          (let [_ (swap! i (fn [a b] (+ a b)) 1)]
-            ((deref i) v)))
-        col))))
+  [col]
+  (let [i (atom -1)]
+    (map
+      (fn [i] [v]
+        (let [_ (swap! i (fn [a b] (+ a b)) 1)]
+          ((deref i) v)))
+      col)))
 
 (defn infix [infixed]
   ((nth infixed 1) (nth infixed 0) (nth infixed 2)))

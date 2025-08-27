@@ -30,6 +30,6 @@
 (= (f) 8)
 (= (f) 9)
 
-(do (def g (let (atm (atom 0)) (fn [atm] [] (deref atm)))) true)
+(do (def g (let [atm (atom 0)] (fn [atm] [] (deref atm)))) true)
 (do (def atm (atom 1)) true)
 (= (g) 0)

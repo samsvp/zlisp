@@ -405,7 +405,7 @@ pub fn let(
 
     var new_env = Env.initFromParent(env);
     const arr = switch (args[0]) {
-        .list, .vector => |arr| blk: {
+        .vector => |arr| blk: {
             if (arr.getItems().len % 2 != 0) {
                 return err_ctx.wrongNumberOfArguments(args.len + 1, args.len);
             }
