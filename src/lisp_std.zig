@@ -14,7 +14,7 @@ fn evalArgs(
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError![]LispType {
-    var args_arr = std.ArrayListUnmanaged(LispType).initCapacity(allocator, uneval_args.len) catch outOfMemory();
+    var args_arr = std.ArrayList(LispType).initCapacity(allocator, uneval_args.len) catch outOfMemory();
     for (uneval_args) |arg| {
         const val = try core.eval(allocator, arg, env, err_ctx);
         args_arr.appendAssumeCapacity(val);
@@ -115,7 +115,7 @@ pub fn cmp(
         return err_ctx.wrongNumberOfArguments(2, args.len);
     }
 
-    var args_eval = std.ArrayListUnmanaged(LispType).initCapacity(allocator, args.len) catch outOfMemory();
+    var args_eval = std.ArrayList(LispType).initCapacity(allocator, args.len) catch outOfMemory();
     for (args) |arg| {
         const val = try core.eval(allocator, arg, env, err_ctx);
         args_eval.appendAssumeCapacity(val);
@@ -408,7 +408,7 @@ pub fn map(
     };
 
     var ast = LispType.Array.initList(allocator, &[2]LispType{ func, .nil });
-    var res = std.ArrayListUnmanaged(LispType).initCapacity(allocator, arr.len) catch outOfMemory();
+    var res = std.ArrayList(LispType).initCapacity(allocator, arr.len) catch outOfMemory();
     for (arr) |val| {
         ast.list.array.items[1] = val.clone(allocator);
         const ret = try core.eval(allocator, ast, env, err_ctx);
@@ -437,7 +437,7 @@ pub fn apply(
         else => return err_ctx.wrongParameterType("'map' first argument", "function"),
     };
 
-    var new_args = std.ArrayListUnmanaged(LispType).initCapacity(allocator, args.len + 1) catch outOfMemory();
+    var new_args = std.ArrayList(LispType).initCapacity(allocator, args.len + 1) catch outOfMemory();
     new_args.appendAssumeCapacity(func);
     for (args[1 .. args.len - 1]) |arg| {
         new_args.appendAssumeCapacity(arg);
@@ -614,7 +614,7 @@ fn dictIterator(
         else => return err_ctx.wrongParameterType("'keys' first argument", "dict"),
     };
 
-    var list_ = std.ArrayListUnmanaged(LispType).initCapacity(allocator, dict_.count()) catch outOfMemory();
+    var list_ = std.ArrayList(LispType).initCapacity(allocator, dict_.count()) catch outOfMemory();
     var key_iter = iterator(dict_);
     while (key_iter.next()) |key| {
         list_.appendAssumeCapacity(key.*);

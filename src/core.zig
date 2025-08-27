@@ -294,7 +294,7 @@ pub fn quasiquote(
         }
     }
 
-    var res_arr = std.ArrayListUnmanaged(LispType).initCapacity(allocator, args.len) catch outOfMemory();
+    var res_arr = std.ArrayList(LispType).initCapacity(allocator, args.len) catch outOfMemory();
     for (args) |elt| {
         if (!isSpliceUnquote(elt)) {
             var eltt = [_]LispType{elt};
@@ -453,7 +453,7 @@ pub fn fn_(
     }
 
     const items = args_symbol.vector.getItems();
-    var args = std.ArrayListUnmanaged([]const u8).initCapacity(allocator, items.len) catch outOfMemory();
+    var args = std.ArrayList([]const u8).initCapacity(allocator, items.len) catch outOfMemory();
     for (items) |a| {
         if (a != .symbol) {
             return err_ctx.wrongParameterType("Parameter list arguments", "symbol");
@@ -462,8 +462,8 @@ pub fn fn_(
         args.appendAssumeCapacity(a.symbol.getStr());
     }
 
-    var closure_names: std.ArrayListUnmanaged([]const u8) = .empty;
-    var closure_vals: std.ArrayListUnmanaged(LispType) = .empty;
+    var closure_names: std.ArrayList([]const u8) = .empty;
+    var closure_vals: std.ArrayList(LispType) = .empty;
     if ((s.len == 3 and s[0] != .string) or s.len == 4) {
         const closure_symbols = if (s[0] == .string) s[1] else s[0];
         if (closure_symbols != .vector) {

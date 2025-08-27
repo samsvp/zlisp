@@ -11,7 +11,7 @@ pub const Env = struct {
     mapping: std.StringArrayHashMapUnmanaged(LispType),
     // keep track of all atoms, as they need to clean up their values once the
     // environment goes out of scope.
-    atoms: std.ArrayListUnmanaged([]const u8),
+    atoms: std.ArrayList([]const u8),
     parent: ?*Self,
 
     const Self = @This();

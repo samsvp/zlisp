@@ -23,12 +23,12 @@ pub const LispError = error{
 
 pub const Context = struct {
     allocator: std.mem.Allocator,
-    buffer: std.ArrayListUnmanaged(u8),
+    buffer: std.ArrayList(u8),
 
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator) Self {
-        const buffer = std.ArrayListUnmanaged(u8).initCapacity(allocator, 500) catch outOfMemory();
+        const buffer = std.ArrayList(u8).initCapacity(allocator, 500) catch outOfMemory();
         return Self{
             .allocator = allocator,
             .buffer = buffer,

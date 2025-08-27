@@ -17,7 +17,7 @@ pub const ParserError = error{
     OutOfMemory,
 };
 
-const TokenList = std.ArrayListUnmanaged([]const u8);
+const TokenList = std.ArrayList([]const u8);
 
 /// A helper token reader.
 pub const Reader = struct {
@@ -192,7 +192,7 @@ fn readCollection(
     reader: *Reader,
     collection_type: CollectionType,
 ) ParserError!LispType {
-    var list: std.ArrayListUnmanaged(LispType) = .empty;
+    var list: std.ArrayList(LispType) = .empty;
     errdefer {
         for (list.items) |*item| {
             item.deinit(allocator);
