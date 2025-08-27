@@ -29,7 +29,7 @@ pub fn not(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args_.len != 1) {
-        return err_ctx.wrongNumberOfArguments(1, args_.len);
+        return err_ctx.wrongNumberOfArguments("not", 1, args_.len);
     }
 
     const args = try evalArgs(allocator, args_, env, err_ctx);
@@ -47,7 +47,7 @@ pub fn trueQuestion(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args_.len != 1) {
-        return err_ctx.wrongNumberOfArguments(1, args_.len);
+        return err_ctx.wrongNumberOfArguments("true?", 1, args_.len);
     }
 
     const args = try evalArgs(allocator, args_, env, err_ctx);
@@ -64,7 +64,7 @@ pub fn falseQuestion(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args_.len != 1) {
-        return err_ctx.wrongNumberOfArguments(1, args_.len);
+        return err_ctx.wrongNumberOfArguments("false?", 1, args_.len);
     }
 
     const args = try evalArgs(allocator, args_, env, err_ctx);
@@ -81,7 +81,7 @@ pub fn eql(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args.len < 2) {
-        return err_ctx.wrongNumberOfArguments(2, args.len);
+        return err_ctx.wrongNumberOfArguments("=", 2, args.len);
     }
 
     const fst = try core.eval(allocator, args[0], env, err_ctx);
@@ -100,6 +100,9 @@ pub fn notEql(
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
+    if (args.len < 2) {
+        return err_ctx.wrongNumberOfArguments("!=", 2, args.len);
+    }
     const ret = try eql(allocator, args, env, err_ctx);
     return .{ .boolean = !ret.boolean };
 }
@@ -109,10 +112,11 @@ pub fn cmp(
     args: []LispType,
     err_ctx: *errors.Context,
     env: *Env,
+    fn_symbol: []const u8,
     cmpFn: fn (f32, f32) bool,
 ) LispError!LispType {
     if (args.len < 2) {
-        return err_ctx.wrongNumberOfArguments(2, args.len);
+        return err_ctx.wrongNumberOfArguments(fn_symbol, 2, args.len);
     }
 
     var args_eval = std.ArrayList(LispType).initCapacity(allocator, args.len) catch outOfMemory();
@@ -150,7 +154,7 @@ pub fn less(
             return v1 < v2;
         }
     }.f;
-    return cmp(allocator, args, err_ctx, env, lessFn);
+    return cmp(allocator, args, err_ctx, env, "<", lessFn);
 }
 
 pub fn lessEql(
@@ -164,7 +168,7 @@ pub fn lessEql(
             return v1 <= v2;
         }
     }.f;
-    return cmp(allocator, args, err_ctx, env, lessFn);
+    return cmp(allocator, args, err_ctx, env, "<=", lessFn);
 }
 
 pub fn bigger(
@@ -178,7 +182,7 @@ pub fn bigger(
             return v1 > v2;
         }
     }.f;
-    return cmp(allocator, args, err_ctx, env, lessFn);
+    return cmp(allocator, args, err_ctx, env, ">", lessFn);
 }
 
 pub fn biggerEql(
@@ -192,7 +196,7 @@ pub fn biggerEql(
             return v1 >= v2;
         }
     }.f;
-    return cmp(allocator, args, err_ctx, env, lessFn);
+    return cmp(allocator, args, err_ctx, env, ">=", lessFn);
 }
 
 /// Adds all elements of the list/vector.
@@ -208,7 +212,7 @@ pub fn add(
     const args = try evalArgs(allocator, args_, env, err_ctx);
 
     if (args.len == 0) {
-        return err_ctx.atLeastNArguments(1);
+        return err_ctx.atLeastNArguments("+", 1);
     }
 
     switch (args[0]) {
@@ -269,7 +273,7 @@ pub fn sub(
     const args = try evalArgs(allocator, args_, env, err_ctx);
 
     if (args.len == 0) {
-        return err_ctx.atLeastNArguments(1);
+        return err_ctx.atLeastNArguments("-", 1);
     }
 
     if (args.len == 1) {
@@ -314,7 +318,7 @@ pub fn mul(
     const args = try evalArgs(allocator, args_, env, err_ctx);
 
     if (args.len == 0) {
-        return err_ctx.atLeastNArguments(1);
+        return err_ctx.atLeastNArguments("*", 1);
     }
 
     switch (args[0]) {
@@ -354,7 +358,7 @@ pub fn div(
     const args = try evalArgs(allocator, args_, env, err_ctx);
 
     if (args.len == 0) {
-        return err_ctx.atLeastNArguments(1);
+        return err_ctx.atLeastNArguments("/", 1);
     }
 
     switch (args[0]) {
@@ -392,7 +396,7 @@ pub fn map(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args_.len != 2) {
-        return err_ctx.wrongNumberOfArguments(2, args_.len);
+        return err_ctx.wrongNumberOfArguments("map", 2, args_.len);
     }
 
     const args = try evalArgs(allocator, args_, env, err_ctx);
@@ -428,7 +432,7 @@ pub fn apply(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args_.len < 2) {
-        return err_ctx.atLeastNArguments(2);
+        return err_ctx.atLeastNArguments("apply", 2);
     }
 
     const args = try evalArgs(allocator, args_, env, err_ctx);
@@ -465,7 +469,7 @@ pub fn dict(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args_.len % 2 != 0) {
-        return err_ctx.wrongNumberOfArguments(args_.len + 1, args_.len);
+        return err_ctx.wrongNumberOfArguments("dict", args_.len + 1, args_.len);
     }
 
     const args = try evalArgs(allocator, args_, env, err_ctx);
@@ -494,10 +498,10 @@ pub fn assoc(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args_.len < 3) {
-        return err_ctx.atLeastNArguments(3);
+        return err_ctx.atLeastNArguments("assoc", 3);
     }
     if (args_.len % 2 != 1) {
-        return err_ctx.wrongNumberOfArguments(args_.len + 1, args_.len);
+        return err_ctx.wrongNumberOfArguments("assoc", args_.len + 1, args_.len);
     }
 
     const args = try evalArgs(allocator, args_, env, err_ctx);
@@ -529,7 +533,7 @@ pub fn dissoc(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args_.len < 2) {
-        return err_ctx.atLeastNArguments(2);
+        return err_ctx.atLeastNArguments("dissoc", 2);
     }
 
     const args = try evalArgs(allocator, args_, env, err_ctx);
@@ -555,7 +559,7 @@ pub fn get(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args_.len < 2) {
-        return err_ctx.wrongNumberOfArguments(2, args_.len);
+        return err_ctx.wrongNumberOfArguments("get", 2, args_.len);
     }
 
     const args = try evalArgs(allocator, args_, env, err_ctx);
@@ -581,7 +585,7 @@ pub fn contains(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args_.len < 2) {
-        return err_ctx.wrongNumberOfArguments(2, args_.len);
+        return err_ctx.wrongNumberOfArguments("contains", 2, args_.len);
     }
 
     const args = try evalArgs(allocator, args_, env, err_ctx);
@@ -600,11 +604,12 @@ fn dictIterator(
     allocator: std.mem.Allocator,
     args_: []LispType,
     env: *Env,
+    fn_symbol: []const u8,
     err_ctx: *errors.Context,
     iterator: anytype,
 ) LispError!LispType {
     if (args_.len != 1) {
-        return err_ctx.wrongNumberOfArguments(1, args_.len);
+        return err_ctx.wrongNumberOfArguments(fn_symbol, 1, args_.len);
     }
 
     const args = try evalArgs(allocator, args_, env, err_ctx);
@@ -635,6 +640,7 @@ pub fn keys(
         allocator,
         args_,
         env,
+        "keys",
         err_ctx,
         LispType.Dict.Map.keyIterator,
     );
@@ -653,6 +659,7 @@ pub fn values(
         allocator,
         args_,
         env,
+        "values",
         err_ctx,
         LispType.Dict.Map.valueIterator,
     );
@@ -694,7 +701,7 @@ pub fn vec(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args_.len != 1) {
-        return err_ctx.wrongNumberOfArguments(1, args_.len);
+        return err_ctx.wrongNumberOfArguments("vec", 1, args_.len);
     }
     const args = try evalArgs(allocator, args_, env, err_ctx);
     return switch (args[0]) {
@@ -714,7 +721,7 @@ pub fn nth(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args_.len > 2) {
-        return err_ctx.wrongNumberOfArguments(2, args_.len);
+        return err_ctx.wrongNumberOfArguments("nth", 2, args_.len);
     }
 
     const args = try evalArgs(allocator, args_, env, err_ctx);
@@ -732,14 +739,14 @@ pub fn nth(
         .list, .vector => |arr| {
             const collection = arr.getItems();
             if (n >= collection.len) {
-                return err_ctx.indexOutOfRange(n, collection.len);
+                return err_ctx.indexOutOfRange("nth", n, collection.len);
             }
             return collection[n];
         },
         .string => |s| {
             const collection = s.getStr();
             if (n >= collection.len) {
-                return err_ctx.indexOutOfRange(n, collection.len);
+                return err_ctx.indexOutOfRange("nth", n, collection.len);
             }
             return LispType.String.initString(allocator, collection[n .. n + 1]);
         },
@@ -757,7 +764,7 @@ pub fn head(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+        return err_ctx.wrongNumberOfArguments("first/head", 1, args.len);
     }
 
     var new_args = [_]LispType{ args[0], .{ .int = 0 } };
@@ -777,7 +784,7 @@ pub fn tail(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args_.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args_.len);
+        return err_ctx.wrongNumberOfArguments("tail/rest", 1, args_.len);
     }
 
     const args = try evalArgs(allocator, args_, env, err_ctx);
@@ -801,7 +808,7 @@ pub fn listQuestion(
     }
 
     if (args.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+        return err_ctx.wrongNumberOfArguments("list?", 1, args.len);
     }
 
     const arg = try core.eval(allocator, args[0], env, err_ctx);
@@ -822,7 +829,7 @@ pub fn emptyQuestion(
     }
 
     if (args.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+        return err_ctx.wrongNumberOfArguments("empty?", 1, args.len);
     }
 
     const arg = try core.eval(allocator, args[0], env, err_ctx);
@@ -847,7 +854,7 @@ pub fn count(
     }
 
     if (args.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+        return err_ctx.wrongNumberOfArguments("count", 1, args.len);
     }
 
     const arg = try core.eval(allocator, args[0], env, err_ctx);
@@ -869,7 +876,7 @@ pub fn cons(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args_.len != 2) {
-        return err_ctx.wrongNumberOfArguments(2, args_.len);
+        return err_ctx.wrongNumberOfArguments("cons", 2, args_.len);
     }
 
     const args = try evalArgs(allocator, args_, env, err_ctx);
@@ -911,7 +918,7 @@ pub fn atom(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+        return err_ctx.wrongNumberOfArguments("atom", 1, args.len);
     }
 
     const val = try core.eval(allocator, args[0], env, err_ctx);
@@ -928,7 +935,7 @@ pub fn atomQuestion(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+        return err_ctx.wrongNumberOfArguments("atom?", 1, args.len);
     }
 
     const val = try core.eval(allocator, args[0], env, err_ctx);
@@ -945,7 +952,7 @@ pub fn deref(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+        return err_ctx.wrongNumberOfArguments("deref", 1, args.len);
     }
 
     const val = try core.eval(allocator, args[0], env, err_ctx);
@@ -966,7 +973,7 @@ pub fn resetBang(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args.len != 2) {
-        return err_ctx.wrongNumberOfArguments(2, args.len);
+        return err_ctx.wrongNumberOfArguments("reset!", 2, args.len);
     }
 
     var val = try core.eval(allocator, args[0], env, err_ctx);
@@ -990,7 +997,7 @@ pub fn swapBang(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args_.len < 2) {
-        return err_ctx.atLeastNArguments(2);
+        return err_ctx.atLeastNArguments("swap!", 2);
     }
 
     const args = try evalArgs(allocator, args_, env, err_ctx);
@@ -1023,7 +1030,7 @@ pub fn symbol(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args.len != 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+        return err_ctx.wrongNumberOfArguments("symbol", 1, args.len);
     }
 
     const val = try core.eval(allocator, args[0], env, err_ctx);
@@ -1043,7 +1050,7 @@ pub fn keyword(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args.len != 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+        return err_ctx.wrongNumberOfArguments("keyword", 1, args.len);
     }
 
     const val = try core.eval(allocator, args[0], env, err_ctx);
@@ -1068,7 +1075,7 @@ pub fn nilQuestion(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+        return err_ctx.wrongNumberOfArguments("nil?", 1, args.len);
     }
 
     const val = try core.eval(allocator, args[0], env, err_ctx);
@@ -1085,7 +1092,7 @@ pub fn boolQuestion(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+        return err_ctx.wrongNumberOfArguments("bool?", 1, args.len);
     }
 
     const val = try core.eval(allocator, args[0], env, err_ctx);
@@ -1102,7 +1109,7 @@ pub fn symbolQuestion(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+        return err_ctx.wrongNumberOfArguments("symbol?", 1, args.len);
     }
 
     const val = try core.eval(allocator, args[0], env, err_ctx);
@@ -1119,7 +1126,7 @@ pub fn keywordQuestion(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+        return err_ctx.wrongNumberOfArguments("keyword?", 1, args.len);
     }
 
     const val = try core.eval(allocator, args[0], env, err_ctx);
@@ -1136,7 +1143,7 @@ pub fn dictQuestion(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+        return err_ctx.wrongNumberOfArguments("dict?", 1, args.len);
     }
 
     const val = try core.eval(allocator, args[0], env, err_ctx);
@@ -1153,7 +1160,7 @@ pub fn vectorQuestion(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+        return err_ctx.wrongNumberOfArguments("vector?", 1, args.len);
     }
 
     const val = try core.eval(allocator, args[0], env, err_ctx);
@@ -1170,7 +1177,7 @@ pub fn sequentialQuestion(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+        return err_ctx.wrongNumberOfArguments("sequential?", 1, args.len);
     }
 
     const val = try core.eval(allocator, args[0], env, err_ctx);
@@ -1187,7 +1194,7 @@ pub fn floatQuestion(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+        return err_ctx.wrongNumberOfArguments("float?", 1, args.len);
     }
 
     const val = try core.eval(allocator, args[0], env, err_ctx);
@@ -1204,7 +1211,7 @@ pub fn intQuestion(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args.len > 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+        return err_ctx.wrongNumberOfArguments("int?", 1, args.len);
     }
 
     const val = try core.eval(allocator, args[0], env, err_ctx);
@@ -1247,7 +1254,7 @@ pub fn readStr(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args.len != 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+        return err_ctx.wrongNumberOfArguments("read-str", 1, args.len);
     }
 
     const val = try core.eval(allocator, args[0], env, err_ctx);
@@ -1267,7 +1274,7 @@ pub fn slurp(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args.len != 1) {
-        return err_ctx.wrongNumberOfArguments(1, args.len);
+        return err_ctx.wrongNumberOfArguments("slurp", 1, args.len);
     }
 
     const val = try core.eval(allocator, args[0], env, err_ctx);
@@ -1294,7 +1301,7 @@ pub fn help(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args_.len != 1) {
-        return err_ctx.wrongNumberOfArguments(1, args_.len);
+        return err_ctx.wrongNumberOfArguments("help", 1, args_.len);
     }
 
     const args = try evalArgs(allocator, args_, env, err_ctx);
@@ -1337,11 +1344,11 @@ pub fn enumInit(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args_.len != 1) {
-        return err_ctx.wrongNumberOfArguments(1, args_.len);
+        return err_ctx.wrongNumberOfArguments("enum-init", 1, args_.len);
     }
 
     const args = try evalArgs(allocator, args_, env, err_ctx);
-    return LispType.Record.fromDict(Enum, allocator, args[0]) catch err_ctx.invalidCast("enum");
+    return LispType.Record.fromDict(Enum, allocator, args[0]) catch err_ctx.invalidCast("enum-init", "enum");
 }
 
 fn enumGet(
@@ -1368,7 +1375,7 @@ pub fn enumSelected(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args_.len != 1) {
-        return err_ctx.wrongNumberOfArguments(1, args_.len);
+        return err_ctx.wrongNumberOfArguments("enum-selected", 1, args_.len);
     }
 
     const enum_ = try enumGet(allocator, args_[0], env, err_ctx, "'enum-selected' argument");
@@ -1385,7 +1392,7 @@ pub fn enumIndex(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args_.len != 1) {
-        return err_ctx.wrongNumberOfArguments(1, args_.len);
+        return err_ctx.wrongNumberOfArguments("enum-index", 1, args_.len);
     }
 
     const enum_ = try enumGet(allocator, args_[0], env, err_ctx, "'enum-index' argument");
@@ -1404,7 +1411,7 @@ pub fn enumSetSelected(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args_.len != 2) {
-        return err_ctx.wrongNumberOfArguments(2, args_.len);
+        return err_ctx.wrongNumberOfArguments("enum-set-selected", 2, args_.len);
     }
 
     const new_keyword = switch (try core.eval(allocator, args_[1], env, err_ctx)) {
@@ -1431,7 +1438,7 @@ pub fn enumSetIndex(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args_.len != 2) {
-        return err_ctx.wrongNumberOfArguments(2, args_.len);
+        return err_ctx.wrongNumberOfArguments("enum-get-index", 2, args_.len);
     }
 
     const new_index: usize = switch (try core.eval(allocator, args_[1], env, err_ctx)) {
@@ -1441,7 +1448,7 @@ pub fn enumSetIndex(
 
     var enum_ = try enumGet(allocator, args_[0], env, err_ctx, "'enum-index' argument");
     enum_.setIndex(new_index) catch {
-        return err_ctx.indexOutOfRange(new_index, enum_.options.len);
+        return err_ctx.indexOutOfRange("enum-set-index", new_index, enum_.options.len);
     };
     return .nil;
 }
@@ -1459,7 +1466,7 @@ pub fn arrow(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args.len < 2) {
-        return err_ctx.atLeastNArguments(2);
+        return err_ctx.atLeastNArguments("arrow", 2);
     }
 
     var ret = try core.eval(allocator, args[0], env, err_ctx);
@@ -1467,7 +1474,7 @@ pub fn arrow(
         const ast = switch (arg) {
             .symbol => try core.eval(allocator, arg, env, err_ctx),
             .list, .function => arg,
-            else => return err_ctx.wrongParameterType("'->' tail arguments", "list or function"),
+            else => return err_ctx.wrongParameterType("'arrow' tail arguments", "list or function"),
         };
         ret = switch (ast) {
             .function => try core.eval(

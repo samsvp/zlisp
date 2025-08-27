@@ -251,7 +251,7 @@ pub fn quote(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (s.len != 1) {
-        return err_ctx.wrongNumberOfArguments(1, s.len);
+        return err_ctx.wrongNumberOfArguments("quote", 1, s.len);
     }
 
     return s[0];
@@ -278,7 +278,7 @@ pub fn quasiquote(
     }.f;
 
     if (args_.len != 1) {
-        return err_ctx.wrongNumberOfArguments(1, args_.len);
+        return err_ctx.wrongNumberOfArguments("quasiquote", 1, args_.len);
     }
 
     const ast = args_[0];
@@ -305,7 +305,7 @@ pub fn quasiquote(
         }
 
         const items = elt.list.getItems();
-        if (items.len != 2) return err_ctx.wrongNumberOfArguments(2, items.len);
+        if (items.len != 2) return err_ctx.wrongNumberOfArguments("splice-unquote", 2, items.len);
 
         const lst = try eval(allocator, items[1], env, err_ctx);
 
@@ -331,11 +331,11 @@ pub fn def(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (s.len != 2) {
-        return err_ctx.wrongNumberOfArguments(2, s.len);
+        return err_ctx.wrongNumberOfArguments("def", 2, s.len);
     }
 
     if (s[0] != .symbol) {
-        return err_ctx.wrongParameterType("First argument", "symbol");
+        return err_ctx.wrongParameterType("'def' first argument", "symbol");
     }
 
     const val = try eval(allocator, s[1], env, err_ctx);
@@ -349,11 +349,11 @@ pub fn defmacro(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (s.len != 2) {
-        return err_ctx.wrongNumberOfArguments(2, s.len);
+        return err_ctx.wrongNumberOfArguments("defmacro", 2, s.len);
     }
 
     if (s[0] != .symbol) {
-        return err_ctx.wrongParameterType("First argument", "symbol");
+        return err_ctx.wrongParameterType("'defmacro' first argument", "symbol");
     }
 
     const err = err_ctx.wrongParameterType("'defmacro' second argument", "function");
@@ -377,7 +377,7 @@ pub fn if_(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (s.len != 2 and s.len != 3) {
-        return err_ctx.wrongNumberOfArgumentsTwoChoices(2, 3, s.len);
+        return err_ctx.wrongNumberOfArgumentsTwoChoices("if", 2, 3, s.len);
     }
 
     const cond = try eval(allocator, s[0], env, err_ctx);
@@ -401,18 +401,18 @@ pub fn let(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (args.len != 2) {
-        return err_ctx.wrongNumberOfArguments(2, args.len);
+        return err_ctx.wrongNumberOfArguments("let", 2, args.len);
     }
 
     var new_env = Env.initFromParent(env);
     const arr = switch (args[0]) {
         .vector => |arr| blk: {
             if (arr.getItems().len % 2 != 0) {
-                return err_ctx.wrongNumberOfArguments(args.len + 1, args.len);
+                return err_ctx.wrongNumberOfArguments("let", args.len + 1, args.len);
             }
             break :blk arr;
         },
-        else => return err_ctx.wrongParameterType("First argument", "vector"),
+        else => return err_ctx.wrongParameterType("'let' first argument", "vector"),
     };
 
     const args_items = arr.getItems();
@@ -439,7 +439,7 @@ pub fn fn_(
     err_ctx: *errors.Context,
 ) LispError!LispType {
     if (s.len != 2 and s.len != 3 and s.len != 4) {
-        return err_ctx.wrongNumberOfArgumentsThreeChoices(2, 3, 4, s.len);
+        return err_ctx.wrongNumberOfArgumentsThreeChoices("fn", 2, 3, 4, s.len);
     }
 
     var args_symbol =
@@ -450,14 +450,14 @@ pub fn fn_(
         else
             s[2];
     if (args_symbol != .vector) {
-        return err_ctx.wrongParameterType("Parameter list", "vector");
+        return err_ctx.wrongParameterType("'fn' parameter list", "vector");
     }
 
     const items = args_symbol.vector.getItems();
     var args = std.ArrayList([]const u8).initCapacity(allocator, items.len) catch outOfMemory();
     for (items) |a| {
         if (a != .symbol) {
-            return err_ctx.wrongParameterType("Parameter list arguments", "symbol");
+            return err_ctx.wrongParameterType("'fn' parameter list arguments", "symbol");
         }
 
         args.appendAssumeCapacity(a.symbol.getStr());

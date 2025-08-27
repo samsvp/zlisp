@@ -27,11 +27,9 @@
           (throw "odd number of forms to cond"))
         (cons 'cond (tail (tail xs)))))))
 
-
 ;; for x in [1 2 3] (* 2 x)
 (defmacro for
   (fn [value in col ast]
-    (if (= in 'in)
+    (if (= in :in)
       ('map ('fn [value] ast) col)
-      (throw "'for' macro missing 'in' symbol"))))
-
+      (throw "'for' macro missing ':in' keyword"))))

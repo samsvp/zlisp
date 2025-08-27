@@ -41,32 +41,32 @@ pub const Context = struct {
         return LispError.UserError;
     }
 
-    pub fn atLeastNArguments(self: *Self, at_least: usize) LispError {
+    pub fn atLeastNArguments(self: *Self, fn_name: []const u8, at_least: usize) LispError {
         self.clear();
         std.fmt.format(
             self.buffer.writer(self.allocator),
-            "Wrong number of arguments, expected at least {} arguments",
-            .{at_least},
+            "[ {s} ] Wrong number of arguments, expected at least {} arguments",
+            .{ fn_name, at_least },
         ) catch outOfMemory();
         return LispError.WrongNumberOfArguments;
     }
 
-    pub fn indexOutOfRange(self: *Self, index: usize, len: usize) LispError {
+    pub fn indexOutOfRange(self: *Self, fn_name: []const u8, index: usize, len: usize) LispError {
         self.clear();
         std.fmt.format(
             self.buffer.writer(self.allocator),
-            "Index {} out of range. Collection size: {}",
-            .{ index, len },
+            "[ {s} ] Index {} out of range. Collection size: {}",
+            .{ fn_name, index, len },
         ) catch outOfMemory();
         return LispError.IndexOutOfRange;
     }
 
-    pub fn invalidCast(self: *Self, to_type: []const u8) LispError {
+    pub fn invalidCast(self: *Self, fn_name: []const u8, to_type: []const u8) LispError {
         self.clear();
         std.fmt.format(
             self.buffer.writer(self.allocator),
-            "Could not convert type to {s}",
-            .{to_type},
+            "[ {s} ] Could not convert type to {s}",
+            .{ fn_name, to_type },
         ) catch outOfMemory();
         return LispError.InvalidCast;
     }
@@ -131,12 +131,12 @@ pub const Context = struct {
         return LispError.ParserError;
     }
 
-    pub fn wrongNumberOfArguments(self: *Self, expected: usize, actual: usize) LispError {
+    pub fn wrongNumberOfArguments(self: *Self, fn_name: []const u8, expected: usize, actual: usize) LispError {
         self.clear();
         std.fmt.format(
             self.buffer.writer(self.allocator),
-            "Wrong number of arguments, expected {}, got {}.",
-            .{ expected, actual },
+            "[ {s} ] Wrong number of arguments, expected {}, got {}.",
+            .{ fn_name, expected, actual },
         ) catch
             outOfMemory();
         return LispError.WrongNumberOfArguments;
@@ -144,6 +144,7 @@ pub const Context = struct {
 
     pub fn wrongNumberOfArgumentsTwoChoices(
         self: *Self,
+        fn_name: []const u8,
         expected_1: usize,
         expected_2: usize,
         actual: usize,
@@ -151,8 +152,8 @@ pub const Context = struct {
         self.clear();
         std.fmt.format(
             self.buffer.writer(self.allocator),
-            "Wrong number of arguments, expected {} or {} arguments, got {}.",
-            .{ expected_1, expected_2, actual },
+            "[ {s} ] Wrong number of arguments, expected {} or {} arguments, got {}.",
+            .{ fn_name, expected_1, expected_2, actual },
         ) catch
             outOfMemory();
         return LispError.WrongNumberOfArguments;
@@ -160,6 +161,7 @@ pub const Context = struct {
 
     pub fn wrongNumberOfArgumentsThreeChoices(
         self: *Self,
+        fn_name: []const u8,
         expected_1: usize,
         expected_2: usize,
         expected_3: usize,
@@ -168,8 +170,8 @@ pub const Context = struct {
         self.clear();
         std.fmt.format(
             self.buffer.writer(self.allocator),
-            "Wrong number of arguments, expected {}, {} or {} arguments, got {}.",
-            .{ expected_1, expected_2, expected_3, actual },
+            "[ {s} ] Wrong number of arguments, expected {}, {} or {} arguments, got {}.",
+            .{ fn_name, expected_1, expected_2, expected_3, actual },
         ) catch
             outOfMemory();
         return LispError.WrongNumberOfArguments;
