@@ -47,8 +47,13 @@ pub fn eval(
                             return try builtin(allocator, items[1..], env, err_ctx);
                         },
                         .fn_ => |func| {
+                            const fn_name = switch (items[0]) {
+                                .symbol => |symbol| symbol.getStr(),
+                                else => "<anonymous-function>",
+                            };
+
                             const args = items[1..];
-                            env, s = try Fn.apply(allocator, args, func, env, err_ctx);
+                            env, s = try Fn.apply(allocator, fn_name, args, func, env, err_ctx);
                             continue;
                         },
                     },
@@ -107,6 +112,7 @@ const Fn = struct {
 
     pub fn apply(
         allocator: std.mem.Allocator,
+        fn_name: []const u8,
         args: []LispType,
         func: LispType.Fn,
         env: *Env,
@@ -114,9 +120,9 @@ const Fn = struct {
     ) LispError!Ret {
         const is_variadic = func.args.len > 0 and func.args[func.args.len - 1][0] == '&';
         const new_env = try if (is_variadic)
-            apply_variadic(allocator, func, args, env, err_ctx)
+            apply_variadic(allocator, func, fn_name, args, env, err_ctx)
         else
-            apply_base(allocator, func, args, env, err_ctx);
+            apply_base(allocator, func, fn_name, args, env, err_ctx);
 
         const ast = if (func.is_macro) try eval(allocator, func.ast.*, new_env, err_ctx) else func.ast.*;
         const final_env = if (func.is_macro) env else new_env;
@@ -136,6 +142,7 @@ const Fn = struct {
     fn apply_base(
         allocator: std.mem.Allocator,
         func: LispType.Fn,
+        fn_name: []const u8,
         args: []LispType,
         env: *Env,
         err_ctx: *errors.Context,
@@ -143,7 +150,7 @@ const Fn = struct {
         const fn_args_len = func.args.len;
         var new_env = Env.initFromParent(func.env);
         if (fn_args_len != args.len) {
-            return err_ctx.wrongNumberOfArguments(fn_args_len, args.len);
+            return err_ctx.wrongNumberOfArguments(fn_name, fn_args_len, args.len);
         }
 
         for (args, func.args) |item, arg_name| {
@@ -156,6 +163,7 @@ const Fn = struct {
     fn apply_variadic(
         allocator: std.mem.Allocator,
         func: LispType.Fn,
+        fn_name: []const u8,
         args: []LispType,
         env: *Env,
         err_ctx: *errors.Context,
@@ -163,7 +171,7 @@ const Fn = struct {
         const fn_args_len = func.args.len;
         var new_env = Env.initFromParent(func.env);
         if (args.len < fn_args_len - 1) {
-            return err_ctx.wrongNumberOfArguments(fn_args_len, args.len);
+            return err_ctx.wrongNumberOfArguments(fn_name, fn_args_len, args.len);
         }
 
         for (args[0 .. fn_args_len - 1], func.args[0 .. fn_args_len - 1]) |item, arg_name| {
