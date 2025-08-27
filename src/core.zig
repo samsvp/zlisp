@@ -119,7 +119,8 @@ const Fn = struct {
             apply_base(allocator, func, args, env, err_ctx);
 
         const ast = if (func.is_macro) try eval(allocator, func.ast.*, new_env, err_ctx) else func.ast.*;
-        return .{ new_env, ast };
+        const final_env = if (func.is_macro) env else new_env;
+        return .{ final_env, ast };
     }
 
     fn eval_arg(

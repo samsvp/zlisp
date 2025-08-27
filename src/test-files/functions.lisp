@@ -18,11 +18,20 @@
 (defn infix [infixed]
   ((nth infixed 1) (nth infixed 0) (nth infixed 2)))
 
-(defn cond
-  [&xs]
-  (if (> (count xs) 1)
-    (if (first xs)
-      (first (rest xs))
-      (cond (rest (rest xs))))
-    nil))
+(defmacro cond
+  (fn [&xs]
+    (if (> (count xs) 0)
+      ('if (head xs)
+        (if (> (count xs) 1)
+          (nth xs 1)
+          (throw "odd number of forms to cond"))
+        (cons 'cond (tail (tail xs)))))))
+
+
+;; for x in [1 2 3] (* 2 x)
+(defmacro for
+  (fn [value in col ast]
+    (if (= in 'in)
+      ('map ('fn [value] ast) col)
+      (throw "'for' macro missing 'in' symbol"))))
 
