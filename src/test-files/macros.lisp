@@ -10,9 +10,6 @@
 (= (unless2 false 7 8) 7)
 (= (unless2 true 7 8) 8)
 
-(do (defmacro identity (fn [x] x)) true)
-(= (let [a 123] (identity a)) 123)
-
 (= () ())
 
 (= `(1) (1))

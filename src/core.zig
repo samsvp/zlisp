@@ -114,29 +114,39 @@ const Fn = struct {
     ) LispError!Ret {
         const is_variadic = func.args.len > 0 and func.args[func.args.len - 1][0] == '&';
         const new_env = try if (is_variadic)
-            apply_variadic(allocator, args, func, env, err_ctx)
+            apply_variadic(allocator, func, args, env, err_ctx)
         else
-            apply_base(allocator, args, func, env, err_ctx);
+            apply_base(allocator, func, args, env, err_ctx);
 
         const ast = if (func.is_macro) try eval(allocator, func.ast.*, new_env, err_ctx) else func.ast.*;
         return .{ new_env, ast };
     }
 
-    fn apply_base(
+    fn eval_arg(
         alloc: std.mem.Allocator,
-        args: []LispType,
         func: LispType.Fn,
-        env_: *Env,
+        arg: LispType,
+        env: *Env,
         err_ctx_: *errors.Context,
+    ) LispError!LispType {
+        return if (func.is_macro) arg else try eval(alloc, arg, env, err_ctx_);
+    }
+
+    fn apply_base(
+        allocator: std.mem.Allocator,
+        func: LispType.Fn,
+        args: []LispType,
+        env: *Env,
+        err_ctx: *errors.Context,
     ) LispError!*Env {
         const fn_args_len = func.args.len;
         var new_env = Env.initFromParent(func.env);
         if (fn_args_len != args.len) {
-            return err_ctx_.wrongNumberOfArguments(fn_args_len, args.len);
+            return err_ctx.wrongNumberOfArguments(fn_args_len, args.len);
         }
 
         for (args, func.args) |item, arg_name| {
-            const val = try eval(alloc, item, env_, err_ctx_);
+            const val = try eval_arg(allocator, func, item, env, err_ctx);
             _ = new_env.put(arg_name, val);
         }
         return new_env;
@@ -144,8 +154,8 @@ const Fn = struct {
 
     fn apply_variadic(
         allocator: std.mem.Allocator,
-        args: []LispType,
         func: LispType.Fn,
+        args: []LispType,
         env: *Env,
         err_ctx: *errors.Context,
     ) LispError!*Env {
@@ -156,19 +166,21 @@ const Fn = struct {
         }
 
         for (args[0 .. fn_args_len - 1], func.args[0 .. fn_args_len - 1]) |item, arg_name| {
-            const val = try eval(allocator, item, env, err_ctx);
+            const val = try eval_arg(allocator, func, item, env, err_ctx);
             _ = new_env.put(arg_name, val);
         }
 
         const arg_name = func.args[fn_args_len - 1][1..]; // remove &
-        var list = LispType.Array.emptyList();
         const var_args = args[fn_args_len - 1 ..];
+
+        var list = LispType.Array.emptyList();
         list.list.array.ensureTotalCapacity(allocator, var_args.len) catch outOfMemory();
-        for (var_args) |arg| {
-            const val = try eval(allocator, arg, env, err_ctx);
+        for (var_args) |item| {
+            const val = if (func.is_macro) item else try eval(allocator, item, env, err_ctx);
             list.list.array.appendAssumeCapacity(val);
         }
         _ = new_env.put(arg_name, list);
+
         return new_env;
     }
 };
@@ -432,12 +444,10 @@ pub fn fn_(
     var args_symbol =
         if (s.len == 2)
             s[0]
-        else if (s.len == 3 and s[0] == .vector and s[1] == .vector)
+        else if (s.len == 3)
             s[1]
-        else if (s.len == 3 and s[0] == .vector and s[1] == .string)
-            s[0]
         else
-            s[1];
+            s[2];
     if (args_symbol != .vector) {
         return err_ctx.wrongParameterType("Parameter list", "vector");
     }
@@ -454,8 +464,8 @@ pub fn fn_(
 
     var closure_names: std.ArrayListUnmanaged([]const u8) = .empty;
     var closure_vals: std.ArrayListUnmanaged(LispType) = .empty;
-    if ((s.len == 3 and s[1] != .string) or s.len == 4) {
-        const closure_symbols = s[0];
+    if ((s.len == 3 and s[0] != .string) or s.len == 4) {
+        const closure_symbols = if (s[0] == .string) s[1] else s[0];
         if (closure_symbols != .vector) {
             return err_ctx.wrongParameterType("'fn' parameter list", "vector");
         }
@@ -472,7 +482,7 @@ pub fn fn_(
             closure_vals.appendAssumeCapacity(try eval(allocator, item, env, err_ctx));
         }
     }
-    const docstring = if (s[s.len - 2] == .string) s[s.len - 2].string.getStr() else "";
+    const docstring = if (s[0] == .string) s[0].string.getStr() else "";
 
     return LispType.Fn.init(
         allocator,
