@@ -45,8 +45,6 @@
 (= (tail [10 11 12]) (11 12))
 (= (tail (cons 10 [11 12])) (11 12))
 
-(do (defmacro cond (fn [&xs] (if (> (count xs) 0) (list 'if (head xs) (if (> (count xs) 1) (nth xs 1) (throw "odd number of forms to cond")) (cons 'cond (tail (tail xs))))))) true)
-
 (= (cond) nil)
 (= (cond true 7) 7)
 (= (cond false 7) nil)

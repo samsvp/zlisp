@@ -2,7 +2,7 @@ const std = @import("std");
 const eval = @import("core.zig").eval;
 const errors = @import("errors.zig");
 const Env = @import("env.zig").Env;
-const Reader = @import("reader.zig");
+const reader = @import("reader.zig");
 const LispError = @import("errors.zig").LispError;
 const LispType = @import("types.zig").LispType;
 const outOfMemory = @import("utils.zig").outOfMemory;
@@ -18,18 +18,28 @@ pub const Interpreter = struct {
 
     pub fn init(base_allocator: std.mem.Allocator) Self {
         const arena = std.heap.ArenaAllocator.init(base_allocator);
+
         const eval_arena = std.heap.ArenaAllocator.init(base_allocator);
         const print_arena = std.heap.ArenaAllocator.init(base_allocator);
 
         const err_ctx = errors.Context.init(base_allocator);
         const env = Env.init(base_allocator).setFunctions();
-        return .{
+
+        var self = Self{
             .arena = arena,
             .eval_arena = eval_arena,
             .print_arena = print_arena,
             .err_ctx = err_ctx,
             .env = env,
         };
+
+        // load std lib
+        const std_lisp_str = @embedFile("std.lisp");
+        const src = std.fmt.allocPrint(base_allocator, "(eval (do {s} nil))", .{std_lisp_str}) catch outOfMemory();
+        defer base_allocator.free(src);
+        _ = self.re(src) catch unreachable;
+
+        return self;
     }
 
     pub fn deinit(self: *Self) void {
@@ -54,7 +64,7 @@ pub const Interpreter = struct {
     pub fn re(self: *Self, text: []const u8) !LispType {
         _ = self.arena.reset(.retain_capacity);
         const allocator = self.arena.allocator();
-        const val = try Reader.readStr(allocator, text);
+        const val = try reader.readStr(allocator, text);
         return self.run(allocator, val);
     }
 

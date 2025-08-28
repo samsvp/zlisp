@@ -1,12 +1,18 @@
 (defmacro defn
+  "Defines a new function with the given name.
+   Examples:
+     (defn square [x] (* x x))
+     (let [closure-arg 2] (defn add-2 [closure-arg] [a] (+ closure-arg a)))
+     (let [five 5] (defn mult-5 \"docstring\" [five] [x] (* x five)))"
   (fn [&args]
     (let [fn-name (first args)
           body (rest args)]
       ('def fn-name (cons 'fn body)))))
 
-(defn enumerate [col]
+(defn enumerate
   "Returns a tuple containing the index and value of each item in the collection.
-   e.g '(= (enumerate [5 9 10]) [(0 5) (1 9) (2 10)])'"
+   Examples:
+   (= (enumerate [5 9 10]) [(0 5) (1 9) (2 10)])"
   [col]
   (let [i (atom -1)]
     (map
@@ -27,9 +33,14 @@
           (throw "odd number of forms to cond"))
         (cons 'cond (tail (tail xs)))))))
 
-;; for x in [1 2 3] (* 2 x)
 (defmacro for
-  (fn [value in col ast]
+  (fn
+    "Python like list comprehension.
+     Examples
+       (= (for x :in [1 2 3] (* 2 x)) [2 4 6])
+       (defn square [x] (* x x))
+       (= (for x :in (1 2 3) (square x)) (1 4 9))"
+    [value in col ast]
     (if (= in :in)
       ('map ('fn [value] ast) col)
       (throw "'for' macro missing ':in' keyword"))))
