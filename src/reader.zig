@@ -283,6 +283,10 @@ fn readForm(allocator: std.mem.Allocator, reader: *Reader) !LispType {
     }
 
     return switch (token[0]) {
+        ';' => blk: {
+            _ = reader.next();
+            break :blk readForm(allocator, reader);
+        },
         '(' => try readCollection(allocator, reader, .list),
         '[' => try readCollection(allocator, reader, .vector),
         '{' => try readDict(allocator, reader),
