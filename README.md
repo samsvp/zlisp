@@ -51,7 +51,8 @@ You can define functions with the `defun` symbol.
 )
 ```
 The first argument is a symbol, which is the function name, followed by a vector with the arguments names.
-An optional docstring can be passed as the third argument. The final argument is the function body.
+If two vectors are passed, the first will be closure's capture group while the second will be the parameter list.
+An optional docstring can be passed as the first argument after the function name. The final argument is the function body.
 
 You define anonymous functions with the `fn` symbol. It takes a vector of symbols as parameters and a body
 which is evaluated when called.
@@ -62,8 +63,13 @@ which is evaluated when called.
 
 You can define functions to the current environment with:
 ```clojure
-(def my-func (fn* [a b] (+ a b)))
+(def my-func (fn* "docstring" [closure] [a b] (+ a b)))
 ```
+or
+```clojure
+(defn my-func "docstring" [closure] [a b] (+ a b))
+```
+`defn` is just a macro that expands to `(def my-func (fn "docstring" [closure] [args] (body)))`
 
 We also have closures
 ```clojure
@@ -84,7 +90,7 @@ fn myFn(args: []LispType) LispError!LispType {
 try env.mapping.put(allocator, "fn-name", LispType.Function.createBuiltin(allocator, myFn));
 ```
 
-You can call `(help fn-name)` to get a function's `docstring`.
+You can also call `(help fn-name)` to get a function's `docstring`.
 
 ### Macros
 Macros are created using the `defmacro` symbol
