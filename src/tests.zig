@@ -1,5 +1,6 @@
 const std = @import("std");
 const LispType = @import("types.zig").LispType;
+pub const Script = @import("script.zig").Script;
 const Interpreter = @import("interpreter.zig").Interpreter;
 
 test "struct conversions" {
@@ -99,6 +100,7 @@ test "lisp mal" {
     var interpreter = Interpreter.init(allocator);
     defer interpreter.deinit();
 
+    var script = interpreter.createScript();
     for ([_][]const u8{
         "src/test-files/env.lisp",
         "src/test-files/eval.lisp",
@@ -128,8 +130,8 @@ test "lisp mal" {
                 continue;
             }
 
-            const ret = interpreter.re(line) catch {
-                std.debug.print("ERR file {s} line {}: {s}\n", .{ filename, i, interpreter.err_ctx.buffer.items });
+            const ret = script.re(line) catch {
+                std.debug.print("ERR file {s} line {}: {s}\n", .{ filename, i, script.err_ctx.buffer.items });
                 try std.testing.expect(false);
                 return;
             };

@@ -18,11 +18,12 @@ pub fn main() !void {
     var writer = std.fs.File.stdout().writer(&buffer);
     const stdout = &writer.interface;
 
+    var script = interpreter.createScript();
     _ = ln.linenoiseHistoryLoad("history.txt");
     while (ln.linenoise("user> ")) |line| {
         defer ln.linenoiseFree(line);
         const input: []const u8 = std.mem.span(line);
-        const res = interpreter.rep(input) catch |err| {
+        const res = script.rep(input) catch |err| {
             try stdout.print("{any}\n", .{err});
             continue;
         };

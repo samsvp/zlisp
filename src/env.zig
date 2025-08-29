@@ -56,7 +56,22 @@ pub const Env = struct {
         };
     }
 
+    /// The root env is the environment before the global env
+    /// or the global env if parent == null
     pub fn getRoot(self: *Self) *Self {
+        var root = self;
+        while (root.parent) |p| {
+            if (p.parent == null) {
+                return root;
+            }
+
+            root = p;
+        }
+        return root;
+    }
+
+    /// The global env is the innermost env
+    pub fn getGlobal(self: *Self) *Self {
         var root = self;
         while (root.parent) |p| {
             root = p;
