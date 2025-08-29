@@ -4,7 +4,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const lib_mod = b.createModule(.{
+    const mod = b.addModule("zlisp", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
@@ -16,15 +16,6 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    exe_mod.addImport("zlisp_lib", lib_mod);
-
-    const lib = b.addLibrary(.{
-        .linkage = .static,
-        .name = "zlisp",
-        .root_module = lib_mod,
-    });
-
-    b.installArtifact(lib);
     const exe = b.addExecutable(.{
         .name = "zlisp",
         .root_module = exe_mod,
@@ -34,6 +25,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    mod.linkLibrary(pcre2_dep.artifact("pcre2-8"));
     exe.linkLibrary(pcre2_dep.artifact("pcre2-8"));
 
     const linenoise_dep = b.dependency("linenoise", .{
@@ -64,7 +56,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     }));
-    lib_mod.linkLibrary(linenoise_library);
+    exe_mod.linkLibrary(linenoise_library);
 
     b.installArtifact(exe);
 
@@ -79,18 +71,10 @@ pub fn build(b: *std.Build) void {
     run_step.dependOn(&run_cmd.step);
 
     const lib_unit_tests = b.addTest(.{
-        .root_module = lib_mod,
+        .root_module = mod,
     });
 
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
-
-    const exe_unit_tests = b.addTest(.{
-        .root_module = exe_mod,
-    });
-
-    const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
-
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
-    test_step.dependOn(&run_exe_unit_tests.step);
 }

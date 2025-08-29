@@ -1,10 +1,11 @@
 (defmacro defn
-  "Defines a new function with the given name.
-   Examples:
-     (defn square [x] (* x x))
-     (let [closure-arg 2] (defn add-2 [closure-arg] [a] (+ closure-arg a)))
-     (let [five 5] (defn mult-5 \"docstring\" [five] [x] (* x five)))"
-  (fn [&args]
+  (fn
+    "Defines a new function with the given name.
+     Examples:
+       (defn square [x] (* x x))
+       (let [closure-arg 2] (defn add-2 [closure-arg] [a] (+ closure-arg a)))
+       (let [five 5] (defn mult-5 \"docstring\" [five] [x] (* x five)))"
+    [&args]
     (let [fn-name (first args)
           body (rest args)]
       ('def fn-name (cons 'fn body)))))
