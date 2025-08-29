@@ -32,7 +32,7 @@ def ;; def is just a symbol.
 ### Keywords
 A `[]const u8` that starts with `:`.
 ```clojure
-:my-symbol ;; a symbol evaluates to itself.
+:my-symbol ;; a keyword evaluates to itself.
 ```
 
 ### Nil
