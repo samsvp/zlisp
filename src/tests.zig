@@ -2,6 +2,7 @@ const std = @import("std");
 const LispType = @import("types.zig").LispType;
 pub const Script = @import("script.zig").Script;
 const Interpreter = @import("interpreter.zig").Interpreter;
+const errors = @import("errors.zig");
 
 test "struct conversions" {
     const S = struct {
@@ -86,6 +87,33 @@ test "struct conversions" {
         const val = s.member_6.get(key).?;
         try std.testing.expect(val == kv.value_ptr.int);
     }
+}
+
+test "local envs" {
+    var gpa = std.heap.DebugAllocator(.{}){};
+    defer {
+        const deinit_status = gpa.deinit();
+        if (deinit_status == .leak) std.debug.print("WARNING: memory leaked\n", .{});
+    }
+
+    const allocator = gpa.allocator();
+
+    var interpreter = Interpreter.init(allocator);
+    defer interpreter.deinit();
+
+    var script1 = interpreter.createScript();
+    var script2 = interpreter.createScript();
+
+    _ = try script1.re("(def x 3)");
+    _ = try script1.re("x");
+
+    _ = try script2.re("(def y 4)");
+    _ = try script2.re("y");
+
+    // check that y does not exist on script 1
+    try std.testing.expectError(errors.LispError.SymbolNotFound, script1.re("y"));
+    // check that x does not exist on script 2
+    try std.testing.expectError(errors.LispError.SymbolNotFound, script2.re("x"));
 }
 
 test "lisp mal" {
