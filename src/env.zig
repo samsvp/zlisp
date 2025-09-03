@@ -56,9 +56,9 @@ pub const Env = struct {
         };
     }
 
-    /// The root env is the environment before the global env
+    /// The local env is the environment before the global env
     /// or the global env if parent == null
-    pub fn getRoot(self: *Self) *Self {
+    pub fn getLocal(self: *Self) *Self {
         var root = self;
         while (root.parent) |p| {
             if (p.parent == null) {

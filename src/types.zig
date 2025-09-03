@@ -282,7 +282,7 @@ pub const LispType = union(enum) {
             docstring: []const u8,
             base_env: *Env,
         ) LispType {
-            var env = Env.initFromParent(base_env.getRoot());
+            var env = Env.initFromParent(base_env.getLocal());
             for (closure_vals, closure_names) |v, name| {
                 _ = env.putClone(name, v);
             }
@@ -315,7 +315,7 @@ pub const LispType = union(enum) {
                 &[0][]u8{},
                 &[0]LispType{},
                 self.docstring,
-                self.env.getRoot(),
+                self.env.getLocal(),
             );
             fn_.function.fn_.is_macro = self.is_macro;
 

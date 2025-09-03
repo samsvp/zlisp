@@ -347,7 +347,7 @@ pub fn def(
     }
 
     const val = try eval(allocator, s[1], env, err_ctx);
-    return env.getRoot().putClone(s[0].symbol.getStr(), val);
+    return env.getLocal().putClone(s[0].symbol.getStr(), val);
 }
 
 pub fn defmacro(
