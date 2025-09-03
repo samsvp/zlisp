@@ -45,3 +45,9 @@
     (if (= in :in)
       ('map ('fn [value] ast) col)
       (throw "'for' macro missing ':in' keyword"))))
+
+(defmacro while
+  (fn
+    [condition ast]
+    ('if condition
+      ('do ast ('while condition ast)))))

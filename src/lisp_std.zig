@@ -438,7 +438,7 @@ pub fn apply(
     const args = try evalArgs(allocator, args_, env, err_ctx);
     const func = switch (args[0]) {
         .function => args[0],
-        else => return err_ctx.wrongParameterType("'map' first argument", "function"),
+        else => return err_ctx.wrongParameterType("'apply' first argument", "function"),
     };
 
     var new_args = std.ArrayList(LispType).initCapacity(allocator, args.len + 1) catch outOfMemory();
@@ -540,7 +540,7 @@ pub fn dissoc(
 
     var dict_ = switch (args[0]) {
         .dict => |d| d.clone(allocator),
-        else => return err_ctx.wrongParameterType("'assoc' first argument", "dict"),
+        else => return err_ctx.wrongParameterType("'dissoc' first argument", "dict"),
     };
     for (args[1..]) |key| {
         try dict_.dict.remove(key);
@@ -566,7 +566,7 @@ pub fn get(
 
     const dict_ = switch (args[0]) {
         .dict => args[0],
-        else => return err_ctx.wrongParameterType("'assoc' first argument", "dict"),
+        else => return err_ctx.wrongParameterType("'get' first argument", "dict"),
     };
 
     if (!LispType.Dict.isHashable(args[1])) return err_ctx.unhashableType();
@@ -592,7 +592,7 @@ pub fn contains(
 
     const dict_ = switch (args[0]) {
         .dict => args[0],
-        else => return err_ctx.wrongParameterType("'assoc' first argument", "dict"),
+        else => return err_ctx.wrongParameterType("'contains' first argument", "dict"),
     };
 
     if (!LispType.Dict.isHashable(args[1])) return err_ctx.unhashableType();
@@ -616,7 +616,10 @@ fn dictIterator(
 
     const dict_ = switch (args[0]) {
         .dict => |d| d.map,
-        else => return err_ctx.wrongParameterType("'keys' first argument", "dict"),
+        else => return err_ctx.wrongParameterType(
+            std.fmt.allocPrint(allocator, "'{s}' first argument", .{fn_symbol}) catch outOfMemory(),
+            "dict",
+        ),
     };
 
     var list_ = std.ArrayList(LispType).initCapacity(allocator, dict_.count()) catch outOfMemory();
