@@ -124,9 +124,16 @@
     (rest col)))
 
 (defn slice
-  [start end? col]
+  "Returns a new list/vector with the elements from the original collection starting from
+   'start' and ending at 'stop'. If 'stop' is negative, then its value will be (+ (count col) stop).
+   Examples:
+    (= (slice 1 1 (1 2 3 5 2 -1)) (2))
+    (= (slice 1 3 (1 2 3 5 2 -1)) (2 3 5))
+    (= (slice 3 -1 (1 2 3 5 2 -1)) (5 2 -1))
+    (= (slice 3 -2 [1 2 3 5 2 -1]) [5 2])"
+  [start stop col]
   (let [counter (atom (- start 1))
-        end (if (< end? 0) (->> col count (+ end?)) end?)
+        end (if (< stop 0) (->> col count (+ stop)) stop)
         acc (if (list? col) (atom ()) (atom []))]
     (do
       (while (< @counter end)
