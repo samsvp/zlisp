@@ -153,6 +153,7 @@ pub const Env = struct {
         // list / vector
         self.mapping.put(allocator, "map", LispType.Function.createBuiltin(allocator, lisp_std.map)) catch outOfMemory();
         self.mapping.put(allocator, "filter", LispType.Function.createBuiltin(allocator, lisp_std.filter)) catch outOfMemory();
+        self.mapping.put(allocator, "reduce", LispType.Function.createBuiltin(allocator, lisp_std.reduce)) catch outOfMemory();
         self.mapping.put(allocator, "nth", LispType.Function.createBuiltin(allocator, lisp_std.nth)) catch outOfMemory();
         self.mapping.put(allocator, "head", LispType.Function.createBuiltin(allocator, lisp_std.head)) catch outOfMemory();
         self.mapping.put(allocator, "first", LispType.Function.createBuiltin(allocator, lisp_std.head)) catch outOfMemory();

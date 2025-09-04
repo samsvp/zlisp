@@ -501,6 +501,38 @@ pub fn filter(
     };
 }
 
+pub fn reduce(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len != 3) {
+        return err_ctx.wrongNumberOfArguments("reduce", 3, args_.len);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+
+    const func = switch (args[0]) {
+        .function => args[0],
+        else => return err_ctx.wrongParameterType("'reduce' first argument", "function"),
+    };
+
+    const arr = switch (args[2]) {
+        .list, .vector => |arr| arr.getItems(),
+        else => return err_ctx.wrongParameterType("'reduce' last argument", "list or vector"),
+    };
+
+    var ast = LispType.Array.initList(allocator, &[_]LispType{ func, .nil, .nil });
+    var acc = args[1];
+    for (arr) |val| {
+        ast.list.array.items[1] = acc;
+        ast.list.array.items[2] = val;
+        acc = try core.eval(allocator, ast, env, err_ctx);
+    }
+    return acc;
+}
+
 pub fn apply(
     allocator: std.mem.Allocator,
     args_: []LispType,
