@@ -389,6 +389,44 @@ pub fn div(
     }
 }
 
+/// Takes the remainder of the first argument(dividend) by the second argument(divisor). Raises a division by zero error
+/// if the divisor is 0.
+/// @argument dividend: int | float
+/// @argument divisor: int | float
+/// @return: int | float
+pub fn remainder(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len != 2) {
+        return err_ctx.wrongNumberOfArguments("%", 2, args_.len);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+
+    switch (args[0]) {
+        .int => |dividend| {
+            const acc = switch (args[1]) {
+                .int => |divisor| if (divisor != 0) @rem(dividend, divisor) else return err_ctx.divisionByZero(),
+                else => return err_ctx.wrongParameterType("'%' arguments", "int"),
+            };
+            return .{ .int = acc };
+        },
+        .float => |dividend| {
+            const divisor: f32 = switch (args[1]) {
+                .int => |i| @floatFromInt(i),
+                .float => |f| f,
+                else => return err_ctx.wrongParameterType("'%' arguments", "int"),
+            };
+            const acc = if (divisor != 0) @rem(dividend, divisor) else return err_ctx.divisionByZero();
+            return .{ .float = acc };
+        },
+        else => return err_ctx.wrongParameterType("'/' arguments", "int or float"),
+    }
+}
+
 pub fn map(
     allocator: std.mem.Allocator,
     args_: []LispType,
@@ -414,9 +452,47 @@ pub fn map(
     var ast = LispType.Array.initList(allocator, &[2]LispType{ func, .nil });
     var res = std.ArrayList(LispType).initCapacity(allocator, arr.len) catch outOfMemory();
     for (arr) |val| {
-        ast.list.array.items[1] = val.clone(allocator);
+        ast.list.array.items[1] = val;
         const ret = try core.eval(allocator, ast, env, err_ctx);
         res.appendAssumeCapacity(ret);
+    }
+    return switch (args[1]) {
+        .list => LispType{ .list = .{ .array = res, .array_type = .list } },
+        .vector => LispType{ .vector = .{ .array = res, .array_type = .vector } },
+        else => undefined,
+    };
+}
+
+pub fn filter(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len != 2) {
+        return err_ctx.wrongNumberOfArguments("filter", 2, args_.len);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+
+    const func = switch (args[0]) {
+        .function => args[0],
+        else => return err_ctx.wrongParameterType("'filter' first argument", "function"),
+    };
+
+    const arr = switch (args[1]) {
+        .list, .vector => |arr| arr.getItems(),
+        else => return err_ctx.wrongParameterType("'filter' second argument", "list or vector"),
+    };
+
+    var ast = LispType.Array.initList(allocator, &[2]LispType{ func, .nil });
+    var res: std.ArrayList(LispType) = .empty;
+    for (arr) |val| {
+        ast.list.array.items[1] = val;
+        const ret = try core.eval(allocator, ast, env, err_ctx);
+        if (ret != .nil and !ret.eql(LispType.lisp_false)) {
+            res.append(allocator, val) catch outOfMemory();
+        }
     }
     return switch (args[1]) {
         .list => LispType{ .list = .{ .array = res, .array_type = .list } },
