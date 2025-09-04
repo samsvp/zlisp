@@ -162,6 +162,8 @@ pub const Env = struct {
         self.mapping.put(allocator, "empty?", LispType.Function.createBuiltin(allocator, lisp_std.emptyQuestion)) catch outOfMemory();
         self.mapping.put(allocator, "count", LispType.Function.createBuiltin(allocator, lisp_std.count)) catch outOfMemory();
         self.mapping.put(allocator, "cons", LispType.Function.createBuiltin(allocator, lisp_std.cons)) catch outOfMemory();
+        self.mapping.put(allocator, "conj", LispType.Function.createBuiltin(allocator, lisp_std.conj)) catch outOfMemory();
+        self.mapping.put(allocator, "conj!", LispType.Function.createBuiltin(allocator, lisp_std.conjBang)) catch outOfMemory();
         self.mapping.put(allocator, "concat", LispType.Function.createBuiltin(allocator, lisp_std.concat)) catch outOfMemory();
 
         // atoms

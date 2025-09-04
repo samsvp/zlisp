@@ -10,16 +10,26 @@
           body (rest args)]
       ('def fn-name (cons 'fn body)))))
 
+(defn inc
+  "Returns x + 1"
+  [x]
+  (+ x 1))
+
+(defn dec
+  "Returns x - 1"
+  [x]
+  (- x 1))
+
 (defn enumerate
   "Returns a tuple containing the index and value of each item in the collection.
    Examples:
    (= (enumerate [5 9 10]) [(0 5) (1 9) (2 10)])"
   [col]
-  (let [i (atom -1)]
+  (let [counter (atom -1)]
     (map
-      (fn [i] [v]
-        (let [_ (swap! i (fn [a b] (+ a b)) 1)]
-          ((deref i) v)))
+      (fn [counter] [v]
+        (let [i (swap! counter inc)]
+          (i v)))
       col)))
 
 (defn infix [infixed]
@@ -51,3 +61,77 @@
     [condition ast]
     ('if condition
       ('do ast ('while condition ast)))))
+
+(defn zip
+  "Returns a list of lists, where the i-th list contains the
+   i-th element from each of the argument lists and vectors."
+  [&col]
+  (let [counter (atom -1)
+        fst (first col)]
+    (map
+      (fn [counter col] [_]
+        (let [i (swap! counter inc)]
+          (map (fn [i] [lst] (nth lst i)) col)))
+      fst)))
+
+(defn reverse
+  "Returns the given list/vector in reverse order."
+  [lst]
+  (let [counter (atom (count lst))]
+    (map
+      (fn [counter lst] [_]
+        (let [i (swap! counter dec)]
+          (nth lst i)))
+      lst)))
+
+(defn all
+  "Returns true if all elements of the collection satisfies the given condition."
+  [condition col]
+  (if ( ->> col count (= 0) )
+    true
+    (if (condition (first col))
+      (all condition (rest col))
+      false)))
+
+(defn any
+  "Returns true if any element of the collection satisfies the given condition."
+  [condition col]
+  (if ( ->> col count (= 0) )
+    false
+    (if (condition (first col))
+      true
+      (all condition (rest col)))))
+
+(defn sum
+  "Sums all elements of the given list/vector."
+  [col]
+  (reduce + (first col) (rest col)))
+
+(defn max
+  "Returns the largest item of the given inputs."
+  [&col]
+  (reduce
+    (fn [x y] (if (< x y) y x))
+    (first col)
+    (rest col)))
+
+(defn min
+  "Returns the smallest item of the given inputs."
+  [&col]
+  (reduce
+    (fn [x y] (if (> x y) y x))
+    (first col)
+    (rest col)))
+
+(defn slice
+  [start end? col]
+  (let [counter (atom (- start 1))
+        end (if (< end? 0) (->> col count (+ end?)) end?)
+        acc (atom ())]
+    (do
+      (while (< @counter end)
+        (let [i (swap! counter inc)
+              item (nth col i)]
+          (conj! acc item) ))
+      @acc)))
+

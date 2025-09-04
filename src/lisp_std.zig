@@ -1009,9 +1009,62 @@ pub fn cons(
 
     const arr = switch (args[1]) {
         .list, .vector => |arr| arr,
-        else => return err_ctx.wrongParameterType("'const' second argument", "list or vector"),
+        else => return err_ctx.wrongParameterType("'cons' second argument", "list or vector"),
     };
     return LispType.Array.prepend(allocator, args[0], arr);
+}
+
+/// Returns a new list/vector with the given value appended to the contents of the original list.
+/// @argument 1: list | vector
+/// @argument 2: any
+/// @return: list | vector
+pub fn conj(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len != 2) {
+        return err_ctx.wrongNumberOfArguments("conj", 2, args_.len);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+
+    const arr = switch (args[0]) {
+        .list, .vector => |arr| arr,
+        else => return err_ctx.wrongParameterType("'conj' first argument", "list or vector"),
+    };
+    return LispType.Array.append(arr, allocator, args[1]);
+}
+
+/// Returns a new list/vector with the given value appended to the contents of the original list.
+/// Mutates the original list.
+/// @argument 1: atom[list | vector]
+/// @argument 2: any
+/// @return: atom[list | vector]
+pub fn conjBang(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len != 2) {
+        return err_ctx.wrongNumberOfArguments("conj!", 2, args_.len);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+
+    const atom_value = switch (args[0]) {
+        .atom => |a| a.value,
+        else => return err_ctx.wrongParameterType("'conj!' first argument", "atom"),
+    };
+
+    var arr = switch (atom_value.*) {
+        .list, .vector => |*arr| arr,
+        else => return err_ctx.wrongParameterType("'conj!' atom", "list or vector"),
+    };
+    arr.appendMut(allocator, args[1]);
+    return atom_value.*;
 }
 
 /// Concatenates all lists/vectors together.
