@@ -427,6 +427,10 @@ pub fn remainder(
     }
 }
 
+/// Applies 'f' to each element of the given list/vector, returning the results in
+/// a new list/vector.
+/// @argument f: function
+/// @argument lst: list | vector
 pub fn map(
     allocator: std.mem.Allocator,
     args_: []LispType,
@@ -463,6 +467,10 @@ pub fn map(
     };
 }
 
+/// Applies 'f' to each element of the given list/vector. Returns a new list/vector
+/// containing the elements for which 'f' returns a truthy value (i.e. not nil or false).
+/// @argument f: function
+/// @argument lst: list | vector
 pub fn filter(
     allocator: std.mem.Allocator,
     args_: []LispType,
@@ -501,6 +509,13 @@ pub fn filter(
     };
 }
 
+/// Applies the function 'f' to each element of the given list/array, passing
+/// in the return value from the calculation on the preceding element as the first argument
+/// of 'f'. For the first element of the list/vector, the initial value is passed as 'f'
+/// first argument.
+/// @argument f: function
+/// @argument initial_val: any
+/// @argument lst: list | vector
 pub fn reduce(
     allocator: std.mem.Allocator,
     args_: []LispType,
