@@ -127,7 +127,7 @@
   [start end? col]
   (let [counter (atom (- start 1))
         end (if (< end? 0) (->> col count (+ end?)) end?)
-        acc (atom ())]
+        acc (if (list? col) (atom ()) (atom []))]
     (do
       (while (< @counter end)
         (let [i (swap! counter inc)
