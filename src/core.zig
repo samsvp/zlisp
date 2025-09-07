@@ -95,7 +95,7 @@ pub fn eval(
 
 pub fn evalWrapper(
     allocator: std.mem.Allocator,
-    s: []const LispType,
+    s: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -113,7 +113,7 @@ const Fn = struct {
     pub fn apply(
         allocator: std.mem.Allocator,
         fn_name: []const u8,
-        args: []const LispType,
+        args: []LispType,
         func: LispType.Fn,
         env: *Env,
         err_ctx: *errors.Context,
@@ -143,7 +143,7 @@ const Fn = struct {
         allocator: std.mem.Allocator,
         func: LispType.Fn,
         fn_name: []const u8,
-        args: []const LispType,
+        args: []LispType,
         env: *Env,
         err_ctx: *errors.Context,
     ) LispError!*Env {
@@ -164,7 +164,7 @@ const Fn = struct {
         allocator: std.mem.Allocator,
         func: LispType.Fn,
         fn_name: []const u8,
-        args: []const LispType,
+        args: []LispType,
         env: *Env,
         err_ctx: *errors.Context,
     ) LispError!*Env {
@@ -196,7 +196,7 @@ const Fn = struct {
 
 pub fn try_(
     allocator: std.mem.Allocator,
-    s: []const LispType,
+    s: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -237,7 +237,7 @@ pub fn try_(
 
 pub fn throw(
     _: std.mem.Allocator,
-    s: []const LispType,
+    s: []LispType,
     _: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -254,7 +254,7 @@ pub fn throw(
 
 pub fn quote(
     _: std.mem.Allocator,
-    s: []const LispType,
+    s: []LispType,
     _: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -267,7 +267,7 @@ pub fn quote(
 
 pub fn quasiquote(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -334,7 +334,7 @@ pub fn quasiquote(
 
 pub fn def(
     allocator: std.mem.Allocator,
-    s: []const LispType,
+    s: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -352,7 +352,7 @@ pub fn def(
 
 pub fn defmacro(
     allocator: std.mem.Allocator,
-    s: []const LispType,
+    s: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -380,7 +380,7 @@ pub fn defmacro(
 
 pub fn if_(
     allocator: std.mem.Allocator,
-    s: []const LispType,
+    s: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -404,7 +404,7 @@ pub fn if_(
 
 pub fn let(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -442,7 +442,7 @@ pub fn let(
 
 pub fn fn_(
     allocator: std.mem.Allocator,
-    s: []const LispType,
+    s: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -506,7 +506,7 @@ pub fn fn_(
 
 pub fn do(
     allocator: std.mem.Allocator,
-    s: []const LispType,
+    s: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {

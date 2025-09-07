@@ -10,10 +10,10 @@ const outOfMemory = @import("utils.zig").outOfMemory;
 
 fn evalArgs(
     allocator: std.mem.Allocator,
-    uneval_args: []const LispType,
+    uneval_args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
-) LispError![]const LispType {
+) LispError![]LispType {
     var args_arr = std.ArrayList(LispType).initCapacity(allocator, uneval_args.len) catch outOfMemory();
     for (uneval_args) |arg| {
         const val = try core.eval(allocator, arg, env, err_ctx);
@@ -24,7 +24,7 @@ fn evalArgs(
 
 pub fn not(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -42,7 +42,7 @@ pub fn not(
 
 pub fn trueQuestion(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -59,7 +59,7 @@ pub fn trueQuestion(
 
 pub fn falseQuestion(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -76,7 +76,7 @@ pub fn falseQuestion(
 
 pub fn eql(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -96,7 +96,7 @@ pub fn eql(
 
 pub fn notEql(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -109,7 +109,7 @@ pub fn notEql(
 
 pub fn cmp(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     err_ctx: *errors.Context,
     env: *Env,
     fn_symbol: []const u8,
@@ -145,7 +145,7 @@ pub fn cmp(
 
 pub fn less(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -159,7 +159,7 @@ pub fn less(
 
 pub fn lessEql(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -173,7 +173,7 @@ pub fn lessEql(
 
 pub fn bigger(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -187,7 +187,7 @@ pub fn bigger(
 
 pub fn biggerEql(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -205,7 +205,7 @@ pub fn biggerEql(
 /// @return: int | float | string | list | vector
 pub fn add(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -266,7 +266,7 @@ pub fn add(
 /// @return: int | float
 pub fn sub(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -311,7 +311,7 @@ pub fn sub(
 /// @return: int | float
 pub fn mul(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -351,7 +351,7 @@ pub fn mul(
 /// @return: int | float
 pub fn div(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -396,7 +396,7 @@ pub fn div(
 /// @return: int | float
 pub fn remainder(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -433,7 +433,7 @@ pub fn remainder(
 /// @argument lst: list | vector
 pub fn map(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -473,7 +473,7 @@ pub fn map(
 /// @argument lst: list | vector
 pub fn filter(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -518,7 +518,7 @@ pub fn filter(
 /// @argument lst: list | vector
 pub fn reduce(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -550,7 +550,7 @@ pub fn reduce(
 
 pub fn apply(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -587,7 +587,7 @@ pub fn apply(
 /// @return: dict
 pub fn dict(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -616,7 +616,7 @@ pub fn dict(
 /// @return: dict
 pub fn assoc(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -651,7 +651,7 @@ pub fn assoc(
 /// @return: dict
 pub fn dissoc(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -677,7 +677,7 @@ pub fn dissoc(
 /// @return: any
 pub fn get(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -703,7 +703,7 @@ pub fn get(
 /// @return: any
 pub fn contains(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -725,7 +725,7 @@ pub fn contains(
 
 fn dictIterator(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     fn_symbol: []const u8,
     err_ctx: *errors.Context,
@@ -758,7 +758,7 @@ fn dictIterator(
 /// @return: list
 pub fn keys(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -777,7 +777,7 @@ pub fn keys(
 /// @return: list
 pub fn values(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -796,7 +796,7 @@ pub fn values(
 /// @return: list
 pub fn list(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -809,7 +809,7 @@ pub fn list(
 /// @return: vector
 pub fn vector(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -822,7 +822,7 @@ pub fn vector(
 /// @return: vector
 pub fn vec(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -842,7 +842,7 @@ pub fn vec(
 /// @return: any
 pub fn nth(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -885,7 +885,7 @@ pub fn nth(
 /// @return: any
 pub fn head(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -905,7 +905,7 @@ pub fn head(
 /// @return: any
 pub fn tail(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -925,7 +925,7 @@ pub fn tail(
 /// @return: bool
 pub fn listQuestion(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -946,7 +946,7 @@ pub fn listQuestion(
 /// @return: bool
 pub fn emptyQuestion(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -971,7 +971,7 @@ pub fn emptyQuestion(
 /// @return: int
 pub fn count(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -997,7 +997,7 @@ pub fn count(
 /// @return: list | vector
 pub fn cons(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1020,7 +1020,7 @@ pub fn cons(
 /// @return: list | vector
 pub fn conj(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1044,7 +1044,7 @@ pub fn conj(
 /// @return: atom[list | vector]
 pub fn conjBang(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1072,7 +1072,7 @@ pub fn conjBang(
 /// @return: list | vector
 pub fn concat(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1092,7 +1092,7 @@ pub fn concat(
 /// @argument 1: any
 pub fn atom(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1109,7 +1109,7 @@ pub fn atom(
 /// @return: bool
 pub fn atomQuestion(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1126,7 +1126,7 @@ pub fn atomQuestion(
 /// @return: any
 pub fn deref(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1147,7 +1147,7 @@ pub fn deref(
 /// @return: any
 pub fn resetBang(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1171,7 +1171,7 @@ pub fn resetBang(
 /// @return: any
 pub fn swapBang(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1204,7 +1204,7 @@ pub fn swapBang(
 /// @return: symbol
 pub fn symbol(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1224,7 +1224,7 @@ pub fn symbol(
 /// @return: keyword
 pub fn keyword(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1249,7 +1249,7 @@ pub fn keyword(
 /// @return: bool
 pub fn nilQuestion(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1266,7 +1266,7 @@ pub fn nilQuestion(
 /// @return: bool
 pub fn boolQuestion(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1283,7 +1283,7 @@ pub fn boolQuestion(
 /// @return: bool
 pub fn symbolQuestion(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1300,7 +1300,7 @@ pub fn symbolQuestion(
 /// @return: bool
 pub fn keywordQuestion(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1317,7 +1317,7 @@ pub fn keywordQuestion(
 /// @return: bool
 pub fn dictQuestion(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1334,7 +1334,7 @@ pub fn dictQuestion(
 /// @return: bool
 pub fn vectorQuestion(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1351,7 +1351,7 @@ pub fn vectorQuestion(
 /// @return: bool
 pub fn sequentialQuestion(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1368,7 +1368,7 @@ pub fn sequentialQuestion(
 /// @return: bool
 pub fn floatQuestion(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1385,7 +1385,7 @@ pub fn floatQuestion(
 /// @return: bool
 pub fn intQuestion(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1402,7 +1402,7 @@ pub fn intQuestion(
 /// @return: string
 pub fn str(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1428,7 +1428,7 @@ pub fn str(
 /// @return: any
 pub fn readStr(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1448,7 +1448,7 @@ pub fn readStr(
 /// @return: string
 pub fn slurp(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1475,7 +1475,7 @@ pub fn slurp(
 
 pub fn help(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1495,7 +1495,7 @@ pub fn help(
 
 pub fn loadFile(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1518,7 +1518,7 @@ pub fn loadFile(
 /// @return: the newly created enum.
 pub fn enumInit(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1536,24 +1536,10 @@ fn enumGet(
     env: *Env,
     err_ctx: *errors.Context,
     arg_name: []const u8,
-) LispError!*const Enum {
-    const arg = try core.eval(allocator, arg_, env, err_ctx);
-    return switch (arg) {
-        .record => |r| r.as(Enum) orelse err_ctx.wrongParameterType(arg_name, "enum"),
-        else => err_ctx.wrongParameterType(arg_name, "enum"),
-    };
-}
-
-fn enumGetMut(
-    allocator: std.mem.Allocator,
-    arg_: LispType,
-    env: *Env,
-    err_ctx: *errors.Context,
-    arg_name: []const u8,
 ) LispError!*Enum {
     const arg = try core.eval(allocator, arg_, env, err_ctx);
     return switch (arg) {
-        .atom => |a| a.getRecordAs(Enum) orelse err_ctx.wrongParameterType(arg_name, "enum"),
+        .record => |r| r.as(Enum) orelse err_ctx.wrongParameterType(arg_name, "enum"),
         else => err_ctx.wrongParameterType(arg_name, "enum"),
     };
 }
@@ -1563,7 +1549,7 @@ fn enumGetMut(
 /// @return: keyword
 pub fn enumSelected(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1580,7 +1566,7 @@ pub fn enumSelected(
 /// @return: int
 pub fn enumIndex(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1599,7 +1585,7 @@ pub fn enumIndex(
 /// @return: nil
 pub fn enumSetSelected(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1612,7 +1598,7 @@ pub fn enumSetSelected(
         else => return err_ctx.wrongParameterType("'enum-set-option' second argument", "keyword"),
     };
 
-    var enum_ = try enumGetMut(allocator, args_[0], env, err_ctx, "'enum-index' argument");
+    var enum_ = try enumGet(allocator, args_[0], env, err_ctx, "'enum-index' argument");
     enum_.setSelected(new_keyword) catch {
         const msg = std.fmt.allocPrint(allocator, "Option does not exist on enum: {s}.", .{new_keyword}) catch outOfMemory();
         return err_ctx.customError(msg);
@@ -1626,7 +1612,7 @@ pub fn enumSetSelected(
 /// @return: nil
 pub fn enumSetIndex(
     allocator: std.mem.Allocator,
-    args_: []const LispType,
+    args_: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1639,7 +1625,7 @@ pub fn enumSetIndex(
         else => return err_ctx.wrongParameterType("'enum-set-option' second argument", "keyword"),
     };
 
-    var enum_ = try enumGetMut(allocator, args_[0], env, err_ctx, "'enum-index' argument");
+    var enum_ = try enumGet(allocator, args_[0], env, err_ctx, "'enum-index' argument");
     enum_.setIndex(new_index) catch {
         return err_ctx.indexOutOfRange("enum-set-index", new_index, enum_.options.len);
     };
@@ -1653,7 +1639,7 @@ const arrowPos = enum {
 
 pub fn arrow(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     pos: arrowPos,
     env: *Env,
     err_ctx: *errors.Context,
@@ -1693,7 +1679,7 @@ pub fn arrow(
 /// @return: any
 pub fn arrowFirst(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {
@@ -1706,7 +1692,7 @@ pub fn arrowFirst(
 /// @return: any
 pub fn arrowLast(
     allocator: std.mem.Allocator,
-    args: []const LispType,
+    args: []LispType,
     env: *Env,
     err_ctx: *errors.Context,
 ) LispError!LispType {

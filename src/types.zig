@@ -23,7 +23,7 @@ pub const LispType = union(enum) {
     pub const lisp_false = LispType{ .boolean = false };
     pub const BuiltinFunc = *const fn (
         allocator: std.mem.Allocator,
-        args: []const LispType,
+        args: []LispType,
         env: *Env,
         err_ctx: *errors.Context,
     ) LispError!LispType;
@@ -69,7 +69,7 @@ pub const LispType = union(enum) {
             return .{ .vector = .{ .array = ZArray.empty, .array_type = .vector } };
         }
 
-        pub fn getItems(self: Array) []const LispType {
+        pub fn getItems(self: Array) []LispType {
             return self.array.items;
         }
 
@@ -168,21 +168,7 @@ pub const LispType = union(enum) {
             return self.value.*;
         }
 
-        pub fn getRecordAs(self: Atom, comptime T: type) ?*T {
-            return switch (self.value.*) {
-                .record => {
-                    const value = self.value.record;
-                    if (!std.mem.eql(u8, value.type_info.name, @typeName(T))) {
-                        return null;
-                    }
-
-                    return @alignCast(std.mem.bytesAsValue(T, value.bytes));
-                },
-                else => null,
-            };
-        }
-
-        pub fn reset(self: *const Atom, allocator: std.mem.Allocator, val: LispType) LispType {
+        pub fn reset(self: *Atom, allocator: std.mem.Allocator, val: LispType) LispType {
             const new_value = val.clone(allocator);
             self.value.deinit(allocator);
             self.value.* = new_value;
@@ -204,18 +190,9 @@ pub const LispType = union(enum) {
             std.hash_map.default_max_load_percentage,
         );
 
-        pub fn init() LispType {
-            const values: Map = .empty;
-            return .{ .dict = .{ .map = values } };
-        }
-
-        pub fn deinit(self: *Dict, allocator: std.mem.Allocator) void {
-            var iter = self.map.iterator();
-            while (iter.next()) |entry| {
-                entry.key_ptr.deinit(allocator);
-                entry.value_ptr.deinit(allocator);
-            }
-            self.map.deinit(allocator);
+        pub fn add(self: Dict, allocator: std.mem.Allocator, key: LispType, value: LispType) LispError!LispType {
+            var dict = self.clone(allocator);
+            return dict.dict.addMut(allocator, key, value);
         }
 
         pub fn isHashable(value: LispType) bool {
@@ -223,10 +200,6 @@ pub const LispType = union(enum) {
                 .int, .string, .keyword, .symbol => true,
                 else => false,
             };
-        }
-
-        pub fn add(self: Dict, allocator: std.mem.Allocator, key: LispType, value: LispType) LispError!LispType {
-            return self.clone(allocator).dict.addMut(allocator, key, value);
         }
 
         pub fn addMut(self: *Dict, allocator: std.mem.Allocator, key: LispType, value: LispType) LispError!void {
@@ -247,6 +220,20 @@ pub const LispType = union(enum) {
             if (isHashable(key)) {
                 self.map.putAssumeCapacity(key, value);
             } else return LispError.UnhashableType;
+        }
+
+        pub fn init() LispType {
+            const values: Map = .empty;
+            return .{ .dict = .{ .map = values } };
+        }
+
+        pub fn deinit(self: *Dict, allocator: std.mem.Allocator) void {
+            var iter = self.map.iterator();
+            while (iter.next()) |entry| {
+                entry.key_ptr.deinit(allocator);
+                entry.value_ptr.deinit(allocator);
+            }
+            self.map.deinit(allocator);
         }
 
         pub fn clone(self: Dict, allocator: std.mem.Allocator) LispType {
@@ -489,7 +476,7 @@ pub const LispType = union(enum) {
             return self.vtable.equals(self.bytes.ptr, other.bytes.ptr);
         }
 
-        pub fn as(self: Record, comptime T: type) ?*const T {
+        pub fn as(self: Record, comptime T: type) ?*T {
             if (!std.mem.eql(u8, self.type_info.name, @typeName(T))) {
                 return null;
             }
