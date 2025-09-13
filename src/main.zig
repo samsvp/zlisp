@@ -35,7 +35,3 @@ pub fn main() !void {
 
     _ = ln.linenoiseHistorySave("history.txt");
 }
-
-test {
-    _ = @import("tests.zig");
-}
