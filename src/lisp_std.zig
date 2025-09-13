@@ -1466,7 +1466,7 @@ pub fn slurp(
     defer file.close();
 
     const file_size = file.getEndPos() catch return err_ctx.ioError();
-    const buffer = allocator.alloc(u8, file_size) catch outOfMemory();
+    const buffer = allocator.alloc(u8, @intCast(file_size)) catch outOfMemory();
     defer allocator.free(buffer);
 
     _ = file.readAll(buffer) catch return err_ctx.ioError();
