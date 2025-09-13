@@ -20,13 +20,7 @@ pub fn build(b: *std.Build) void {
         .name = "zlisp",
         .root_module = exe_mod,
     });
-
-    const pcre2_dep = b.dependency("pcre2", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    mod.linkLibrary(pcre2_dep.artifact("pcre2-8"));
-    exe.linkLibrary(pcre2_dep.artifact("pcre2-8"));
+    exe.linkLibC();
 
     const linenoise_dep = b.dependency("linenoise", .{
         .target = target,
