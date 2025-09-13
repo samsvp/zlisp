@@ -20,6 +20,7 @@ pub fn main() !void {
 
     var script = interpreter.createScript();
     _ = ln.linenoiseHistoryLoad("history.txt");
+
     while (ln.linenoise("user> ")) |line| {
         defer ln.linenoiseFree(line);
         const input: []const u8 = std.mem.span(line);

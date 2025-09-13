@@ -1,15 +1,6 @@
 const std = @import("std");
 const LispType = @import("types.zig").LispType;
 
-const pcre = @cImport({
-    @cDefine("PCRE2_CODE_UNIT_WIDTH", "8");
-    @cInclude("pcre2.h");
-});
-
-const PCRE2_ZERO_TERMINATED = ~@as(pcre.PCRE2_SIZE, 0);
-
-var g_regex: ?*pcre.pcre2_code_8 = null;
-
 pub const ParserError = error{
     EOFCollectionReadError,
     EOFStringReadError,
@@ -42,90 +33,67 @@ pub const Reader = struct {
     }
 };
 
-fn compile_regex() *pcre.pcre2_code_8 {
-    if (g_regex) |r| {
-        return r;
-    }
-
-    const pattern: [*]const u8 =
-        \\[\s,]*(~@|[\[\]{}()'`~^@]|"(?:\\.|[^\\"])*"?|;.*|[^\s\[\]{}('"`,;)]*)
-    ;
-    var errornumber: i32 = undefined;
-    var erroroffset: usize = undefined;
-    const regex = pcre.pcre2_compile_8(
-        pattern,
-        PCRE2_ZERO_TERMINATED,
-        0,
-        &errornumber,
-        &erroroffset,
-        null,
-    );
-
-    if (regex) |r| {
-        g_regex = r;
-        return r;
-    }
-
-    @panic("Failed to build regex!");
-}
-
 fn tokenize(
-    subject: []const u8,
+    text_: []const u8,
     allocator: std.mem.Allocator,
 ) !TokenList {
-    const regex = compile_regex();
+    var text = text_;
 
-    const match_data = pcre.pcre2_match_data_create_from_pattern_8(regex, null);
-    defer pcre.pcre2_match_data_free_8(match_data);
+    var token_list: TokenList = .empty;
+    while (text.len > 0) {
+        const offset = switch (text[0]) {
+            '(', ')', '[', ']', '{', '}', '\'', '`', '^', '@' => paren: {
+                try token_list.append(allocator, text[0..1]);
+                break :paren 1;
+            },
+            '~' => tilde: {
+                const offset: usize = if (text.len > 1 and text[1] == '@') 2 else 1;
+                try token_list.append(allocator, text[0..offset]);
+                break :tilde offset;
+            },
+            '"' => string: {
+                var offset: usize = 1;
+                var escaped = false;
+                while (offset < text.len and (escaped or text[offset] != '"')) : (offset += 1) {
+                    const char = text[offset];
 
-    var offset: usize = 0;
-    var list: TokenList = .empty;
+                    switch (char) {
+                        '\\' => escaped = true,
+                        '"' => if (escaped) {
+                            escaped = false;
+                        },
+                        else => escaped = false,
+                    }
+                }
 
-    while (true) {
-        const rc = pcre.pcre2_match_8(
-            regex,
-            subject.ptr,
-            subject.len,
-            offset,
-            0,
-            match_data,
-            null,
-        );
+                offset += 1;
+                try token_list.append(allocator, text[0..offset]);
+                break :string offset;
+            },
+            ';' => comment: {
+                var offset: usize = 1;
+                while (offset < text.len and text[offset] != '\n') : (offset += 1) {}
+                break :comment offset;
+            },
+            ' ', ',', '\t', '\n' => 1,
+            else => chars: {
+                var offset: usize = 0;
 
-        if (rc <= 0) {
-            if (rc == pcre.PCRE2_ERROR_NOMATCH) {
-                break;
-            } else {
-                // finished
-                return list;
-            }
-        }
-
-        const ovector = pcre.pcre2_get_ovector_pointer_8(match_data);
-        const start = ovector[0];
-        const end = ovector[1];
-
-        if (start == end) {
-            // Zero-length match — avoid infinite loop
-            offset += 1;
-            continue;
-        }
-
-        if (rc >= 2) {
-            // Group 0 is the entire match
-            // Group 1 is the first capturing group (what we want)
-            const group_start = ovector[2];
-            const group_end = ovector[3];
-
-            if (group_start != group_end) {
-                try list.append(allocator, subject[group_start..group_end]);
-            }
-        }
-
-        offset = end;
+                while (offset < text.len) : (offset += 1) {
+                    const char = text[offset];
+                    switch (char) {
+                        '(', ')', '[', ']', '{', '}', ',', ' ', '\n', '\t' => break,
+                        else => {},
+                    }
+                }
+                try token_list.append(allocator, text[0..offset]);
+                break :chars offset;
+            },
+        };
+        text = text[offset..];
     }
 
-    return list;
+    return token_list;
 }
 
 fn readAtom(
