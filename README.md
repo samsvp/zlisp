@@ -767,6 +767,7 @@ how records work.
     ```clojure
     (= (cond false 8 true 7) 7)
     (= (cond false 8 false 7) nil)
+    (def x 5)
     (= (cond (> x 10) "big" (< x 0) "neg" :else "mid") "mid")
     ```
 
@@ -832,3 +833,8 @@ how records work.
     (= (slice 3 -1 (1 2 3 5 2 -1)) (5 2 -1))
     (= (slice 3 -2 [1 2 3 5 2 -1]) [5 2])
     ```
+
+### TODO
+- Add docstring for builtin functions.
+- Add persistent data structures.
+- Add more mutable functions to atoms.
