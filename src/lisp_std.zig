@@ -8,7 +8,7 @@ const reader = @import("reader.zig");
 const core = @import("core.zig");
 const outOfMemory = @import("utils.zig").outOfMemory;
 
-fn evalArgs(
+pub fn evalArgs(
     allocator: std.mem.Allocator,
     uneval_args: []LispType,
     env: *Env,
