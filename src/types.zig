@@ -399,8 +399,12 @@ pub const LispType = union(enum) {
             const vtable = struct {
                 fn cloneFn(ptr: *anyopaque, alloc: std.mem.Allocator) LispType {
                     const original: *T = @ptrCast(@alignCast(ptr));
-                    const cloned = @call(.auto, T.clone, .{ original.*, alloc });
-                    return LispType.Record.init(alloc, cloned);
+                    const cloned = alloc.create(T) catch outOfMemory();
+                    cloned.* = if (@hasDecl(T, "clone"))
+                        @call(.auto, T.clone, .{ original.*, alloc })
+                    else
+                        original.*;
+                    return LispType.Record.init(alloc, cloned.*);
                 }
 
                 fn equalsFn(a: *anyopaque, b: *anyopaque) bool {

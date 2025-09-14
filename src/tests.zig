@@ -16,31 +16,15 @@ test "complex struct conversions" {
         v2: S2,
         const S1 = struct {
             value: i32,
-
-            const Self = @This();
-            pub fn clone(self: Self, _: std.mem.Allocator) Self {
-                return .{ .value = self.value };
-            }
         };
         const S2 = struct {
             value: f32,
-
-            const Self = @This();
-            pub fn clone(self: Self, _: std.mem.Allocator) Self {
-                return .{ .value = self.value };
-            }
         };
     };
 
     const S2 = struct {
         value1: i32,
         value2: E,
-
-        const Self = @This();
-
-        pub fn clone(self: Self, _: std.mem.Allocator) Self {
-            return .{ .value1 = self.value1, .value2 = self.value2 };
-        }
     };
 
     const S1 = struct {
@@ -49,18 +33,6 @@ test "complex struct conversions" {
         e1: E,
         e2: E,
         u: U,
-
-        const Self = @This();
-
-        pub fn clone(self: Self, _: std.mem.Allocator) Self {
-            return .{
-                .member_1 = self.member_1,
-                .s2 = self.s2,
-                .e1 = self.e1,
-                .e2 = self.e2,
-                .u = self.u,
-            };
-        }
     };
 
     var gpa = std.heap.DebugAllocator(.{}){};
