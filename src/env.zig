@@ -115,6 +115,12 @@ pub const Env = struct {
         return env;
     }
 
+    pub fn addBuiltint(self: *Self, name: []const u8, b: LispType.BuiltinFunc) void {
+        const allocator = self.arena.allocator();
+
+        self.mapping.put(allocator, name, LispType.Function.createBuiltin(allocator, b)) catch outOfMemory();
+    }
+
     pub fn setFunctions(self: *Self) *Self {
         const allocator = self.arena.allocator();
 

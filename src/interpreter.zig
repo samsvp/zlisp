@@ -1,6 +1,7 @@
 const std = @import("std");
 const eval = @import("core.zig").eval;
 const errors = @import("errors.zig");
+const LispType = @import("types.zig").LispType;
 const Env = @import("env.zig").Env;
 const reader = @import("reader.zig");
 const Script = @import("script.zig").Script;
@@ -36,6 +37,10 @@ pub const Interpreter = struct {
         _ = eval(allocator, val, env, &err_ctx) catch unreachable;
 
         return self;
+    }
+
+    pub fn addBuiltin(self: *Self, name: []const u8, b: LispType.BuiltinFunc) void {
+        self.env.addBuiltint(name, b);
     }
 
     pub fn createScript(self: *Self) *Script {
