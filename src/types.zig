@@ -645,52 +645,51 @@ pub const LispType = union(enum) {
                     }
                 }.getType;
 
-                if (info == .@"union") {
-                    const u = info.@"union";
-                    if (dict.map.size != 1) {
-                        return LispError.InvalidCast;
-                    }
-
-                    var iter = dict.map.iterator();
-                    const kv = iter.next().?;
-
-                    const key_name = switch (kv.key_ptr.*) {
-                        .string, .symbol, .keyword => |s| s.getStr(),
-                        else => return LispError.InvalidCast,
-                    };
-
-                    inline for (u.fields) |field| {
-                        if (std.mem.eql(u8, field.name, key_name)) {
-                            const value = try kv.value_ptr.cast(field.type, allocator);
-                            return @unionInit(T, field.name, value);
+                switch (info) {
+                    .@"union" => |u| {
+                        if (dict.map.size != 1) {
+                            return LispError.InvalidCast;
                         }
-                    }
-                    return LispError.InvalidCast;
-                }
 
-                if (info != .@"struct") {
-                    return LispError.InvalidCast;
-                }
+                        var iter = dict.map.iterator();
+                        const kv = iter.next().?;
 
-                // check if is hash map
-                if (!std.meta.hasMethod(T, "put") or
-                    !std.meta.hasMethod(T, "get") or
-                    !std.meta.hasMethod(T, "getKey"))
-                {
-                    return Record.fromDictToT(T, allocator, self);
-                }
+                        const key_name = switch (kv.key_ptr.*) {
+                            .string, .symbol, .keyword => |s| s.getStr(),
+                            else => return LispError.InvalidCast,
+                        };
 
-                const K = getType(@typeInfo(@TypeOf(T.getKey)));
-                const V = getType(@typeInfo(@TypeOf(T.get)));
+                        inline for (u.fields) |field| {
+                            if (std.mem.eql(u8, field.name, key_name)) {
+                                const value = try kv.value_ptr.cast(field.type, allocator);
+                                return @unionInit(T, field.name, value);
+                            }
+                        }
+                        return LispError.InvalidCast;
+                    },
+                    .@"struct" => {
+                        // check if is hash map
+                        if (!std.meta.hasMethod(T, "put") or
+                            !std.meta.hasMethod(T, "get") or
+                            !std.meta.hasMethod(T, "getKey"))
+                        {
+                            return Record.fromDictToT(T, allocator, self);
+                        }
 
-                var map: T = .empty;
-                var iter = dict.map.iterator();
-                while (iter.next()) |kv| {
-                    const key = try kv.key_ptr.cast(K, allocator);
-                    const value = try kv.value_ptr.cast(V, allocator);
-                    map.put(allocator, key, value) catch outOfMemory();
+                        const K = getType(@typeInfo(@TypeOf(T.getKey)));
+                        const V = getType(@typeInfo(@TypeOf(T.get)));
+
+                        var map: T = .empty;
+                        var iter = dict.map.iterator();
+                        while (iter.next()) |kv| {
+                            const key = try kv.key_ptr.cast(K, allocator);
+                            const value = try kv.value_ptr.cast(V, allocator);
+                            map.put(allocator, key, value) catch outOfMemory();
+                        }
+                        return map;
+                    },
+                    else => return LispError.InvalidCast,
                 }
-                return map;
             },
         };
     }
