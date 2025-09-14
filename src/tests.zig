@@ -4,6 +4,107 @@ pub const Script = @import("script.zig").Script;
 const Interpreter = @import("interpreter.zig").Interpreter;
 const errors = @import("errors.zig");
 
+test "complex struct conversions" {
+    const E = enum {
+        e1,
+        e2,
+        e3,
+    };
+
+    const U = union(enum) {
+        v1: S1,
+        v2: S2,
+        const S1 = struct {
+            value: i32,
+
+            const Self = @This();
+            pub fn clone(self: Self, _: std.mem.Allocator) Self {
+                return .{ .value = self.value };
+            }
+        };
+        const S2 = struct {
+            value: f32,
+
+            const Self = @This();
+            pub fn clone(self: Self, _: std.mem.Allocator) Self {
+                return .{ .value = self.value };
+            }
+        };
+    };
+
+    const S2 = struct {
+        value1: i32,
+        value2: E,
+
+        const Self = @This();
+
+        pub fn clone(self: Self, _: std.mem.Allocator) Self {
+            return .{ .value1 = self.value1, .value2 = self.value2 };
+        }
+    };
+
+    const S1 = struct {
+        member_1: i32,
+        s2: S2,
+        e1: E,
+        e2: E,
+        u: U,
+
+        const Self = @This();
+
+        pub fn clone(self: Self, _: std.mem.Allocator) Self {
+            return .{
+                .member_1 = self.member_1,
+                .s2 = self.s2,
+                .e1 = self.e1,
+                .e2 = self.e2,
+                .u = self.u,
+            };
+        }
+    };
+
+    var gpa = std.heap.DebugAllocator(.{}){};
+    defer {
+        const deinit_status = gpa.deinit();
+        if (deinit_status == .leak) std.debug.print("WARNING: memory leaked\n", .{});
+    }
+
+    var arena = std.heap.ArenaAllocator.init(gpa.allocator());
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var map = std.StringHashMapUnmanaged(LispType).empty;
+    defer map.deinit(allocator);
+
+    const member_1 = 42;
+    try map.put(allocator, "member_1", .{ .int = member_1 });
+    try map.put(allocator, "e1", .{ .int = 0 });
+    try map.put(allocator, "e2", LispType.String.initString(allocator, "e2"));
+
+    const s2_v1 = 89;
+    var dict = LispType.Dict.init();
+    try dict.dict.addMut(allocator, LispType.String.initString(allocator, "value1"), .{ .int = s2_v1 });
+    try dict.dict.addMut(allocator, LispType.String.initString(allocator, "value2"), LispType.String.initString(allocator, "e3"));
+    try map.put(allocator, "s2", dict);
+
+    const u_value = 43.0;
+    var u_dict = LispType.Dict.init();
+    var s_dict = LispType.Dict.init();
+    try s_dict.dict.addMut(allocator, LispType.String.initString(allocator, "value"), .{ .float = u_value });
+    try u_dict.dict.addMut(allocator, LispType.String.initString(allocator, "v2"), s_dict);
+    try map.put(allocator, "u", u_dict);
+
+    const v = try LispType.Record.fromHashMap(S1, allocator, map);
+    const s = try v.cast(S1, allocator);
+
+    try std.testing.expectEqual(member_1, s.member_1);
+    try std.testing.expectEqual(E.e1, s.e1);
+    try std.testing.expectEqual(E.e2, s.e2);
+    try std.testing.expectEqual(u_value, s.u.v2.value);
+    try std.testing.expectEqual(s2_v1, s.s2.value1);
+    try std.testing.expectEqual(E.e3, s.s2.value2);
+}
+
 test "struct conversions" {
     const S = struct {
         member_1: i32,

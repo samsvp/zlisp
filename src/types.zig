@@ -428,14 +428,11 @@ pub const LispType = union(enum) {
             allocator.free(self.bytes);
         }
 
-        /// Populates a value of type `T` from a string-keyed hash map and wraps it in a `LispType.Record`.
-        /// Expects each field of `T` to be present as a key in the map, with a `LispType`-encoded value.
-        /// Fails if a field is missing or conversion fails.
-        pub fn fromHashMap(
+        pub fn fromHashMapToT(
             comptime T: type,
             allocator: std.mem.Allocator,
             map: std.StringHashMapUnmanaged(LispType),
-        ) LispError!LispType {
+        ) LispError!T {
             var result: T = undefined;
 
             const fields = std.meta.fields(T);
@@ -449,7 +446,28 @@ pub const LispType = union(enum) {
                 @field(result, name) = try entry.cast(field_type, allocator);
             }
 
+            return result;
+        }
+
+        /// Populates a value of type `T` from a string-keyed hash map and wraps it in a `LispType.Record`.
+        /// Expects each field of `T` to be present as a key in the map, with a `LispType`-encoded value.
+        /// Fails if a field is missing or conversion fails.
+        pub fn fromHashMap(
+            comptime T: type,
+            allocator: std.mem.Allocator,
+            map: std.StringHashMapUnmanaged(LispType),
+        ) LispError!LispType {
+            const result: T = try fromHashMapToT(T, allocator, map);
             return init(allocator, result);
+        }
+
+        pub fn fromDictToT(
+            comptime T: type,
+            allocator: std.mem.Allocator,
+            dict: LispType,
+        ) LispError!T {
+            const map = try dict.cast(std.StringHashMapUnmanaged(LispType), allocator);
+            return fromHashMapToT(T, allocator, map);
         }
 
         /// Populates a value of type `T` from a string-keyed (string, keyword or symbol) LispType dict and wraps it in a
@@ -571,6 +589,7 @@ pub const LispType = union(enum) {
             .int => |i| switch (info) {
                 .int => @intCast(i),
                 .float => @floatFromInt(i),
+                .@"enum" => @enumFromInt(i),
                 else => LispError.InvalidCast,
             },
             .float => |f| switch (info) {
@@ -582,6 +601,14 @@ pub const LispType = union(enum) {
                     s.getStr()
                 else
                     LispError.InvalidCast,
+                .@"enum" => |e| {
+                    inline for (e.fields, 0..) |f, i| {
+                        if (std.mem.eql(u8, f.name, s.getStr())) {
+                            return @enumFromInt(i);
+                        }
+                    }
+                    return LispError.InvalidCast;
+                },
                 else => LispError.InvalidCast,
             },
             .boolean => |b| switch (info) {
@@ -617,15 +644,40 @@ pub const LispType = union(enum) {
                         return k_info.optional.child;
                     }
                 }.getType;
+
+                if (info == .@"union") {
+                    const u = info.@"union";
+                    if (dict.map.size != 1) {
+                        return LispError.InvalidCast;
+                    }
+
+                    var iter = dict.map.iterator();
+                    const kv = iter.next().?;
+
+                    const key_name = switch (kv.key_ptr.*) {
+                        .string, .symbol, .keyword => |s| s.getStr(),
+                        else => return LispError.InvalidCast,
+                    };
+
+                    inline for (u.fields) |field| {
+                        if (std.mem.eql(u8, field.name, key_name)) {
+                            const value = try kv.value_ptr.cast(field.type, allocator);
+                            return @unionInit(T, field.name, value);
+                        }
+                    }
+                    return LispError.InvalidCast;
+                }
+
                 if (info != .@"struct") {
                     return LispError.InvalidCast;
                 }
 
+                // check if is hash map
                 if (!std.meta.hasMethod(T, "put") or
                     !std.meta.hasMethod(T, "get") or
                     !std.meta.hasMethod(T, "getKey"))
                 {
-                    return LispError.InvalidCast;
+                    return Record.fromDictToT(T, allocator, self);
                 }
 
                 const K = getType(@typeInfo(@TypeOf(T.getKey)));
