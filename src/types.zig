@@ -606,8 +606,13 @@ pub const LispType = union(enum) {
                 else
                     LispError.InvalidCast,
                 .@"enum" => |e| {
+                    const name = switch (self) {
+                        .string, .symbol => s.getStr(),
+                        .keyword => s.getStr()[1..],
+                        else => unreachable,
+                    };
                     inline for (e.fields, 0..) |f, i| {
-                        if (std.mem.eql(u8, f.name, s.getStr())) {
+                        if (std.mem.eql(u8, f.name, name)) {
                             return @enumFromInt(i);
                         }
                     }
@@ -659,7 +664,8 @@ pub const LispType = union(enum) {
                         const kv = iter.next().?;
 
                         const key_name = switch (kv.key_ptr.*) {
-                            .string, .symbol, .keyword => |s| s.getStr(),
+                            .string, .symbol => |s| s.getStr(),
+                            .keyword => |k| k.getStr()[1..],
                             else => return LispError.InvalidCast,
                         };
 
@@ -686,7 +692,11 @@ pub const LispType = union(enum) {
                         var map: T = .empty;
                         var iter = dict.map.iterator();
                         while (iter.next()) |kv| {
-                            const key = try kv.key_ptr.cast(K, allocator);
+                            const kv_key = switch (kv.key_ptr.*) {
+                                .keyword => |k| String.initString(allocator, k.getStr()[1..]),
+                                else => |v| v,
+                            };
+                            const key = try kv_key.cast(K, allocator);
                             const value = try kv.value_ptr.cast(V, allocator);
                             map.put(allocator, key, value) catch outOfMemory();
                         }

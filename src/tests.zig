@@ -55,15 +55,15 @@ test "complex struct conversions" {
 
     const s2_v1 = 89;
     var dict = LispType.Dict.init();
-    try dict.dict.addMut(allocator, LispType.String.initString(allocator, "value1"), .{ .int = s2_v1 });
-    try dict.dict.addMut(allocator, LispType.String.initString(allocator, "value2"), LispType.String.initString(allocator, "e3"));
+    try dict.dict.addMut(allocator, LispType.String.initKeyword(allocator, ":value1"), .{ .int = s2_v1 });
+    try dict.dict.addMut(allocator, LispType.String.initKeyword(allocator, ":value2"), LispType.String.initKeyword(allocator, ":e3"));
     try map.put(allocator, "s2", dict);
 
     const u_value = 43.0;
     var u_dict = LispType.Dict.init();
     var s_dict = LispType.Dict.init();
-    try s_dict.dict.addMut(allocator, LispType.String.initString(allocator, "value"), .{ .float = u_value });
-    try u_dict.dict.addMut(allocator, LispType.String.initString(allocator, "v2"), s_dict);
+    try s_dict.dict.addMut(allocator, LispType.String.initKeyword(allocator, ":value"), .{ .float = u_value });
+    try u_dict.dict.addMut(allocator, LispType.String.initKeyword(allocator, ":v2"), s_dict);
     try map.put(allocator, "u", u_dict);
 
     const v = try LispType.Record.fromHashMap(S1, allocator, map);
