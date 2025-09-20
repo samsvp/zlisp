@@ -44,11 +44,11 @@ pub const Script = struct {
     }
 
     pub fn loadFile(self: *Self, path: []const u8) !void {
-        self.env.loadFile(path);
+        try self.env.loadFile(path);
     }
 
     pub fn evalString(self: *Self, str: []const u8) !void {
-        self.env.evalString(str);
+        try self.env.evalString(str);
     }
 
     pub fn run(self: *Self, allocator: std.mem.Allocator, value: LispType) LispError!LispType {

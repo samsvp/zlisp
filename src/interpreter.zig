@@ -32,11 +32,11 @@ pub const Interpreter = struct {
     }
 
     pub fn loadFile(self: *Interpreter, path: []const u8) !void {
-        self.env.loadFile(path);
+        try self.env.loadFile(path);
     }
 
     pub fn evalString(self: *Interpreter, str: []const u8) !void {
-        self.env.evalString(str);
+        try self.env.evalString(str);
     }
 
     pub fn addBuiltin(self: *Self, name: []const u8, b: LispType.BuiltinFunc) void {
