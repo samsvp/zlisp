@@ -26,36 +26,17 @@ pub const Interpreter = struct {
 
         // load std lib
         const std_lisp_str = @embedFile("std.lisp");
-        self.evalString(std_lisp_str) catch unreachable;
+        self.env.evalString(std_lisp_str) catch unreachable;
 
         return self;
     }
 
     pub fn loadFile(self: *Interpreter, path: []const u8) !void {
-        var file = try std.fs.cwd().openFile(path, .{});
-        defer file.close();
-
-        const file_size = try file.getEndPos();
-
-        const allocator = self.arena.child_allocator;
-        const buffer = try allocator.alloc(u8, @intCast(file_size));
-        defer allocator.free(buffer);
-
-        _ = try file.readAll(buffer);
-        try self.evalString(buffer);
+        self.env.loadFile(path);
     }
 
     pub fn evalString(self: *Interpreter, str: []const u8) !void {
-        const base_allocator = self.arena.child_allocator;
-        const src = std.fmt.allocPrint(base_allocator, "(eval (do {s} nil))", .{str}) catch outOfMemory();
-        defer base_allocator.free(src);
-
-        const allocator = self.arena.allocator();
-        const val = try reader.readStr(allocator, src);
-
-        var err_ctx = errors.Context.init(base_allocator);
-        defer err_ctx.deinit();
-        _ = try eval(allocator, val, self.env, &err_ctx);
+        self.env.evalString(str);
     }
 
     pub fn addBuiltin(self: *Self, name: []const u8, b: LispType.BuiltinFunc) void {

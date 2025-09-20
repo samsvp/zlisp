@@ -43,6 +43,14 @@ pub const Script = struct {
         self.print_arena.deinit();
     }
 
+    pub fn loadFile(self: *Self, path: []const u8) !void {
+        self.env.loadFile(path);
+    }
+
+    pub fn evalString(self: *Self, str: []const u8) !void {
+        self.env.evalString(str);
+    }
+
     pub fn run(self: *Self, allocator: std.mem.Allocator, value: LispType) LispError!LispType {
         defer _ = self.eval_arena.reset(.retain_capacity);
         const s = try eval(self.eval_arena.allocator(), value, self.env, &self.err_ctx);

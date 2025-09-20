@@ -1,5 +1,7 @@
 const std = @import("std");
 const core = @import("core.zig");
+const errors = @import("errors.zig");
+const reader = @import("reader.zig");
 const LispType = @import("types.zig").LispType;
 const lisp_std = @import("lisp_std.zig");
 const outOfMemory = @import("utils.zig").outOfMemory;
@@ -227,5 +229,32 @@ pub const Env = struct {
         self.mapping.put(allocator, "->>", LispType.Function.createBuiltin(allocator, lisp_std.arrowLast)) catch outOfMemory();
 
         return self;
+    }
+
+    pub fn loadFile(self: *Env, path: []const u8) !void {
+        var file = try std.fs.cwd().openFile(path, .{});
+        defer file.close();
+
+        const file_size = try file.getEndPos();
+
+        const allocator = self.arena.child_allocator;
+        const buffer = try allocator.alloc(u8, @intCast(file_size));
+        defer allocator.free(buffer);
+
+        _ = try file.readAll(buffer);
+        try self.evalString(buffer);
+    }
+
+    pub fn evalString(self: *Env, str: []const u8) !void {
+        const base_allocator = self.arena.child_allocator;
+        const src = std.fmt.allocPrint(base_allocator, "(eval (do {s} nil))", .{str}) catch outOfMemory();
+        defer base_allocator.free(src);
+
+        const allocator = self.arena.allocator();
+        const val = try reader.readStr(allocator, src);
+
+        var err_ctx = errors.Context.init(base_allocator);
+        defer err_ctx.deinit();
+        _ = try core.eval(allocator, val, self, &err_ctx);
     }
 };
