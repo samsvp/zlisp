@@ -31,12 +31,17 @@ pub const Interpreter = struct {
         return self;
     }
 
-    pub fn loadFile(self: *Interpreter, path: []const u8) !void {
+    pub fn loadFile(self: *Self, path: []const u8) !void {
         try self.env.loadFile(path);
     }
 
-    pub fn evalString(self: *Interpreter, str: []const u8) !void {
+    pub fn evalString(self: *Self, str: []const u8) !void {
         try self.env.evalString(str);
+    }
+
+    /// Directly returns the given lisp variable from the environment.
+    pub fn get(self: Self, varname: []const u8) ?LispType {
+        return self.env.get(varname);
     }
 
     pub fn addBuiltin(self: *Self, name: []const u8, b: LispType.BuiltinFunc) void {
