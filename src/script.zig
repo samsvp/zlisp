@@ -62,10 +62,19 @@ pub const Script = struct {
         return value.toStringFull(self.print_arena.allocator()) catch outOfMemory();
     }
 
+    /// Runs the given lisp expression and returns the result value.
+    /// The value is freed once `re`, `rep` or `reOwned` is called again.
     pub fn re(self: *Self, text: []const u8) !LispType {
         _ = self.arena.reset(.retain_capacity);
         const allocator = self.arena.allocator();
         const val = try reader.readStr(allocator, text);
+        return self.run(allocator, val);
+    }
+
+    /// Runs the given lisp expression and returns the result value. Value is owned by the caller.
+    pub fn reOwned(self: *Self, allocator: std.mem.Allocator, text: []const u8) !LispType {
+        _ = self.arena.reset(.retain_capacity);
+        const val = try reader.readStr(self.arena.allocator(), text);
         return self.run(allocator, val);
     }
 
