@@ -78,6 +78,11 @@ pub const Script = struct {
         return self.run(allocator, val);
     }
 
+    /// Directly returns the given lisp variable from the environment.
+    pub fn get(self: Self, varname: []const u8) ?LispType {
+        return self.env.get(varname);
+    }
+
     pub fn rep(self: *Self, text: []const u8) ![]const u8 {
         const allocator = self.arena.allocator();
         const ret = self.re(text) catch blk: {
