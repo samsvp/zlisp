@@ -42,7 +42,7 @@ nil
 ```
 
 ### Functions
-You can define functions with the `defun` symbol.
+You can define functions with the `defn` symbol.
 ```clojure
 (defn my-func
     "doc string"
