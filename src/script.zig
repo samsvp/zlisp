@@ -83,6 +83,8 @@ pub const Script = struct {
         return self.env.get(varname);
     }
 
+    /// Runs the given lisp expression and returns its value as a string.
+    /// The string is freed once `re`, `rep` or `reOwned` is called again.
     pub fn rep(self: *Self, text: []const u8) ![]const u8 {
         const allocator = self.arena.allocator();
         const ret = self.re(text) catch blk: {
