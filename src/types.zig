@@ -602,7 +602,10 @@ pub const LispType = union(enum) {
             },
             .string, .symbol, .keyword => |s| switch (info) {
                 .pointer => |p| if (p.child == u8)
-                    s.getStr()
+                    if (p.sentinel()) |_|
+                        allocator.dupeZ(u8, s.getStr()) catch outOfMemory()
+                    else
+                        s.getStr()
                 else
                     LispError.InvalidCast,
                 .@"enum" => |e| {
@@ -635,7 +638,10 @@ pub const LispType = union(enum) {
                 for (array.getItems(), 0..) |val, i| {
                     arr[i] = try val.cast(child_T, allocator);
                 }
-                return arr;
+                return if (p.sentinel()) |_|
+                    allocator.dupeZ(child_T, arr) catch outOfMemory()
+                else
+                    arr;
             },
             .atom => |a| a.value.cast(T, allocator),
             .record => |r| if (r.as(T)) |v| v.* else LispError.InvalidCast,

@@ -80,7 +80,7 @@ test "complex struct conversions" {
 test "struct conversions" {
     const S = struct {
         member_1: i32,
-        member_2: []const u8,
+        member_2: [:0]const u8,
         member_3: f32,
         member_4: []const f32,
         member_5: [][]const u8,
