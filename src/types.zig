@@ -634,14 +634,18 @@ pub const LispType = union(enum) {
 
                 const p = info.pointer;
                 const child_T = p.child;
-                var arr = allocator.alloc(child_T, array.array.items.len) catch outOfMemory();
+                const is_sentinel = p.sentinel() != null;
+                const len = if (is_sentinel) array.array.items.len + 1 else array.array.items.len;
+                var arr = allocator.alloc(child_T, len) catch outOfMemory();
                 for (array.getItems(), 0..) |val, i| {
                     arr[i] = try val.cast(child_T, allocator);
                 }
-                return if (p.sentinel()) |_|
-                    allocator.dupeZ(child_T, arr) catch outOfMemory()
-                else
-                    arr;
+                if (p.sentinel()) |_| {
+                    arr[arr.len - 1] = 0;
+                    return arr[0 .. arr.len - 1 :0];
+                } else {
+                    return arr;
+                }
             },
             .atom => |a| a.value.cast(T, allocator),
             .record => |r| if (r.as(T)) |v| v.* else LispError.InvalidCast,
