@@ -1505,7 +1505,6 @@ pub fn writeFile(
 
 /// Lists the files in the given directory.
 /// @argument file_path: string
-/// @argument content: any
 /// @return: list[string]
 pub fn listDir(
     allocator: std.mem.Allocator,
