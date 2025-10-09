@@ -52,22 +52,28 @@ fn tokenize(
                 break :tilde offset;
             },
             '"' => string: {
+                var str = std.ArrayList(u8).empty;
+
                 var offset: usize = 1;
+                try str.append(allocator, '"');
                 var escaped = false;
                 while (offset < text.len and (escaped or text[offset] != '"')) : (offset += 1) {
                     const char = text[offset];
 
                     switch (char) {
-                        '\\' => escaped = true,
+                        '\\' => escaped = !escaped,
                         '"' => if (escaped) {
                             escaped = false;
                         },
                         else => escaped = false,
                     }
+
+                    if (!escaped) try str.append(allocator, char);
                 }
 
+                if (offset < text.len) try str.append(allocator, text[offset]);
+                try token_list.append(allocator, str.items);
                 offset += 1;
-                try token_list.append(allocator, text[0..offset]);
                 break :string offset;
             },
             ';' => comment: {
@@ -114,15 +120,6 @@ fn readAtom(
                 return ParserError.EOFStringReadError;
             }
 
-            var backslash_amount: usize = 0;
-            var i: usize = atom.len - 2;
-            while (i != 0 and atom[i] == '\\') {
-                i -= 1;
-                backslash_amount += 1;
-            }
-            if (backslash_amount % 2 != 0) {
-                return ParserError.EOFStringReadError;
-            }
             return LispType.String.initString(allocator, atom[1 .. atom.len - 1]);
         },
         else => {
