@@ -510,14 +510,13 @@ pub const LispType = union(enum) {
     pub const String = struct {
         chars: Chars,
 
-        const Chars = std.ArrayListUnmanaged(u8);
+        const Chars = std.ArrayList(u8);
 
         fn initFrom(allocator: std.mem.Allocator, str: []const u8) String {
-            var chars = std.ArrayListUnmanaged(u8).initCapacity(allocator, str.len) catch {
+            var chars = std.ArrayList(u8).initCapacity(allocator, str.len) catch {
                 outOfMemory();
             };
-            const str_clone = allocator.dupe(u8, str) catch outOfMemory();
-            chars.appendSliceAssumeCapacity(str_clone);
+            chars.appendSliceAssumeCapacity(str);
             return .{ .chars = chars };
         }
 

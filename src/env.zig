@@ -163,6 +163,7 @@ pub const Env = struct {
         self.mapping.put(allocator, "filter", LispType.Function.createBuiltin(allocator, lisp_std.filter)) catch outOfMemory();
         self.mapping.put(allocator, "reduce", LispType.Function.createBuiltin(allocator, lisp_std.reduce)) catch outOfMemory();
         self.mapping.put(allocator, "replace", LispType.Function.createBuiltin(allocator, lisp_std.replace)) catch outOfMemory();
+        self.mapping.put(allocator, "replace-str", LispType.Function.createBuiltin(allocator, lisp_std.replaceStr)) catch outOfMemory();
         self.mapping.put(allocator, "nth", LispType.Function.createBuiltin(allocator, lisp_std.nth)) catch outOfMemory();
         self.mapping.put(allocator, "head", LispType.Function.createBuiltin(allocator, lisp_std.head)) catch outOfMemory();
         self.mapping.put(allocator, "first", LispType.Function.createBuiltin(allocator, lisp_std.head)) catch outOfMemory();

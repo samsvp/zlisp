@@ -548,6 +548,11 @@ pub fn reduce(
     return acc;
 }
 
+/// Returns a new collection where all occurrences of a specified value are replaced with a new value.
+/// For strings, only replaces individual characters.
+/// @argument to_replace: any
+/// @argument new_value: any
+/// @argument collection: list | vector | string
 pub fn replace(
     allocator: std.mem.Allocator,
     args_: []LispType,
@@ -611,6 +616,56 @@ pub fn replace(
         },
         else => return err_ctx.wrongParameterType("'replace' third argument", "list, vector or string"),
     }
+}
+
+/// Returns a new string where all occurrences of a specified value are replaced with a new value.
+/// @argument to_replace: string
+/// @argument new_value: string
+/// @argument collection: string
+pub fn replaceStr(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len < 3) {
+        return err_ctx.atLeastNArguments("replace-str", 3);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+    for (args) |arg| {
+        if (arg != .string)
+            return err_ctx.wrongParameterType("'replace-str' arguments", "string");
+    }
+
+    const og_str = args[2].string.getStr();
+    const to_replace = args[0].string.getStr();
+    const new_value = args[1].string.getStr();
+
+    if (to_replace.len == 0) {
+        return err_ctx.wrongParameterType("'replace-str' first argument", "non-empty string");
+    }
+
+    var new_str = std.ArrayList(u8).empty;
+    defer new_str.deinit(allocator);
+    var i: usize = 0;
+    while (i < og_str.len) {
+        if (og_str.len - i < to_replace.len) {
+            new_str.appendSlice(allocator, og_str[i..og_str.len]) catch outOfMemory();
+            break;
+        }
+
+        if (std.mem.eql(u8, og_str[i..i+to_replace.len], to_replace)) {
+            new_str.appendSlice(allocator, new_value) catch outOfMemory();
+            i += to_replace.len;
+            continue;
+        }
+
+        new_str.append(allocator, og_str[i]) catch outOfMemory();
+        i += 1;
+    }
+
+    return LispType.String.initString(allocator, new_str.items);
 }
 
 pub fn apply(
