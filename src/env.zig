@@ -162,6 +162,7 @@ pub const Env = struct {
         self.mapping.put(allocator, "map", LispType.Function.createBuiltin(allocator, lisp_std.map)) catch outOfMemory();
         self.mapping.put(allocator, "filter", LispType.Function.createBuiltin(allocator, lisp_std.filter)) catch outOfMemory();
         self.mapping.put(allocator, "reduce", LispType.Function.createBuiltin(allocator, lisp_std.reduce)) catch outOfMemory();
+        self.mapping.put(allocator, "replace", LispType.Function.createBuiltin(allocator, lisp_std.replace)) catch outOfMemory();
         self.mapping.put(allocator, "nth", LispType.Function.createBuiltin(allocator, lisp_std.nth)) catch outOfMemory();
         self.mapping.put(allocator, "head", LispType.Function.createBuiltin(allocator, lisp_std.head)) catch outOfMemory();
         self.mapping.put(allocator, "first", LispType.Function.createBuiltin(allocator, lisp_std.head)) catch outOfMemory();
@@ -216,6 +217,7 @@ pub const Env = struct {
         self.mapping.put(allocator, "slurp", LispType.Function.createBuiltin(allocator, lisp_std.slurp)) catch outOfMemory();
         self.mapping.put(allocator, "read-str", LispType.Function.createBuiltin(allocator, lisp_std.readStr)) catch outOfMemory();
         self.mapping.put(allocator, "load-file", LispType.Function.createBuiltin(allocator, lisp_std.loadFile)) catch outOfMemory();
+        self.mapping.put(allocator, "eval-file", LispType.Function.createBuiltin(allocator, lisp_std.evalFile)) catch outOfMemory();
         self.mapping.put(allocator, "write-file", LispType.Function.createBuiltin(allocator, lisp_std.writeFile)) catch outOfMemory();
         self.mapping.put(allocator, "list-dir", LispType.Function.createBuiltin(allocator, lisp_std.listDir)) catch outOfMemory();
         self.mapping.put(allocator, "apply", LispType.Function.createBuiltin(allocator, lisp_std.apply)) catch outOfMemory();

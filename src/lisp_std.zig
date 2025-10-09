@@ -548,6 +548,71 @@ pub fn reduce(
     return acc;
 }
 
+pub fn replace(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len < 3) {
+        return err_ctx.atLeastNArguments("replace", 3);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+    const to_replace = args[1];
+    const new_value = args[2];
+    switch (args[0]) {
+        .list, .vector => |arr| {
+            const items = arr.getItems();
+            var new_arr = std.ArrayList(LispType).initCapacity(allocator, items.len) catch outOfMemory();
+            defer new_arr.deinit(allocator);
+
+            for (items) |item| {
+                const new_item = if (item.eql(to_replace)) new_value else item;
+                new_arr.appendAssumeCapacity(new_item);
+            }
+
+            return switch (args[0]) {
+                .list => LispType.Array.initList(allocator, new_arr.items),
+                .vector => LispType.Array.initVector(allocator, new_arr.items),
+                else => unreachable,
+            };
+        },
+        .string => |s| {
+            const chars = s.getStr();
+            var new_chars = allocator.alloc(u8, chars.len) catch outOfMemory();
+
+            const str_to_replace = switch (to_replace) {
+                .string => |char| char.getStr(),
+                else => return err_ctx.wrongParameterType("'replace' second parameter", "string"),
+            };
+
+            if (str_to_replace.len != 1) {
+                return err_ctx.wrongParameterType("'replace' second parameter", "string of length one");
+            }
+            const char_to_replace = str_to_replace[0];
+
+            const str_new_value = switch (new_value) {
+                .string => |char| char.getStr(),
+                else => return err_ctx.wrongParameterType("'replace' third parameter", "string"),
+            };
+
+            if (str_new_value.len != 1) {
+                return err_ctx.wrongParameterType("'replace' third parameter", "string of length one");
+            }
+            const char_new_value = str_new_value[0];
+
+            for (chars, 0..) |char, i| {
+                const new_char = if (char == char_to_replace) char_new_value else char;
+                new_chars[i] = new_char;
+            }
+
+            return LispType.String.initString(allocator, new_chars);
+        },
+        else => return err_ctx.wrongParameterType("'replace' first argument", "list, vector or string"),
+    }
+}
+
 pub fn apply(
     allocator: std.mem.Allocator,
     args_: []LispType,
@@ -1564,6 +1629,9 @@ pub fn help(
     };
 }
 
+/// Loads the file in the current environment and returns nil.
+/// @argument file-path: string
+/// @return nil
 pub fn loadFile(
     allocator: std.mem.Allocator,
     args: []LispType,
@@ -1572,6 +1640,23 @@ pub fn loadFile(
 ) LispError!LispType {
     const ret = try slurp(allocator, args, env, err_ctx);
     const src = std.fmt.allocPrint(allocator, "(do {s} nil)", .{ret.string.getStr()}) catch outOfMemory();
+    const ast = reader.readStr(allocator, src) catch |err| {
+        return err_ctx.parserError(err);
+    };
+    return core.eval(allocator, ast, env, err_ctx);
+}
+
+/// Loads the file in the current environment and returns the last statement.
+/// @argument file-path: string
+/// @return any
+pub fn evalFile(
+    allocator: std.mem.Allocator,
+    args: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    const ret = try slurp(allocator, args, env, err_ctx);
+    const src = std.fmt.allocPrint(allocator, "(do {s})", .{ret.string.getStr()}) catch outOfMemory();
     const ast = reader.readStr(allocator, src) catch |err| {
         return err_ctx.parserError(err);
     };
