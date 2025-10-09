@@ -559,9 +559,9 @@ pub fn replace(
     }
 
     const args = try evalArgs(allocator, args_, env, err_ctx);
-    const to_replace = args[1];
-    const new_value = args[2];
-    switch (args[0]) {
+    const to_replace = args[0];
+    const new_value = args[1];
+    switch (args[2]) {
         .list, .vector => |arr| {
             const items = arr.getItems();
             var new_arr = std.ArrayList(LispType).initCapacity(allocator, items.len) catch outOfMemory();
@@ -572,7 +572,7 @@ pub fn replace(
                 new_arr.appendAssumeCapacity(new_item);
             }
 
-            return switch (args[0]) {
+            return switch (args[2]) {
                 .list => LispType.Array.initList(allocator, new_arr.items),
                 .vector => LispType.Array.initVector(allocator, new_arr.items),
                 else => unreachable,
@@ -584,21 +584,21 @@ pub fn replace(
 
             const str_to_replace = switch (to_replace) {
                 .string => |char| char.getStr(),
-                else => return err_ctx.wrongParameterType("'replace' second parameter", "string"),
+                else => return err_ctx.wrongParameterType("'replace' first parameter", "string"),
             };
 
             if (str_to_replace.len != 1) {
-                return err_ctx.wrongParameterType("'replace' second parameter", "string of length one");
+                return err_ctx.wrongParameterType("'replace' first parameter", "string of length one");
             }
             const char_to_replace = str_to_replace[0];
 
             const str_new_value = switch (new_value) {
                 .string => |char| char.getStr(),
-                else => return err_ctx.wrongParameterType("'replace' third parameter", "string"),
+                else => return err_ctx.wrongParameterType("'replace' second parameter", "string"),
             };
 
             if (str_new_value.len != 1) {
-                return err_ctx.wrongParameterType("'replace' third parameter", "string of length one");
+                return err_ctx.wrongParameterType("'replace' second parameter", "string of length one");
             }
             const char_new_value = str_new_value[0];
 
@@ -609,7 +609,7 @@ pub fn replace(
 
             return LispType.String.initString(allocator, new_chars);
         },
-        else => return err_ctx.wrongParameterType("'replace' first argument", "list, vector or string"),
+        else => return err_ctx.wrongParameterType("'replace' third argument", "list, vector or string"),
     }
 }
 
