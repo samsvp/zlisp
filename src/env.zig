@@ -216,6 +216,8 @@ pub const Env = struct {
         self.mapping.put(allocator, "slurp", LispType.Function.createBuiltin(allocator, lisp_std.slurp)) catch outOfMemory();
         self.mapping.put(allocator, "read-str", LispType.Function.createBuiltin(allocator, lisp_std.readStr)) catch outOfMemory();
         self.mapping.put(allocator, "load-file", LispType.Function.createBuiltin(allocator, lisp_std.loadFile)) catch outOfMemory();
+        self.mapping.put(allocator, "write-file", LispType.Function.createBuiltin(allocator, lisp_std.writeFile)) catch outOfMemory();
+        self.mapping.put(allocator, "list-dir", LispType.Function.createBuiltin(allocator, lisp_std.listDir)) catch outOfMemory();
         self.mapping.put(allocator, "apply", LispType.Function.createBuiltin(allocator, lisp_std.apply)) catch outOfMemory();
 
         // custom enum

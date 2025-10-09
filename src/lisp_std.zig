@@ -1473,6 +1473,78 @@ pub fn slurp(
     return LispType.String.initString(allocator, buffer);
 }
 
+/// Writes the variable to the given file path.
+/// @argument file_path: string
+/// @argument content: any
+/// @return: nil
+pub fn writeFile(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len != 2) {
+        return err_ctx.wrongNumberOfArguments("write-file", 2, args_.len);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+    const filepath =
+        if (args[0] == .string)
+            args[0].string.getStr()
+        else
+            return err_ctx.wrongParameterType("'write-file' first argumet", "string");
+
+    const content_str = args[1].toStringFull(allocator) catch outOfMemory();
+
+    var file = std.fs.cwd().createFile(filepath, .{}) catch |err| return err_ctx.createFile(filepath, err);
+    defer file.close();
+
+    file.writeAll(content_str) catch |err| return err_ctx.writeFile(filepath, err);
+    return .nil;
+}
+
+/// Lists the files in the given directory.
+/// @argument file_path: string
+/// @argument content: any
+/// @return: list[string]
+pub fn listDir(
+    allocator: std.mem.Allocator,
+    args: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args.len != 1) {
+        return err_ctx.wrongNumberOfArguments("list-dir", 1, args.len);
+    }
+
+    const val = try core.eval(allocator, args[0], env, err_ctx);
+    const path = switch (val) {
+        .string => |s| s.getStr(),
+        else => return err_ctx.wrongParameterType("'list-dir' argument", "string"),
+    };
+
+    var dir = std.fs.cwd().openDir(path, .{ .iterate = true }) catch |err| return err_ctx.open(path, err);
+    defer dir.close();
+
+    var files = std.ArrayList(LispType).empty;
+    defer files.deinit(allocator);
+
+    var iter = dir.iterate();
+    while (iter.next() catch |err| {
+        const err_str = std.fmt.allocPrint(
+            allocator,
+            "[ list-dir ] Error iterating directory {s}: {any}",
+            .{ path, err },
+        ) catch outOfMemory();
+        return err_ctx.customError(err_str);
+    }) |entry| {
+        const name = LispType.String.initString(allocator, entry.name);
+        files.append(allocator, name) catch outOfMemory();
+    }
+
+    return LispType.Array.initList(allocator, files.items);
+}
+
 pub fn help(
     allocator: std.mem.Allocator,
     args_: []LispType,

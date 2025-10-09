@@ -18,6 +18,9 @@ pub const LispError = error{
     WrongNumberOfArguments,
 
     FileDoesNotExist,
+    OpenError,
+    CreateFile,
+    WriteFile,
     IOError,
 };
 
@@ -109,6 +112,36 @@ pub const Context = struct {
             .{filename},
         ) catch outOfMemory();
         return LispError.FileDoesNotExist;
+    }
+
+    pub fn open(self: *Self, filename: []const u8, err: anyerror) LispError {
+        self.clear();
+        std.fmt.format(
+            self.buffer.writer(self.allocator),
+            "Could not open {s}: {any}",
+            .{filename, err},
+        ) catch outOfMemory();
+        return LispError.OpenError;
+    }
+
+    pub fn createFile(self: *Self, filename: []const u8, err: anyerror) LispError {
+        self.clear();
+        std.fmt.format(
+            self.buffer.writer(self.allocator),
+            "Could not create file {s}: {any}",
+            .{filename, err},
+        ) catch outOfMemory();
+        return LispError.CreateFile;
+    }
+
+    pub fn writeFile(self: *Self, filename: []const u8, err: anyerror) LispError {
+        self.clear();
+        std.fmt.format(
+            self.buffer.writer(self.allocator),
+            "Could not write data to file {s}: {any}",
+            .{filename, err},
+        ) catch outOfMemory();
+        return LispError.WriteFile;
     }
 
     pub fn ioError(self: *Self) LispError {
