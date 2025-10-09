@@ -549,7 +549,6 @@ pub fn reduce(
 }
 
 /// Returns a new collection where all occurrences of a specified value are replaced with a new value.
-/// For strings, only replaces individual characters.
 /// @argument to_replace: any
 /// @argument new_value: any
 /// @argument collection: list | vector | string
@@ -563,11 +562,13 @@ pub fn replace(
         return err_ctx.atLeastNArguments("replace", 3);
     }
 
-    const args = try evalArgs(allocator, args_, env, err_ctx);
-    const to_replace = args[0];
-    const new_value = args[1];
-    switch (args[2]) {
+    const col = try core.eval(allocator, args_[2], env, err_ctx);
+    args_[2] = col;
+    return switch (col) {
         .list, .vector => |arr| {
+        const args = try evalArgs(allocator, args_[0..2], env, err_ctx);
+        const to_replace = args[0];
+        const new_value = args[1];
             const items = arr.getItems();
             var new_arr = std.ArrayList(LispType).initCapacity(allocator, items.len) catch outOfMemory();
             defer new_arr.deinit(allocator);
@@ -583,39 +584,9 @@ pub fn replace(
                 else => unreachable,
             };
         },
-        .string => |s| {
-            const chars = s.getStr();
-            var new_chars = allocator.alloc(u8, chars.len) catch outOfMemory();
-
-            const str_to_replace = switch (to_replace) {
-                .string => |char| char.getStr(),
-                else => return err_ctx.wrongParameterType("'replace' first parameter", "string"),
-            };
-
-            if (str_to_replace.len != 1) {
-                return err_ctx.wrongParameterType("'replace' first parameter", "string of length one");
-            }
-            const char_to_replace = str_to_replace[0];
-
-            const str_new_value = switch (new_value) {
-                .string => |char| char.getStr(),
-                else => return err_ctx.wrongParameterType("'replace' second parameter", "string"),
-            };
-
-            if (str_new_value.len != 1) {
-                return err_ctx.wrongParameterType("'replace' second parameter", "string of length one");
-            }
-            const char_new_value = str_new_value[0];
-
-            for (chars, 0..) |char, i| {
-                const new_char = if (char == char_to_replace) char_new_value else char;
-                new_chars[i] = new_char;
-            }
-
-            return LispType.String.initString(allocator, new_chars);
-        },
-        else => return err_ctx.wrongParameterType("'replace' third argument", "list, vector or string"),
-    }
+        .string => replaceStr(allocator, args_, env, err_ctx),
+        else => err_ctx.wrongParameterType("'replace' third argument", "list, vector or string"),
+    };
 }
 
 /// Returns a new string where all occurrences of a specified value are replaced with a new value.
