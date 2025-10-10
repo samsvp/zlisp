@@ -1830,29 +1830,24 @@ pub fn arrow(
         return err_ctx.atLeastNArguments("arrow", 2);
     }
 
-    var ret = try core.eval(allocator, args[0], env, err_ctx);
+    var acc = args[0];
     for (args[1..]) |arg| {
-        const ast = switch (arg) {
+        const func_ast = switch (arg) {
             .symbol => try core.eval(allocator, arg, env, err_ctx),
             .list, .function => arg,
             else => return err_ctx.wrongParameterType("'arrow' tail arguments", "list or function"),
         };
-        ret = switch (ast) {
-            .function => try core.eval(
-                allocator,
-                LispType.Array.initList(allocator, &[_]LispType{ ast, ret }),
-                env,
-                err_ctx,
-            ),
+        acc = switch (func_ast) {
+            .function => LispType.Array.initList(allocator, &[_]LispType{ func_ast, acc }),
             .list => |l| switch (pos) {
-                .first => try core.eval(allocator, l.insert(allocator, 1, ret), env, err_ctx),
-                .last => try core.eval(allocator, l.append(allocator, ret), env, err_ctx),
+                .first => l.insert(allocator, 1, acc),
+                .last => l.append(allocator, acc),
             },
             else => return err_ctx.wrongParameterType("'arrow' tail arguments", "list or function"),
         };
     }
 
-    return ret;
+    return core.eval(allocator, acc, env, err_ctx);
 }
 
 /// Applies the first argument to the subsequent functions at the last position.

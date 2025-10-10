@@ -91,10 +91,15 @@ pub const LispType = union(enum) {
             var items = std.ArrayListUnmanaged(LispType).initCapacity(allocator, self.getItems().len + 1) catch {
                 outOfMemory();
             };
-            items.appendSliceAssumeCapacity(self.array.items);
-            items.insertAssumeCapacity(i, item);
+            items.appendSliceAssumeCapacity(self.array.items[0..i]);
+            items.appendAssumeCapacity(item);
+            items.appendSliceAssumeCapacity(self.array.items[i..self.array.items.len]);
 
             return .{ .list = .{ .array = items, .array_type = self.array_type } };
+        }
+
+        pub fn insertMut(self: *Array, allocator: std.mem.Allocator, i: usize, item: LispType) void {
+            self.array.insert(allocator, i, item) catch outOfMemory();
         }
 
         pub fn prepend(allocator: std.mem.Allocator, item: LispType, self: Array) LispType {

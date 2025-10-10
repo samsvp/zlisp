@@ -24,10 +24,7 @@ pub fn main() !void {
     while (ln.linenoise("user> ")) |line| {
         defer ln.linenoiseFree(line);
         const input: []const u8 = std.mem.span(line);
-        const res = script.rep(input) catch |err| {
-            try stdout.print("{any}\n", .{err});
-            continue;
-        };
+        const res = try script.rep(input);
 
         try stdout.print("{s}\n", .{res});
         try stdout.flush();
