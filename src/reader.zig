@@ -65,6 +65,16 @@ fn tokenize(
                         '"' => if (escaped) {
                             escaped = false;
                         },
+                        'n' => if (escaped) {
+                            escaped = false;
+                            try str.append(allocator, '\n');
+                            continue;
+                        },
+                        't' => if (escaped) {
+                            escaped = false;
+                            try str.append(allocator, '\t');
+                            continue;
+                        },
                         else => escaped = false,
                     }
 
