@@ -37,10 +37,10 @@ pub const LispType = union(enum) {
             vector,
         };
 
-        const ZArray = std.ArrayListUnmanaged(LispType);
+        const ZArray = std.ArrayList(LispType);
 
         fn initArr(allocator: std.mem.Allocator, arr: []const LispType) ZArray {
-            var items = std.ArrayListUnmanaged(LispType).initCapacity(allocator, arr.len) catch outOfMemory();
+            var items = std.ArrayList(LispType).initCapacity(allocator, arr.len) catch outOfMemory();
 
             for (arr) |*a| {
                 items.appendAssumeCapacity(a.clone(allocator));
@@ -74,7 +74,7 @@ pub const LispType = union(enum) {
         }
 
         pub fn append(self: Array, allocator: std.mem.Allocator, item: LispType) LispType {
-            var items = std.ArrayListUnmanaged(LispType).initCapacity(allocator, self.getItems().len + 1) catch {
+            var items = std.ArrayList(LispType).initCapacity(allocator, self.getItems().len + 1) catch {
                 outOfMemory();
             };
             items.appendSliceAssumeCapacity(self.array.items);
@@ -88,7 +88,7 @@ pub const LispType = union(enum) {
         }
 
         pub fn insert(self: Array, allocator: std.mem.Allocator, i: usize, item: LispType) LispType {
-            var items = std.ArrayListUnmanaged(LispType).initCapacity(allocator, self.getItems().len + 1) catch {
+            var items = std.ArrayList(LispType).initCapacity(allocator, self.getItems().len + 1) catch {
                 outOfMemory();
             };
             items.appendSliceAssumeCapacity(self.array.items[0..i]);
@@ -103,7 +103,7 @@ pub const LispType = union(enum) {
         }
 
         pub fn prepend(allocator: std.mem.Allocator, item: LispType, self: Array) LispType {
-            var items = std.ArrayListUnmanaged(LispType).initCapacity(allocator, self.getItems().len + 1) catch {
+            var items = std.ArrayList(LispType).initCapacity(allocator, self.getItems().len + 1) catch {
                 outOfMemory();
             };
 
@@ -119,7 +119,7 @@ pub const LispType = union(enum) {
                 return null;
             }
 
-            var tail_ = std.ArrayListUnmanaged(LispType).initCapacity(allocator, self.getItems().len - 1) catch {
+            var tail_ = std.ArrayList(LispType).initCapacity(allocator, self.getItems().len - 1) catch {
                 outOfMemory();
             };
             tail_.appendSliceAssumeCapacity(items[1..]);
@@ -560,7 +560,7 @@ pub const LispType = union(enum) {
 
         /// Concatenates s1 and s2 on a new string
         pub fn add(allocator: std.mem.Allocator, s1: String, s2: String) LispType {
-            var chars = std.ArrayListUnmanaged(u8).initCapacity(allocator, s1.getStr().len + s2.getStr().len) catch {
+            var chars = std.ArrayList(u8).initCapacity(allocator, s1.getStr().len + s2.getStr().len) catch {
                 outOfMemory();
             };
             chars.appendSliceAssumeCapacity(s1.getStr());
@@ -832,7 +832,7 @@ pub const LispType = union(enum) {
     /// Converts the type to a zig string. This will convert the whole type, as such, it needs an allocator
     /// and the result must be freed by the caller.
     pub fn toStringFull(self: LispType, allocator: std.mem.Allocator) ![]const u8 {
-        var buffer: std.ArrayListUnmanaged(u8) = .empty;
+        var buffer: std.ArrayList(u8) = .empty;
         try self.toStringInternal(allocator, &buffer);
         return try buffer.toOwnedSlice(allocator);
     }
@@ -930,7 +930,7 @@ pub const Enum = struct {
     /// This will be called when setting the value to the global environment (i.e. when using the
     /// `def` function) or when returning the value from an expression.
     pub fn clone(self: Self, allocator: std.mem.Allocator) Self {
-        var new_options = std.ArrayListUnmanaged([]const u8).initCapacity(allocator, self.options.len) catch outOfMemory();
+        var new_options = std.ArrayList([]const u8).initCapacity(allocator, self.options.len) catch outOfMemory();
         for (self.options) |opts| {
             const o = allocator.dupe(u8, opts) catch outOfMemory();
             new_options.appendAssumeCapacity(o);

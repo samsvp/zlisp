@@ -163,7 +163,6 @@ pub const Env = struct {
         self.mapping.put(allocator, "filter", LispType.Function.createBuiltin(allocator, lisp_std.filter)) catch outOfMemory();
         self.mapping.put(allocator, "reduce", LispType.Function.createBuiltin(allocator, lisp_std.reduce)) catch outOfMemory();
         self.mapping.put(allocator, "replace", LispType.Function.createBuiltin(allocator, lisp_std.replace)) catch outOfMemory();
-        self.mapping.put(allocator, "replace-str", LispType.Function.createBuiltin(allocator, lisp_std.replaceStr)) catch outOfMemory();
         self.mapping.put(allocator, "nth", LispType.Function.createBuiltin(allocator, lisp_std.nth)) catch outOfMemory();
         self.mapping.put(allocator, "head", LispType.Function.createBuiltin(allocator, lisp_std.head)) catch outOfMemory();
         self.mapping.put(allocator, "first", LispType.Function.createBuiltin(allocator, lisp_std.head)) catch outOfMemory();
@@ -175,6 +174,10 @@ pub const Env = struct {
         self.mapping.put(allocator, "conj", LispType.Function.createBuiltin(allocator, lisp_std.conj)) catch outOfMemory();
         self.mapping.put(allocator, "conj!", LispType.Function.createBuiltin(allocator, lisp_std.conjBang)) catch outOfMemory();
         self.mapping.put(allocator, "concat", LispType.Function.createBuiltin(allocator, lisp_std.concat)) catch outOfMemory();
+
+        // string
+        self.mapping.put(allocator, "split", LispType.Function.createBuiltin(allocator, lisp_std.split)) catch outOfMemory();
+        self.mapping.put(allocator, "replace-str", LispType.Function.createBuiltin(allocator, lisp_std.replaceStr)) catch outOfMemory();
 
         // atoms
         self.mapping.put(allocator, "atom", LispType.Function.createBuiltin(allocator, lisp_std.atom)) catch outOfMemory();

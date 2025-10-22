@@ -566,9 +566,9 @@ pub fn replace(
     args_[2] = col;
     return switch (col) {
         .list, .vector => |arr| {
-        const args = try evalArgs(allocator, args_[0..2], env, err_ctx);
-        const to_replace = args[0];
-        const new_value = args[1];
+            const args = try evalArgs(allocator, args_[0..2], env, err_ctx);
+            const to_replace = args[0];
+            const new_value = args[1];
             const items = arr.getItems();
             var new_arr = std.ArrayList(LispType).initCapacity(allocator, items.len) catch outOfMemory();
             defer new_arr.deinit(allocator);
@@ -626,7 +626,7 @@ pub fn replaceStr(
             break;
         }
 
-        if (std.mem.eql(u8, og_str[i..i+to_replace.len], to_replace)) {
+        if (std.mem.eql(u8, og_str[i .. i + to_replace.len], to_replace)) {
             new_str.appendSlice(allocator, new_value) catch outOfMemory();
             i += to_replace.len;
             continue;
@@ -637,6 +637,39 @@ pub fn replaceStr(
     }
 
     return LispType.String.initString(allocator, new_str.items);
+}
+
+pub fn split(
+    allocator: std.mem.Allocator,
+    args_: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args_.len < 2) {
+        return err_ctx.atLeastNArguments("split", 2);
+    }
+
+    const args = try evalArgs(allocator, args_, env, err_ctx);
+
+    const base_string = switch (args[0]) {
+        .string => |s| s.getStr(),
+        else => return err_ctx.wrongParameterType("'split' first argument", "string"),
+    };
+
+    const separator = switch (args[1]) {
+        .string => |s| s.getStr(),
+        else => return err_ctx.wrongParameterType("'split' second argument", "string"),
+    };
+
+    var ret = std.ArrayList(LispType).empty;
+    var it = std.mem.splitSequence(u8, base_string, separator);
+    while (it.next()) |s| {
+        if (s.len != 0) {
+            ret.append(allocator, LispType.String.initString(allocator, s)) catch outOfMemory();
+        }
+    }
+
+    return .{ .list = LispType.Array{ .array = ret, .array_type = .list } };
 }
 
 pub fn apply(
