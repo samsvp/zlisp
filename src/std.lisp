@@ -96,6 +96,21 @@
           (nth lst i)))
       lst)))
 
+(defn flatten
+  "Flattens a list of lists.
+   Examples:
+      (= (flatten ((1 2 3) (4 5))) (1 2 3 4 5))
+      (= (flatten [(1 2 3) (4 5)]) [1 2 3 4 5])"
+  [col]
+  (reduce + (if (list? col) () []) col))
+
+(defn flat-map
+  "Calls the given function with each item of the collection as an argument, then flattens the result."
+  [func col]
+  (->> col
+       (map func)
+       flatten))
+
 (defn all
   "Returns true if all elements of the collection satisfies the given condition."
   [condition col]
