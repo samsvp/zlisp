@@ -56,6 +56,18 @@
       ('map ('fn [value] ast) col)
       (throw "'for' macro missing ':in' keyword"))))
 
+(defn range
+    "Creates a list from `from` to `to`, inclusive.
+     Examples
+        (= (range 0 10) (0 1 2 3 4 5 6 7 8 9 10))
+        (= (range 25 20) (25 24 23 22 21 20))"
+    [from to]
+    (if (= from to)
+      (to)
+      (cons from (range
+                    (if (< from to) (inc from) (dec from))
+                    to))))
+
 (defmacro while
   (fn
     [condition ast]

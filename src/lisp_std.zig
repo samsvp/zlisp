@@ -128,14 +128,14 @@ pub fn cmp(
     const v1: f32 = switch (args_eval.items[0]) {
         .int => |i| @floatFromInt(i),
         .float => |f| f,
-        else => return err_ctx.wrongParameterType("Operands", "int or float"),
+        else => return err_ctx.wrongParameterType(fn_symbol, "int or float"),
     };
 
     return for (args_eval.items[1..]) |a| {
         const v2: f32 = switch (a) {
             .int => |i| @floatFromInt(i),
             .float => |f| f,
-            else => return err_ctx.wrongParameterType("Operands", "int or float"),
+            else => return err_ctx.wrongParameterType(fn_symbol, "int or float"),
         };
         if (!cmpFn(v1, v2)) break LispType.lisp_false;
     } else blk: {
@@ -651,14 +651,14 @@ pub fn split(
 
     const args = try evalArgs(allocator, args_, env, err_ctx);
 
-    const base_string = switch (args[0]) {
+    const base_string = switch (args[1]) {
         .string => |s| s.getStr(),
-        else => return err_ctx.wrongParameterType("'split' first argument", "string"),
+        else => return err_ctx.wrongParameterType("'split' last argument", "string"),
     };
 
-    const separator = switch (args[1]) {
+    const separator = switch (args[0]) {
         .string => |s| s.getStr(),
-        else => return err_ctx.wrongParameterType("'split' second argument", "string"),
+        else => return err_ctx.wrongParameterType("'split' separator argument", "string"),
     };
 
     var ret = std.ArrayList(LispType).empty;
@@ -1365,6 +1365,62 @@ pub fn keyword(
         },
         .keyword => val,
         else => err_ctx.wrongParameterType("'keyword' argument", "string or keyword"),
+    };
+}
+
+/// Tries to convert the given argument to an integer.
+/// @argument 1: str | int | float
+/// @return: int
+pub fn int(
+    allocator: std.mem.Allocator,
+    args: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args.len != 1) {
+        return err_ctx.wrongNumberOfArguments("int", 1, args.len);
+    }
+
+    const val = try core.eval(allocator, args[0], env, err_ctx);
+    return switch (val) {
+        .int => val,
+        .float => |f| .{ .int = @intFromFloat(f) },
+        .string => |s| {
+            const string = s.getStr();
+            const i = std.fmt.parseInt(i32, string, 10) catch {
+                return err_ctx.invalidCast("int", "int");
+            };
+            return .{ .int = i };
+        },
+        else => err_ctx.wrongParameterType("'int' argument", "int, float or string"),
+    };
+}
+
+/// Tries to convert the given argument to a float.
+/// @argument 1: str | int | float
+/// @return: float
+pub fn float(
+    allocator: std.mem.Allocator,
+    args: []LispType,
+    env: *Env,
+    err_ctx: *errors.Context,
+) LispError!LispType {
+    if (args.len != 1) {
+        return err_ctx.wrongNumberOfArguments("int", 1, args.len);
+    }
+
+    const val = try core.eval(allocator, args[0], env, err_ctx);
+    return switch (val) {
+        .float => val,
+        .int => |i| .{ .float = @floatFromInt(i) },
+        .string => |s| {
+            const string = s.getStr();
+            const i = std.fmt.parseFloat(f32, string) catch {
+                return err_ctx.invalidCast("float", "float");
+            };
+            return .{ .float = i };
+        },
+        else => err_ctx.wrongParameterType("'int' argument", "int, float or string"),
     };
 }
 

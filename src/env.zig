@@ -199,6 +199,8 @@ pub const Env = struct {
         self.mapping.put(allocator, "vector", LispType.Function.createBuiltin(allocator, lisp_std.vector)) catch outOfMemory();
         self.mapping.put(allocator, "dict", LispType.Function.createBuiltin(allocator, lisp_std.dict)) catch outOfMemory();
         self.mapping.put(allocator, "str", LispType.Function.createBuiltin(allocator, lisp_std.str)) catch outOfMemory();
+        self.mapping.put(allocator, "int", LispType.Function.createBuiltin(allocator, lisp_std.int)) catch outOfMemory();
+        self.mapping.put(allocator, "float", LispType.Function.createBuiltin(allocator, lisp_std.float)) catch outOfMemory();
         self.mapping.put(allocator, "symbol", LispType.Function.createBuiltin(allocator, lisp_std.symbol)) catch outOfMemory();
         self.mapping.put(allocator, "keyword", LispType.Function.createBuiltin(allocator, lisp_std.keyword)) catch outOfMemory();
 
