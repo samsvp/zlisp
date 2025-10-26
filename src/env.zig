@@ -227,7 +227,7 @@ pub const Env = struct {
         self.mapping.put(allocator, "load-file", LispType.Function.createBuiltin(allocator, lisp_std.loadFile)) catch outOfMemory();
         self.mapping.put(allocator, "eval-file", LispType.Function.createBuiltin(allocator, lisp_std.evalFile)) catch outOfMemory();
         self.mapping.put(allocator, "write-file", LispType.Function.createBuiltin(allocator, lisp_std.writeFile)) catch outOfMemory();
-        if (builtin.target.os.tag != .emscripten) {
+        if (builtin.target.os.tag != .emscripten and builtin.target.os.tag != .wasi) {
             self.mapping.put(allocator, "list-dir", LispType.Function.createBuiltin(allocator, lisp_std.listDir)) catch outOfMemory();
         }
         self.mapping.put(allocator, "apply", LispType.Function.createBuiltin(allocator, lisp_std.apply)) catch outOfMemory();
