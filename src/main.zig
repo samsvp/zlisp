@@ -19,10 +19,20 @@ pub fn main() !void {
     defer chunk.deinit(allocator);
 
     try chunk.append(allocator, .ret, 123);
-    const i = try chunk.addConstant(allocator, 1.2);
 
-    try chunk.append(allocator, .constant, 123);
-    try chunk.code.append(allocator, @intCast(i));
+    for (0..280) |_| {
+        const i = try chunk.addConstant(allocator, 1.2);
+
+        if (i <= 255) {
+            try chunk.append(allocator, .constant, 123);
+            try chunk.code.append(allocator, @intCast(i));
+        } else {
+            try chunk.append(allocator, .constant_long, 123);
+            const int_16: u16 = @intCast(i);
+            const bytes = std.mem.toBytes(int_16);
+            try chunk.code.appendSlice(allocator, &bytes);
+        }
+    }
 
     try debug.disassembleChunk(chunk, "Test", stdout);
 }

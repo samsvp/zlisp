@@ -5,6 +5,7 @@ pub const OpCode = enum {
     noop,
     ret,
     constant,
+    constant_long,
 };
 
 pub const Chunk = struct {
