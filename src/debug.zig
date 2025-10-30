@@ -19,7 +19,11 @@ pub fn disassembleChunk(chunk: Chunk, name: []const u8, writer: *std.io.Writer) 
     while (index < chunk.code.items.len) : (line_i += 1) {
         const c = chunk.code.items[index];
         const new_line = chunk.lines.items[line_i];
-        const op_code: OpCode = @enumFromInt(c);
+        const op_code = std.enums.fromInt(OpCode, c) orelse {
+            try writer.print("[ {d:0>4} ] {d:0>4} INVALID OP CODE", .{ index, new_line });
+            index += 1;
+            continue;
+        };
 
         const op_name, const offset: usize = switch (op_code) {
             .constant => constant: {
