@@ -1,7 +1,8 @@
+const std = @import("std");
+
 pub const Value = f64;
 
 // stub
-fn printValue(v: Value) []const u8 {
-    _ = v;
-    return "";
+pub fn printValue(v: Value) void {
+    std.debug.print("{}\n", .{v});
 }

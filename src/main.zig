@@ -1,5 +1,6 @@
 const std = @import("std");
 const Chunk = @import("chunk.zig").Chunk;
+const VM = @import("vm.zig").VM;
 const debug = @import("debug.zig");
 
 pub fn main() !void {
@@ -11,14 +12,11 @@ pub fn main() !void {
 
     const allocator = gpa.allocator();
 
-    var buffer: [1024]u8 = undefined;
-    var writer = std.fs.File.stdout().writer(&buffer);
-    const stdout = &writer.interface;
+    var vm = VM.init();
+    defer vm.deinit(allocator);
 
     var chunk = Chunk.empty;
     defer chunk.deinit(allocator);
-
-    try chunk.append(allocator, .ret, 123);
 
     for (0..280) |_| {
         const i = try chunk.addConstant(allocator, 1.2);
@@ -34,5 +32,7 @@ pub fn main() !void {
         }
     }
 
-    try debug.disassembleChunk(chunk, "Test", stdout);
+    try chunk.append(allocator, .ret, 123);
+
+    _ = try vm.interpret(chunk);
 }
