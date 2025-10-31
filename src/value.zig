@@ -4,5 +4,5 @@ pub const Value = f64;
 
 // stub
 pub fn printValue(v: Value) void {
-    std.debug.print("{}\n", .{v});
+    std.debug.print("{}", .{v});
 }

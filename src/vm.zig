@@ -11,7 +11,10 @@ pub const CompileError = error{
     InvalidInstruction,
 };
 
-pub const InterpreterError = error{};
+pub const InterpreterError = error{
+    StackFull,
+    StackEmpty,
+};
 
 pub const Error = CompileError || InterpreterError;
 
@@ -22,17 +25,45 @@ pub const InterpreterResult = enum {
 pub const VM = struct {
     chunk: Chunk,
     ip: [*]u8,
+    stack: [STACK_MAX]Value,
+    stack_top: usize,
+
+    const STACK_MAX = 256;
 
     pub fn init() VM {
         return .{
             .chunk = .empty,
             .ip = undefined,
+            .stack = undefined,
+            .stack_top = 0,
         };
     }
 
     pub fn deinit(self: *VM, allocator: std.mem.Allocator) void {
         _ = self;
         _ = allocator;
+    }
+
+    fn resetStack(vm: *VM) void {
+        vm.stack_top = 0;
+    }
+
+    fn stackPush(vm: *VM, v: Value) Error!void {
+        if (VM.STACK_MAX <= vm.stack_top) {
+            return Error.StackFull;
+        }
+
+        vm.stack[vm.stack_top] = v;
+        vm.stack_top += 1;
+    }
+
+    fn stackPop(vm: *VM) Error!Value {
+        if (vm.stack_top > 0) {
+            return Error.StackEmpty;
+        }
+
+        vm.stack_top -= 1;
+        return vm.stack[vm.stack_top];
     }
 
     fn readByte(vm: *VM) u8 {
@@ -73,6 +104,15 @@ pub const VM = struct {
                 const line = vm.chunk.lines.items[line_i];
                 const op_name, const offset = debug.disassembleInstruction(vm.chunk, index, &buf) catch unreachable;
 
+                std.debug.print("==== STACK ====\n", .{});
+                std.debug.print("[ ", .{});
+                for (0..vm.stack_top) |i| {
+                    printValue(vm.stack[i]);
+                    std.debug.print(", ", .{});
+                }
+                std.debug.print("]\n", .{});
+
+                std.debug.print("==== OP ====\n", .{});
                 std.debug.print("[ {d:0>4} ] {d:0>4} {s}\n", .{ index, line, op_name });
                 index += offset;
                 line_i += 1;
@@ -80,15 +120,16 @@ pub const VM = struct {
 
             switch (instruction) {
                 .ret => {
+                    _ = try vm.stackPop();
                     return .ok;
                 },
                 .constant => {
                     const v = vm.readConstant();
-                    _ = v;
+                    try vm.stackPush(v);
                 },
                 .constant_long => {
                     const v = vm.readConstantLong();
-                    _ = v;
+                    try vm.stackPush(v);
                 },
                 .noop => {},
             }
