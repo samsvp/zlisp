@@ -25,8 +25,7 @@ pub const InterpreterResult = enum {
 pub const VM = struct {
     chunk: Chunk,
     ip: [*]u8,
-    stack: [STACK_MAX]Value,
-    stack_top: usize,
+    stack: std.ArrayList(Value),
 
     const STACK_MAX = 256;
 
@@ -34,18 +33,16 @@ pub const VM = struct {
         return .{
             .chunk = .empty,
             .ip = undefined,
-            .stack = undefined,
-            .stack_top = 0,
+            .stack = .empty,
         };
     }
 
     pub fn deinit(self: *VM, allocator: std.mem.Allocator) void {
-        _ = self;
-        _ = allocator;
+        self.stack.deinit(allocator);
     }
 
     fn resetStack(vm: *VM) void {
-        vm.stack_top = 0;
+        vm.stack.clearRetainingCapacity();
     }
 
     fn stackPush(vm: *VM, v: Value) Error!void {
@@ -58,12 +55,15 @@ pub const VM = struct {
     }
 
     fn stackPop(vm: *VM) Error!Value {
-        if (vm.stack_top > 0) {
-            return Error.StackEmpty;
-        }
+        return vm.stack.pop() orelse Error.StackEmpty;
+    }
 
-        vm.stack_top -= 1;
-        return vm.stack[vm.stack_top];
+    fn stackPopN(vm: *VM, comptime N: usize) Error![N]Value {
+        var res: [N]Value = undefined;
+        for (0..N) |i| {
+            res[i] = try vm.stackPop();
+        }
+        return res;
     }
 
     fn readByte(vm: *VM) u8 {
@@ -89,7 +89,7 @@ pub const VM = struct {
         return vm.chunk.constants.items[c_index];
     }
 
-    fn run(vm: *VM) Error!InterpreterResult {
+    fn run(vm: *VM, allocator: std.mem.Allocator) !InterpreterResult {
         // debug stuff
         var buf: [32]u8 = undefined;
         var line_i: usize = 0;
@@ -106,8 +106,8 @@ pub const VM = struct {
 
                 std.debug.print("==== STACK ====\n", .{});
                 std.debug.print("[ ", .{});
-                for (0..vm.stack_top) |i| {
-                    printValue(vm.stack[i]);
+                for (vm.stack.items) |i| {
+                    printValue(i);
                     std.debug.print(", ", .{});
                 }
                 std.debug.print("]\n", .{});
@@ -120,25 +120,46 @@ pub const VM = struct {
 
             switch (instruction) {
                 .ret => {
-                    _ = try vm.stackPop();
+                    const v = try vm.stackPop();
+                    printValue(v);
+                    std.debug.print("\n", .{});
                     return .ok;
                 },
                 .constant => {
                     const v = vm.readConstant();
-                    try vm.stackPush(v);
+                    try vm.stack.append(allocator, v);
                 },
                 .constant_long => {
                     const v = vm.readConstantLong();
-                    try vm.stackPush(v);
+                    try vm.stack.append(allocator, v);
+                },
+                .negate => {
+                    vm.stack.items[vm.stack.items.len - 1] = -vm.stack.items[vm.stack.items.len - 1];
+                },
+                .add => {
+                    const b, const a = try vm.stackPopN(2);
+                    try vm.stack.append(allocator, a + b);
+                },
+                .subtract => {
+                    const b, const a = try vm.stackPopN(2);
+                    try vm.stack.append(allocator, a - b);
+                },
+                .multiply => {
+                    const b, const a = try vm.stackPopN(2);
+                    try vm.stack.append(allocator, a * b);
+                },
+                .divide => {
+                    const b, const a = try vm.stackPopN(2);
+                    try vm.stack.append(allocator, a / b);
                 },
                 .noop => {},
             }
         }
     }
 
-    pub fn interpret(vm: *VM, chunk: Chunk) Error!InterpreterResult {
+    pub fn interpret(vm: *VM, allocator: std.mem.Allocator, chunk: Chunk) !InterpreterResult {
         vm.chunk = chunk;
         vm.ip = chunk.code.items.ptr;
-        return vm.run();
+        return vm.run(allocator);
     }
 };

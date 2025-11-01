@@ -24,6 +24,11 @@ pub fn disassembleInstruction(chunk: Chunk, index: usize, buf: []u8) !std.meta.T
             break :constant_long .{ res, 3 };
         },
         .ret => .{ "OP_RETURN", 1 },
+        .negate => .{ "OP_NEGATE", 1 },
+        .add => .{ "OP_ADD", 1 },
+        .subtract => .{ "OP_SUBTRACT", 1 },
+        .divide => .{ "OP_DIVIDE", 1 },
+        .multiply => .{ "OP_MULTIPLY", 1 },
         .noop => .{ "OP_NOOP", 1 },
     };
 }

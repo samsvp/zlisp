@@ -18,12 +18,25 @@ pub fn main() !void {
     var chunk = Chunk.empty;
     defer chunk.deinit(allocator);
 
-    const i = try chunk.addConstant(allocator, 1.2);
+    const i_1 = try chunk.addConstant(allocator, 1.2);
+    const i_2 = try chunk.addConstant(allocator, 3.4);
 
     try chunk.append(allocator, .constant, 123);
-    try chunk.code.append(allocator, @intCast(i));
+    try chunk.code.append(allocator, @intCast(i_1));
 
-    try chunk.append(allocator, .ret, 123);
+    try chunk.append(allocator, .constant, 123);
+    try chunk.code.append(allocator, @intCast(i_2));
 
-    _ = try vm.interpret(chunk);
+    try chunk.append(allocator, .add, 123);
+
+    const i_3 = try chunk.addConstant(allocator, 5.6);
+    try chunk.append(allocator, .constant, 123);
+    try chunk.code.append(allocator, @intCast(i_3));
+
+    try chunk.append(allocator, .divide, 123);
+
+    try chunk.append(allocator, .negate, 123);
+    try chunk.append(allocator, .ret, 124);
+
+    _ = try vm.interpret(allocator, chunk);
 }
