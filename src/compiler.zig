@@ -13,10 +13,14 @@ pub fn compile(allocator: std.mem.Allocator, source: []const u8, err_ctx: *error
         .current = 0,
     };
 
+    std.mem.reverse(reader.TokenData, r.token_list.items);
+
     var chunk = Chunk.empty;
 
     while (r.next()) |data| {
-        const atom = try reader.readAtom(allocator, data, err_ctx);
+        var atom = try reader.readAtom(allocator, data, err_ctx);
+        defer atom.value.deinit(allocator);
+
         switch (atom.value) {
             .int, .float, .nil, .boolean => try chunk.emitConstant(allocator, atom.value, atom.line),
             .symbol => |s| {
