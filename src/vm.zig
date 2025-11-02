@@ -1,10 +1,12 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+const reader = @import("reader.zig");
 const debug = @import("debug.zig");
 const Chunk = @import("chunk.zig").Chunk;
 const OpCode = @import("chunk.zig").OpCode;
 const Value = @import("value.zig").Value;
+const compiler = @import("compiler.zig");
 const printValue = @import("value.zig").printValue;
 
 pub const CompileError = error{
@@ -17,10 +19,6 @@ pub const InterpreterError = error{
 };
 
 pub const Error = CompileError || InterpreterError;
-
-pub const InterpreterResult = enum {
-    ok,
-};
 
 pub const VM = struct {
     chunk: Chunk,
@@ -89,7 +87,7 @@ pub const VM = struct {
         return vm.chunk.constants.items[c_index];
     }
 
-    fn run(vm: *VM, allocator: std.mem.Allocator) !InterpreterResult {
+    fn run(vm: *VM, allocator: std.mem.Allocator) !void {
         // debug stuff
         var buf: [32]u8 = undefined;
         var line_i: usize = 0;
@@ -123,7 +121,7 @@ pub const VM = struct {
                     const v = try vm.stackPop();
                     printValue(v);
                     std.debug.print("\n", .{});
-                    return .ok;
+                    return;
                 },
                 .constant => {
                     const v = vm.readConstant();
@@ -157,9 +155,8 @@ pub const VM = struct {
         }
     }
 
-    pub fn interpret(vm: *VM, allocator: std.mem.Allocator, chunk: Chunk) !InterpreterResult {
-        vm.chunk = chunk;
-        vm.ip = chunk.code.items.ptr;
-        return vm.run(allocator);
+    pub fn interpret(vm: *VM, allocator: std.mem.Allocator, source: []const u8) !reader.TokenDataList {
+        _ = vm;
+        return compiler.compile(allocator, source);
     }
 };
