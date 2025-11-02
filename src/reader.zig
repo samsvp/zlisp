@@ -1,4 +1,5 @@
 const std = @import("std");
+const errors = @import("errors.zig");
 const Value = @import("value.zig").Value;
 
 pub const ParserError = error{
@@ -6,6 +7,7 @@ pub const ParserError = error{
     EOFStringReadError,
     UnhashableKey,
     OutOfMemory,
+    NotImplemented,
 };
 
 pub const TokenData = struct {
@@ -14,22 +16,8 @@ pub const TokenData = struct {
 };
 
 pub const Token = struct {
-    // TODO separate `data` into Value and line instead of using TokenData directly.
-    data: TokenData,
-    type: Type,
-
-    pub const Type = enum {
-        string,
-        keyword,
-        symbol,
-        list,
-        vector,
-        dict,
-        int,
-        float,
-        nil,
-        boolean,
-    };
+    value: Value,
+    line: usize,
 };
 
 pub const TokenList = std.ArrayList(Token);
@@ -61,6 +49,7 @@ pub const Reader = struct {
 pub fn tokenize(
     allocator: std.mem.Allocator,
     text_: []const u8,
+    err_ctx: *errors.Ctx,
 ) !TokenDataList {
     var text = text_;
 
@@ -103,6 +92,7 @@ pub fn tokenize(
                 }
 
                 if (offset == text.len) {
+                    try err_ctx.setMsg(allocator, "Unclosed string on line {}", .{line});
                     return ParserError.EOFStringReadError;
                 }
 
@@ -140,80 +130,74 @@ pub fn tokenize(
     return token_list;
 }
 
-fn readAtom(
+pub fn readAtom(
     allocator: std.mem.Allocator,
-    reader: *Reader,
+    atom_token: TokenData,
+    err_ctx: *errors.Ctx,
 ) ParserError!Token {
-    _ = allocator;
-
-    const atom_token = reader.next().?;
     const atom = atom_token.str;
-    if (atom == 0) {
-        return .nil;
+    if (atom.len == 0) {
+        return Token{ .line = atom_token.line, .value = .nil };
     }
 
     switch (atom[0]) {
         ':' => {
-            return Token{
-                .data = atom,
-                .type = .keyword,
-            };
+            err_ctx.setMsg(allocator, "Error reading keyword on line {}", .{atom_token.line}) catch unreachable;
+            return ParserError.NotImplemented;
         },
         '"' => {
             if (atom.len < 2 or atom[atom.len - 1] != '"') {
                 return ParserError.EOFStringReadError;
             }
 
-            return Token{
-                .data = atom,
-                .type = .symbol,
-            };
+            err_ctx.setMsg(allocator, "Error reading string on line {}", .{atom_token.line}) catch unreachable;
+            return ParserError.NotImplemented;
         },
         else => {
             const maybe_num = std.fmt.parseInt(i32, atom, 10) catch null;
-            if (maybe_num) |_| {
+            if (maybe_num) |int| {
                 return Token{
-                    .data = atom,
-                    .type = .int,
+                    .line = atom_token.line,
+                    .value = .{ .int = int },
                 };
             }
             const maybe_float = std.fmt.parseFloat(f32, atom) catch null;
-            if (maybe_float) |_| {
+            if (maybe_float) |float| {
                 return Token{
-                    .data = atom,
-                    .type = .float,
+                    .line = atom_token.line,
+                    .value = .{ .float = float },
                 };
             }
 
             if (std.mem.eql(u8, atom, "nil")) {
                 return Token{
-                    .data = atom,
-                    .type = .nil,
+                    .line = atom_token.line,
+                    .value = .nil,
                 };
             }
 
             if (std.mem.eql(u8, atom, "true")) {
                 return Token{
-                    .data = atom,
-                    .type = .boolean,
+                    .line = atom_token.line,
+                    .value = .{ .boolean = true },
                 };
             } else if (std.mem.eql(u8, atom, "false")) {
                 return Token{
-                    .data = atom,
-                    .type = .boolean,
+                    .line = atom_token.line,
+                    .value = .{ .boolean = false },
                 };
             }
 
             return Token{
-                .data = atom,
-                .type = .symbol,
+                .line = atom_token.line,
+                .value = .{ .symbol = try Value.String.init(allocator, atom) },
             };
         },
     }
 }
 
-fn readForm(allocator: std.mem.Allocator, reader: *Reader) !Token {
-    const maybe_token = reader.peek();
+pub fn readForm(allocator: std.mem.Allocator, reader: *Reader) !Token {
+    const maybe_token = reader.next();
     if (maybe_token == null) {
         return .nil;
     }
@@ -223,7 +207,7 @@ fn readForm(allocator: std.mem.Allocator, reader: *Reader) !Token {
         return .nil;
     }
 
-    return readAtom(allocator, reader);
+    return readAtom(allocator, token);
 }
 
 /// Transforms a string into a lisp expression.

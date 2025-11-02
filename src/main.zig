@@ -1,6 +1,7 @@
 const std = @import("std");
 const ln = @import("linenoise");
 
+const errors = @import("errors.zig");
 const VM = @import("vm.zig").VM;
 const reader = @import("reader.zig");
 
@@ -16,20 +17,19 @@ pub fn repl(allocator: std.mem.Allocator) !void {
     var vm = VM.init();
     defer vm.deinit(allocator);
 
+    var err_ctx = errors.Ctx{ .msg = "" };
+    defer err_ctx.deinit(allocator);
+
     while (ln.linenoise("user> ")) |line| {
         defer ln.linenoiseFree(line);
 
         const input: []const u8 = std.mem.span(line);
-        var tokens = vm.interpret(allocator, input) catch |err| err_blk: {
-            try stdout.print("[ ERROR ] {any}", .{err});
-            break :err_blk reader.TokenDataList.empty;
+        vm.interpret(allocator, input, &err_ctx) catch |err| {
+            try stdout.print("[ ERROR ] {any}\n\t{s}\n", .{ err, err_ctx.msg });
+            try stdout.flush();
+            continue;
         };
-        defer tokens.deinit(allocator);
-
-        for (tokens.items) |t| {
-            try stdout.print("{s} ", .{t.str});
-        }
-        try stdout.print("\n", .{});
+        try stdout.print("{s}\n", .{line});
 
         try stdout.flush();
     }

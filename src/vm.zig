@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const reader = @import("reader.zig");
+const errors = @import("errors.zig");
 const debug = @import("debug.zig");
 const Chunk = @import("chunk.zig").Chunk;
 const OpCode = @import("chunk.zig").OpCode;
@@ -18,7 +18,12 @@ pub const InterpreterError = error{
     StackEmpty,
 };
 
-pub const Error = CompileError || InterpreterError;
+pub const RuntimeError = error{
+    WrongType,
+    DivisionByZero,
+};
+
+pub const Error = CompileError || InterpreterError || RuntimeError;
 
 pub const VM = struct {
     chunk: Chunk,
@@ -50,6 +55,14 @@ pub const VM = struct {
 
         vm.stack[vm.stack_top] = v;
         vm.stack_top += 1;
+    }
+
+    fn stackPeek(vm: *VM) Error!Value {
+        if (vm.stack.items.len == 0) {
+            return Error.StackEmpty;
+        }
+
+        return vm.stack.items[vm.stack.items.len - 1];
     }
 
     fn stackPop(vm: *VM) Error!Value {
@@ -87,7 +100,190 @@ pub const VM = struct {
         return vm.chunk.constants.items[c_index];
     }
 
-    fn run(vm: *VM, allocator: std.mem.Allocator) !void {
+    fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, line: usize, err_ctx: *errors.Ctx) !Value {
+        const val = try vm.stackPop();
+
+        return switch (val) {
+            .int => |i| {
+                var acc: i32 = i;
+                for (1..n) |_| {
+                    const value = try vm.stackPop();
+                    switch (value) {
+                        .int => |i_val| acc += i_val,
+                        else => {
+                            try err_ctx.setMsg(allocator, "'+' line {}: unsupported type {s}", .{ line, @tagName(value) });
+                            return Error.WrongType;
+                        },
+                    }
+                }
+                return .{ .int = acc };
+            },
+            .float => |f| {
+                var acc: f32 = f;
+                for (1..n) |_| {
+                    const value = try vm.stackPop();
+                    switch (value) {
+                        .float => |f_val| acc += f_val,
+                        .int => |i_val| acc += @floatFromInt(i_val),
+                        else => {
+                            try err_ctx.setMsg(allocator, "'+' line {}: unsupported type {s}", .{ line, @tagName(value) });
+                            return Error.WrongType;
+                        },
+                    }
+                }
+                return .{ .float = acc };
+            },
+            else => {
+                try err_ctx.setMsg(allocator, "'+' line {}: unsupported type {s}", .{ line, @tagName(val) });
+                return Error.WrongType;
+            },
+        };
+    }
+
+    fn sub(vm: *VM, allocator: std.mem.Allocator, n: usize, line: usize, err_ctx: *errors.Ctx) !Value {
+        const val = try vm.stackPop();
+
+        return switch (val) {
+            .int => |i| {
+                if (n == 1) {
+                    return .{ .int = -i };
+                }
+
+                var acc: i32 = i;
+                for (1..n) |_| {
+                    const value = try vm.stackPop();
+                    switch (value) {
+                        .int => |i_val| acc -= i_val,
+                        else => {
+                            try err_ctx.setMsg(allocator, "'-' line {}: unsupported type {s}", .{ line, @tagName(value) });
+                            return Error.WrongType;
+                        },
+                    }
+                }
+                return .{ .int = acc };
+            },
+            .float => |f| {
+                if (n == 1) {
+                    return .{ .float = -f };
+                }
+
+                var acc: f32 = f;
+                for (1..n) |_| {
+                    const value = try vm.stackPop();
+                    switch (value) {
+                        .float => |f_val| acc -= f_val,
+                        .int => |i_val| acc -= @floatFromInt(i_val),
+                        else => {
+                            try err_ctx.setMsg(allocator, "'-' line {}: unsupported type {s}", .{ line, @tagName(value) });
+                            return Error.WrongType;
+                        },
+                    }
+                }
+                return .{ .float = acc };
+            },
+            else => {
+                try err_ctx.setMsg(allocator, "'-' line {}: unsupported type {s}", .{ line, @tagName(val) });
+                return Error.WrongType;
+            },
+        };
+    }
+
+    fn multiply(vm: *VM, allocator: std.mem.Allocator, n: usize, line: usize, err_ctx: *errors.Ctx) !Value {
+        const val = try vm.stackPop();
+
+        return switch (val) {
+            .int => |i| {
+                var acc: i32 = i;
+                for (1..n) |_| {
+                    const value = try vm.stackPop();
+                    switch (value) {
+                        .int => |i_val| acc *= i_val,
+                        else => {
+                            try err_ctx.setMsg(allocator, "'*' line {}: unsupported type {s}", .{ line, @tagName(value) });
+                            return Error.WrongType;
+                        },
+                    }
+                }
+                return .{ .int = acc };
+            },
+            .float => |f| {
+                var acc: f32 = f;
+                for (1..n) |_| {
+                    const value = try vm.stackPop();
+                    switch (value) {
+                        .float => |f_val| acc *= f_val,
+                        .int => |i_val| acc *= @floatFromInt(i_val),
+                        else => {
+                            try err_ctx.setMsg(allocator, "'*' line {}: unsupported type {s}", .{ line, @tagName(value) });
+                            return Error.WrongType;
+                        },
+                    }
+                }
+                return .{ .float = acc };
+            },
+            else => {
+                try err_ctx.setMsg(allocator, "'*' line {}: unsupported type {s}", .{ line, @tagName(val) });
+                return Error.WrongType;
+            },
+        };
+    }
+
+    fn div(vm: *VM, allocator: std.mem.Allocator, n: usize, line: usize, err_ctx: *errors.Ctx) !Value {
+        const val = try vm.stackPop();
+
+        return switch (val) {
+            .int => |i| {
+                var acc: i32 = i;
+                for (1..n) |_| {
+                    const value = try vm.stackPop();
+                    switch (value) {
+                        .int => |i_val| if (i_val != 0) {
+                            acc = @divFloor(acc, i_val);
+                        } else {
+                            try err_ctx.setMsg(allocator, "'/' line {}: division by zero", .{line});
+                            return Error.DivisionByZero;
+                        },
+                        else => {
+                            try err_ctx.setMsg(allocator, "'*' line {}: unsupported type {s}", .{ line, @tagName(value) });
+                            return Error.WrongType;
+                        },
+                    }
+                }
+                return .{ .int = acc };
+            },
+            .float => |f| {
+                var acc: f32 = f;
+                for (1..n) |_| {
+                    const value = try vm.stackPop();
+                    switch (value) {
+                        .float => |f_val| if (f_val != 0) {
+                            acc /= f_val;
+                        } else {
+                            try err_ctx.setMsg(allocator, "'/' line {}: division by zero", .{line});
+                            return Error.DivisionByZero;
+                        },
+                        .int => |i_val| if (i_val != 0) {
+                            acc /= @floatFromInt(i_val);
+                        } else {
+                            try err_ctx.setMsg(allocator, "'/' line {}: division by zero", .{line});
+                            return Error.DivisionByZero;
+                        },
+                        else => {
+                            try err_ctx.setMsg(allocator, "'*' line {}: unsupported type {s}", .{ line, @tagName(value) });
+                            return Error.WrongType;
+                        },
+                    }
+                }
+                return .{ .float = acc };
+            },
+            else => {
+                try err_ctx.setMsg(allocator, "'*' line {}: unsupported type {s}", .{ line, @tagName(val) });
+                return Error.WrongType;
+            },
+        };
+    }
+
+    fn run(vm: *VM, allocator: std.mem.Allocator, err_ctx: *errors.Ctx) !void {
         // debug stuff
         var buf: [32]u8 = undefined;
         var line_i: usize = 0;
@@ -98,8 +294,10 @@ pub const VM = struct {
                 return Error.InvalidInstruction;
             };
 
+            const line = vm.chunk.lines.items[line_i];
+            line_i += 1;
+
             if (builtin.mode == .Debug) {
-                const line = vm.chunk.lines.items[line_i];
                 const op_name, const offset = debug.disassembleInstruction(vm.chunk, index, &buf) catch unreachable;
 
                 std.debug.print("==== STACK ====\n", .{});
@@ -113,7 +311,6 @@ pub const VM = struct {
                 std.debug.print("==== OP ====\n", .{});
                 std.debug.print("[ {d:0>4} ] {d:0>4} {s}\n", .{ index, line, op_name });
                 index += offset;
-                line_i += 1;
             }
 
             switch (instruction) {
@@ -132,31 +329,43 @@ pub const VM = struct {
                     try vm.stack.append(allocator, v);
                 },
                 .negate => {
-                    vm.stack.items[vm.stack.items.len - 1] = -vm.stack.items[vm.stack.items.len - 1];
+                    vm.stack.items[vm.stack.items.len - 1] = switch (vm.stack.items[vm.stack.items.len - 1]) {
+                        .int => |i| .{ .int = -i },
+                        .float => |f| .{ .float = -f },
+                        else => {
+                            try err_ctx.setMsg(allocator, "'-': wrong argument type on line {}.", .{line});
+                            return Error.WrongType;
+                        },
+                    };
                 },
                 .add => {
-                    const b, const a = try vm.stackPopN(2);
-                    try vm.stack.append(allocator, a + b);
+                    const val = try vm.add(allocator, 2, line, err_ctx);
+                    try vm.stack.append(allocator, val);
                 },
                 .subtract => {
-                    const b, const a = try vm.stackPopN(2);
-                    try vm.stack.append(allocator, a - b);
+                    const val = try vm.sub(allocator, 2, line, err_ctx);
+                    try vm.stack.append(allocator, val);
                 },
                 .multiply => {
-                    const b, const a = try vm.stackPopN(2);
-                    try vm.stack.append(allocator, a * b);
+                    const val = try vm.multiply(allocator, 2, line, err_ctx);
+                    try vm.stack.append(allocator, val);
                 },
                 .divide => {
-                    const b, const a = try vm.stackPopN(2);
-                    try vm.stack.append(allocator, a / b);
+                    const val = try vm.div(allocator, 2, line, err_ctx);
+                    try vm.stack.append(allocator, val);
                 },
                 .noop => {},
             }
         }
     }
 
-    pub fn interpret(vm: *VM, allocator: std.mem.Allocator, source: []const u8) !reader.TokenDataList {
-        _ = vm;
-        return compiler.compile(allocator, source);
+    pub fn interpret(vm: *VM, allocator: std.mem.Allocator, source: []const u8, err_ctx: *errors.Ctx) !void {
+        var chunk = try compiler.compile(allocator, source, err_ctx);
+        defer chunk.deinit(allocator);
+
+        vm.chunk = chunk;
+        vm.ip = vm.chunk.code.items.ptr;
+
+        try vm.run(allocator, err_ctx);
     }
 };
