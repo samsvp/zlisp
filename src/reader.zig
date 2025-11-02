@@ -66,6 +66,8 @@ pub fn tokenize(
 
     var line: usize = 1;
     var token_list: TokenDataList = .empty;
+    errdefer token_list.deinit(allocator);
+
     while (text.len > 0) {
         const offset = switch (text[0]) {
             '(', ')', '[', ']', '{', '}', '\'', '`', '^', '@' => paren: {
@@ -100,10 +102,11 @@ pub fn tokenize(
                     }
                 }
 
-                if (offset < text.len) {
-                    offset += 1;
+                if (offset == text.len) {
+                    return ParserError.EOFStringReadError;
                 }
 
+                offset += 1;
                 try token_list.append(allocator, .{ .line = line, .str = text[0..offset] });
                 break :string offset;
             },
