@@ -5,20 +5,12 @@ const Chunk = @import("chunk.zig").Chunk;
 const OpCode = @import("chunk.zig").OpCode;
 
 pub fn compile(allocator: std.mem.Allocator, source: []const u8, err_ctx: *errors.Ctx) !Chunk {
-    var tokens_data = try reader.tokenize(allocator, source, err_ctx);
+    var tokens_data = try reader.readStr(allocator, source, err_ctx);
     defer tokens_data.deinit(allocator);
-
-    var r = reader.Reader{
-        .token_list = tokens_data,
-        .current = 0,
-    };
-
-    std.mem.reverse(reader.TokenData, r.token_list.items);
 
     var chunk = Chunk.empty;
 
-    while (r.next()) |data| {
-        var atom = try reader.readAtom(allocator, data, err_ctx);
+    for (tokens_data.items) |*atom| {
         defer atom.value.deinit(allocator);
 
         switch (atom.value) {

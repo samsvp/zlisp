@@ -8,6 +8,7 @@ pub const ParserError = error{
     UnhashableKey,
     OutOfMemory,
     NotImplemented,
+    InvalidToken,
 };
 
 pub const TokenData = struct {
@@ -196,26 +197,68 @@ pub fn readAtom(
     }
 }
 
-pub fn readForm(allocator: std.mem.Allocator, reader: *Reader) !Token {
-    const maybe_token = reader.next();
-    if (maybe_token == null) {
-        return .nil;
+fn _readCollection(
+    allocator: std.mem.Allocator,
+    reader: *Reader,
+    list_acc: *TokenList,
+    acc: *TokenList,
+    err_ctx: *errors.Ctx,
+) ParserError!void {
+    const token_data = reader.peek() orelse return ParserError.EOFCollectionReadError;
+
+    if (token_data.str.len == 1 and token_data.str[0] == ')') {
+        _ = reader.next(); // consume ')'
+        defer list_acc.deinit(allocator);
+
+        std.mem.reverse(Token, list_acc.items);
+        try acc.appendSlice(allocator, list_acc.items);
+        return;
     }
 
-    const token = maybe_token.?;
-    if (token.len == 0) {
-        return .nil;
-    }
+    readForm(allocator, reader, list_acc, err_ctx) catch return ParserError.EOFCollectionReadError;
+    return _readCollection(allocator, reader, list_acc, acc, err_ctx);
+}
 
-    return readAtom(allocator, token);
+fn readCollection(
+    allocator: std.mem.Allocator,
+    reader: *Reader,
+    acc: *TokenList,
+    err_ctx: *errors.Ctx,
+) ParserError!void {
+    var list_acc: std.ArrayList(Token) = .empty;
+    _readCollection(allocator, reader, &list_acc, acc, err_ctx) catch |err| {
+        for (list_acc.items) |*atom| {
+            atom.value.deinit(allocator);
+        }
+        list_acc.deinit(allocator);
+        return err;
+    };
+}
+
+pub fn readForm(
+    allocator: std.mem.Allocator,
+    reader: *Reader,
+    acc: *TokenList,
+    err_ctx: *errors.Ctx,
+) !void {
+    const token_data = reader.next() orelse return ParserError.InvalidToken;
+
+    switch (token_data.str[0]) {
+        '(' => try readCollection(allocator, reader, acc, err_ctx),
+        else => {
+            const token = try readAtom(allocator, token_data, err_ctx);
+            try acc.append(allocator, token);
+        },
+    }
 }
 
 /// Transforms a string into a lisp expression.
 pub fn readStr(
     allocator: std.mem.Allocator,
     subject: []const u8,
+    err_ctx: *errors.Ctx,
 ) !TokenList {
-    var token_list = try tokenize(allocator, subject);
+    var token_list = try tokenize(allocator, subject, err_ctx);
     defer token_list.deinit(allocator);
 
     var reader = Reader{
@@ -223,5 +266,10 @@ pub fn readStr(
         .current = 0,
     };
 
-    return readForm(allocator, &reader);
+    var acc: std.ArrayList(Token) = .empty;
+    while (reader.peek()) |_| {
+        try readForm(allocator, &reader, &acc, err_ctx);
+    }
+
+    return acc;
 }
