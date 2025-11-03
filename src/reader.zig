@@ -206,11 +206,10 @@ fn _readCollection(
 ) ParserError!void {
     const token_data = reader.peek() orelse return ParserError.EOFCollectionReadError;
 
-    if (token_data.str.len == 1 and token_data.str[0] == ')') {
+    if (token_data.str.len == 1 and token_data.str[0] == '(') {
         _ = reader.next(); // consume ')'
         defer list_acc.deinit(allocator);
 
-        std.mem.reverse(Token, list_acc.items);
         try acc.appendSlice(allocator, list_acc.items);
         return;
     }
@@ -244,7 +243,7 @@ pub fn readForm(
     const token_data = reader.next() orelse return ParserError.InvalidToken;
 
     switch (token_data.str[0]) {
-        '(' => try readCollection(allocator, reader, acc, err_ctx),
+        ')' => try readCollection(allocator, reader, acc, err_ctx),
         else => {
             const token = try readAtom(allocator, token_data, err_ctx);
             try acc.append(allocator, token);
@@ -265,6 +264,8 @@ pub fn readStr(
         .token_list = token_list,
         .current = 0,
     };
+
+    std.mem.reverse(TokenData, token_list.items);
 
     var acc: std.ArrayList(Token) = .empty;
     while (reader.peek()) |_| {

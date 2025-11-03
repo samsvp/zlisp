@@ -5,14 +5,12 @@ pub const Value = union(enum) {
     float: f32,
     boolean: bool,
     nil,
-    symbol: String,
+    obj: Obj,
+};
 
-    pub fn deinit(self: *Value, allocator: std.mem.Allocator) void {
-        switch (self.*) {
-            .symbol => |*s| s.deinit(allocator),
-            .int, .float, .boolean, .nil => {},
-        }
-    }
+/// Objects which live in the heap and must be garbage collected.
+pub const Obj = union(enum) {
+    string: String,
 
     pub const String = struct {
         bytes: []const u8,
