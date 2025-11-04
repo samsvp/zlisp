@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const Obj = @import("value.zig").Obj;
 const chunk_ = @import("chunk.zig");
 const OpCode = chunk_.OpCode;
 const Chunk = chunk_.Chunk;
@@ -15,8 +16,8 @@ pub fn disassembleInstruction(allocator: std.mem.Allocator, chunk: Chunk, index:
             const c_index = chunk.code.items[index + 1];
             const v = chunk.constants.items[c_index];
             const res = switch (v) {
-                .obj => |o| switch (o) {
-                    .string => |s| try std.fmt.allocPrint(allocator, "OP_CONSTANT {s}", .{s.bytes}),
+                .obj => |o| switch (o.kind) {
+                    .string => try std.fmt.allocPrint(allocator, "OP_CONSTANT {s}", .{o.as(Obj.String).bytes}),
                 },
                 else => try std.fmt.allocPrint(allocator, "OP_CONSTANT {}", .{v}),
             };
@@ -26,8 +27,8 @@ pub fn disassembleInstruction(allocator: std.mem.Allocator, chunk: Chunk, index:
             const c_index = std.mem.bytesToValue(u16, chunk.code.items[index + 1 .. index + 3]);
             const v = chunk.constants.items[c_index];
             const res = switch (v) {
-                .obj => |o| switch (o) {
-                    .string => |s| std.fmt.allocPrint(allocator, "OP_CONSTANT_LONG {s}", .{s.bytes}) catch unreachable,
+                .obj => |o| switch (o.kind) {
+                    .string => std.fmt.allocPrint(allocator, "OP_CONSTANT_LONG {s}", .{o.as(Obj.String).bytes}) catch unreachable,
                 },
                 else => std.fmt.allocPrint(allocator, "OP_CONSTANT_LONG {}", .{v}) catch unreachable,
             };

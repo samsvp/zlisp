@@ -73,19 +73,22 @@ const Instructions = struct {
                 }
                 return .{ .float = acc };
             },
-            .obj => |o| switch (o) {
-                .string => |s_0| {
-                    var acc = try s_0.copy(allocator);
+            .obj => |o| switch (o.kind) {
+                .string => {
+                    const s_0 = o.as(Obj.String);
+                    var acc = try allocator.create(Obj.String);
+                    acc.* = try s_0.copy(allocator);
+
                     for (1..n) |i| {
                         const value = vm.stack.items[vm.stack.items.len - i - 1];
                         if (value != .obj) {
                             return wrongType(allocator, "+", @tagName(value), line, err_ctx);
                         }
-                        switch (value.obj) {
-                            .string => |s_val| try acc.appendMut(allocator, s_val.bytes),
+                        switch (value.obj.kind) {
+                            .string => try acc.appendMut(allocator, value.obj.as(Obj.String).bytes),
                         }
                     }
-                    return .{ .obj = .{ .string = acc } };
+                    return .{ .obj = &acc.obj };
                 },
             },
             else => return wrongType(allocator, "+", @tagName(val), line, err_ctx),

@@ -37,9 +37,12 @@ pub fn main() !void {
     try chunk.emitConstant(allocator, .{ .int = 1 }, 123);
     try chunk.append(allocator, .subtract, 123);
 
-    try chunk.emitConstant(allocator, .{ .obj = .{ .string = try Obj.String.init(allocator, "!") } }, 123);
-    try chunk.emitConstant(allocator, .{ .obj = .{ .string = try Obj.String.init(allocator, "world ") } }, 123);
-    try chunk.emitConstant(allocator, .{ .obj = .{ .string = try Obj.String.init(allocator, "hello ") } }, 123);
+    const s3 = try Obj.String.init(allocator, "!");
+    const s2 = try Obj.String.init(allocator, "world");
+    const s1 = try Obj.String.init(allocator, "hello ");
+    try chunk.emitConstant(allocator, .{ .obj = &s3.obj }, 123);
+    try chunk.emitConstant(allocator, .{ .obj = &s2.obj }, 123);
+    try chunk.emitConstant(allocator, .{ .obj = &s1.obj }, 123);
     try chunk.emitConstant(allocator, .{ .int = 3 }, 123);
     try chunk.append(allocator, .add, 123);
 

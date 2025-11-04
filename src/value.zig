@@ -5,18 +5,30 @@ pub const Value = union(enum) {
     float: f32,
     boolean: bool,
     nil,
-    obj: Obj,
+    obj: *const Obj,
 };
 
-/// Objects which live in the heap and must be garbage collected.
-pub const Obj = union(enum) {
-    string: String,
+pub const Obj = struct {
+    kind: Kind,
 
+    pub const Kind = enum {
+        string,
+    };
+
+    pub fn as(self: *const Obj, comptime T: type) *const T {
+        return @alignCast(@fieldParentPtr("obj", self));
+    }
+
+    /// Objects which live in the heap and must be garbage collected.
     pub const String = struct {
+        obj: Obj,
         bytes: []u8,
 
         pub fn init(allocator: std.mem.Allocator, v: []const u8) !String {
-            return .{ .bytes = try allocator.dupe(u8, v) };
+            return .{
+                .obj = .{ .kind = .string },
+                .bytes = try allocator.dupe(u8, v),
+            };
         }
 
         pub fn deinit(self: *String, allocator: std.mem.Allocator) void {
@@ -37,8 +49,8 @@ pub const Obj = union(enum) {
 
 pub fn printValue(v: Value) void {
     switch (v) {
-        .obj => |o| switch (o) {
-            .string => |s| std.debug.print("{s}", .{s.bytes}),
+        .obj => |o| switch (o.kind) {
+            .string => std.debug.print("{s}", .{o.as(Obj.String).bytes}),
         },
         else => std.debug.print("{}", .{v}),
     }
