@@ -7,7 +7,6 @@ pub const OpCode = enum {
     ret,
     constant,
     constant_long,
-    negate,
     add,
     subtract,
     multiply,
