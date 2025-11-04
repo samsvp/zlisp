@@ -13,7 +13,7 @@ pub const Obj = union(enum) {
     string: String,
 
     pub const String = struct {
-        bytes: []const u8,
+        bytes: []u8,
 
         pub fn init(allocator: std.mem.Allocator, v: []const u8) !String {
             return .{ .bytes = try allocator.dupe(u8, v) };
@@ -22,10 +22,24 @@ pub const Obj = union(enum) {
         pub fn deinit(self: *String, allocator: std.mem.Allocator) void {
             allocator.free(self.bytes);
         }
+
+        pub fn copy(self: String, allocator: std.mem.Allocator) !String {
+            return String.init(allocator, self.bytes);
+        }
+
+        pub fn appendMut(self: *String, allocator: std.mem.Allocator, v: []const u8) !void {
+            const old_len = self.bytes.len;
+            self.bytes = try allocator.realloc(self.bytes, self.bytes.len + v.len);
+            @memcpy(self.bytes.ptr + old_len, v);
+        }
     };
 };
 
-// stub
 pub fn printValue(v: Value) void {
-    std.debug.print("{}", .{v});
+    switch (v) {
+        .obj => |o| switch (o) {
+            .string => |s| std.debug.print("{s}", .{s.bytes}),
+        },
+        else => std.debug.print("{}", .{v}),
+    }
 }

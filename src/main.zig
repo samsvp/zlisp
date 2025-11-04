@@ -5,6 +5,7 @@ const Chunk = @import("chunk.zig").Chunk;
 const errors = @import("errors.zig");
 const VM = @import("vm.zig").VM;
 const reader = @import("reader.zig");
+const Obj = @import("value.zig").Obj;
 
 pub fn main() !void {
     var gpa = std.heap.DebugAllocator(.{}){};
@@ -35,6 +36,12 @@ pub fn main() !void {
 
     try chunk.emitConstant(allocator, .{ .int = 1 }, 123);
     try chunk.append(allocator, .subtract, 123);
+
+    try chunk.emitConstant(allocator, .{ .obj = .{ .string = try Obj.String.init(allocator, "!") } }, 123);
+    try chunk.emitConstant(allocator, .{ .obj = .{ .string = try Obj.String.init(allocator, "world ") } }, 123);
+    try chunk.emitConstant(allocator, .{ .obj = .{ .string = try Obj.String.init(allocator, "hello ") } }, 123);
+    try chunk.emitConstant(allocator, .{ .int = 3 }, 123);
+    try chunk.append(allocator, .add, 123);
 
     try chunk.append(allocator, .ret, 124);
 

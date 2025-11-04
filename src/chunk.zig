@@ -2,7 +2,7 @@ const std = @import("std");
 const Obj = @import("value.zig").Obj;
 const Value = @import("value.zig").Value;
 
-pub const OpCode = enum {
+pub const OpCode = enum(u8) {
     noop,
     ret,
     constant,
@@ -45,8 +45,8 @@ pub const Chunk = struct {
     }
 
     pub fn emitByte(chunk: *Chunk, allocator: std.mem.Allocator, byte: u8, line: usize) !void {
-        const op_code = std.enums.fromInt(OpCode, byte) orelse return OpCode.Error.InvalidOpCode;
-        try chunk.append(allocator, op_code, line);
+        try chunk.code.append(allocator, byte);
+        try chunk.lines.append(allocator, line);
     }
 
     pub fn emitBytes(chunk: *Chunk, allocator: std.mem.Allocator, bytes: []const u8, line: usize) !void {

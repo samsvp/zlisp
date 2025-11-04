@@ -5,6 +5,7 @@ const errors = @import("errors.zig");
 const debug = @import("debug.zig");
 const Chunk = @import("chunk.zig").Chunk;
 const OpCode = @import("chunk.zig").OpCode;
+const Obj = @import("value.zig").Obj;
 const Value = @import("value.zig").Value;
 const compiler = @import("compiler.zig");
 const printValue = @import("value.zig").printValue;
@@ -26,6 +27,21 @@ pub const RuntimeError = error{
 pub const Error = CompileError || InterpreterError || RuntimeError;
 
 const Instructions = struct {
+    fn wrongType(
+        allocator: std.mem.Allocator,
+        op_name: []const u8,
+        type_name: []const u8,
+        line: usize,
+        err_ctx: *errors.Ctx,
+    ) anyerror {
+        try err_ctx.setMsg(
+            allocator,
+            "'{s}' line {}: mismatched type {s} - ensure all types are the same.",
+            .{ op_name, line, type_name },
+        );
+        return Error.WrongType;
+    }
+
     /// Stack top: arity -> how many values to pop from the stack
     /// Sums the remaining elements in the stack.
     fn add(vm: *VM, allocator: std.mem.Allocator, line: usize, err_ctx: *errors.Ctx) !Value {
@@ -35,38 +51,44 @@ const Instructions = struct {
         const val = vm.stack.getLast();
         switch (val) {
             .int => |i_0| {
-                var acc: i32 = i_0;
+                var acc = i_0;
                 for (1..n) |i| {
                     const value = vm.stack.items[vm.stack.items.len - i - 1];
                     switch (value) {
                         .int => |i_val| acc += i_val,
-                        else => {
-                            try err_ctx.setMsg(allocator, "'+' line {}: unsupported type {s}", .{ line, @tagName(value) });
-                            return Error.WrongType;
-                        },
+                        else => return wrongType(allocator, "+", @tagName(value), line, err_ctx),
                     }
                 }
                 return .{ .int = acc };
             },
             .float => |f_0| {
-                var acc: f32 = f_0;
+                var acc = f_0;
                 for (1..n) |i| {
                     const value = vm.stack.items[vm.stack.items.len - i - 1];
                     switch (value) {
                         .float => |f_val| acc += f_val,
                         .int => |i_val| acc += @floatFromInt(i_val),
-                        else => {
-                            try err_ctx.setMsg(allocator, "'+' line {}: unsupported type {s}", .{ line, @tagName(value) });
-                            return Error.WrongType;
-                        },
+                        else => return wrongType(allocator, "+", @tagName(value), line, err_ctx),
                     }
                 }
                 return .{ .float = acc };
             },
-            else => {
-                try err_ctx.setMsg(allocator, "'+' line {}: unsupported type {s}", .{ line, @tagName(val) });
-                return Error.WrongType;
+            .obj => |o| switch (o) {
+                .string => |s_0| {
+                    var acc = try s_0.copy(allocator);
+                    for (1..n) |i| {
+                        const value = vm.stack.items[vm.stack.items.len - i - 1];
+                        if (value != .obj) {
+                            return wrongType(allocator, "+", @tagName(value), line, err_ctx);
+                        }
+                        switch (value.obj) {
+                            .string => |s_val| try acc.appendMut(allocator, s_val.bytes),
+                        }
+                    }
+                    return .{ .obj = .{ .string = acc } };
+                },
             },
+            else => return wrongType(allocator, "+", @tagName(val), line, err_ctx),
         }
     }
 
@@ -89,10 +111,7 @@ const Instructions = struct {
                     const value = vm.stack.items[vm.stack.items.len - i - 1];
                     switch (value) {
                         .int => |i_val| acc -= i_val,
-                        else => {
-                            try err_ctx.setMsg(allocator, "'-' line {}: unsupported type {s}", .{ line, @tagName(value) });
-                            return Error.WrongType;
-                        },
+                        else => return wrongType(allocator, "+", @tagName(value), line, err_ctx),
                     }
                 }
                 return .{ .int = acc };
@@ -108,18 +127,12 @@ const Instructions = struct {
                     switch (value) {
                         .float => |f_val| acc -= f_val,
                         .int => |i_val| acc -= @floatFromInt(i_val),
-                        else => {
-                            try err_ctx.setMsg(allocator, "'-' line {}: unsupported type {s}", .{ line, @tagName(value) });
-                            return Error.WrongType;
-                        },
+                        else => return wrongType(allocator, "+", @tagName(value), line, err_ctx),
                     }
                 }
                 return .{ .float = acc };
             },
-            else => {
-                try err_ctx.setMsg(allocator, "'-' line {}: unsupported type {s}", .{ line, @tagName(val) });
-                return Error.WrongType;
-            },
+            else => return wrongType(allocator, "+", @tagName(val), line, err_ctx),
         }
     }
 
@@ -138,10 +151,7 @@ const Instructions = struct {
                     const value = vm.stack.items[vm.stack.items.len - i - 1];
                     switch (value) {
                         .int => |i_val| acc *= i_val,
-                        else => {
-                            try err_ctx.setMsg(allocator, "'*' line {}: unsupported type {s}", .{ line, @tagName(value) });
-                            return Error.WrongType;
-                        },
+                        else => return wrongType(allocator, "+", @tagName(value), line, err_ctx),
                     }
                 }
                 return .{ .int = acc };
@@ -153,18 +163,12 @@ const Instructions = struct {
                     switch (value) {
                         .float => |f_val| acc *= f_val,
                         .int => |i_val| acc *= @floatFromInt(i_val),
-                        else => {
-                            try err_ctx.setMsg(allocator, "'*' line {}: unsupported type {s}", .{ line, @tagName(value) });
-                            return Error.WrongType;
-                        },
+                        else => return wrongType(allocator, "+", @tagName(value), line, err_ctx),
                     }
                 }
                 return .{ .float = acc };
             },
-            else => {
-                try err_ctx.setMsg(allocator, "'*' line {}: unsupported type {s}", .{ line, @tagName(val) });
-                return Error.WrongType;
-            },
+            else => return wrongType(allocator, "+", @tagName(val), line, err_ctx),
         };
     }
 
@@ -187,10 +191,7 @@ const Instructions = struct {
                             try err_ctx.setMsg(allocator, "'/' line {}: division by zero", .{line});
                             return Error.DivisionByZero;
                         },
-                        else => {
-                            try err_ctx.setMsg(allocator, "'*' line {}: unsupported type {s}", .{ line, @tagName(value) });
-                            return Error.WrongType;
-                        },
+                        else => return wrongType(allocator, "+", @tagName(value), line, err_ctx),
                     }
                 }
                 return .{ .int = acc };
@@ -212,18 +213,12 @@ const Instructions = struct {
                             try err_ctx.setMsg(allocator, "'/' line {}: division by zero", .{line});
                             return Error.DivisionByZero;
                         },
-                        else => {
-                            try err_ctx.setMsg(allocator, "'*' line {}: unsupported type {s}", .{ line, @tagName(value) });
-                            return Error.WrongType;
-                        },
+                        else => return wrongType(allocator, "+", @tagName(value), line, err_ctx),
                     }
                 }
                 return .{ .float = acc };
             },
-            else => {
-                try err_ctx.setMsg(allocator, "'*' line {}: unsupported type {s}", .{ line, @tagName(val) });
-                return Error.WrongType;
-            },
+            else => return wrongType(allocator, "+", @tagName(val), line, err_ctx),
         };
     }
 };
@@ -305,7 +300,6 @@ pub const VM = struct {
 
     pub fn run(vm: *VM, allocator: std.mem.Allocator, err_ctx: *errors.Ctx) !void {
         // debug stuff
-        var buf: [32]u8 = undefined;
         var line_i: usize = 0;
         var index: usize = 0;
 
@@ -318,7 +312,8 @@ pub const VM = struct {
             line_i += 1;
 
             if (builtin.mode == .Debug) {
-                const op_name, const offset = debug.disassembleInstruction(vm.chunk, index, &buf) catch unreachable;
+                const op_name, const offset = debug.disassembleInstruction(allocator, vm.chunk, index) catch unreachable;
+                defer allocator.free(op_name);
 
                 std.debug.print("==== STACK ====\n", .{});
                 std.debug.print("[ ", .{});
