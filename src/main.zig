@@ -37,9 +37,9 @@ pub fn main() !void {
     try chunk.emitConstant(allocator, .{ .int = 1 }, 123);
     try chunk.append(allocator, .subtract, 123);
 
-    const s3 = try Obj.String.init(allocator, "!");
-    const s2 = try Obj.String.init(allocator, "world");
-    const s1 = try Obj.String.init(allocator, "hello ");
+    var s3 = try Obj.String.init(allocator, "!");
+    var s2 = try Obj.String.init(allocator, "world");
+    var s1 = try Obj.String.init(allocator, "hello ");
     try chunk.emitConstant(allocator, .{ .obj = &s3.obj }, 123);
     try chunk.emitConstant(allocator, .{ .obj = &s2.obj }, 123);
     try chunk.emitConstant(allocator, .{ .obj = &s1.obj }, 123);

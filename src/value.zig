@@ -5,17 +5,35 @@ pub const Value = union(enum) {
     float: f32,
     boolean: bool,
     nil,
-    obj: *const Obj,
+    obj: *Obj,
+
+    pub fn deinit(self: Value, allocator: std.mem.Allocator) void {
+        switch (self) {
+            .obj => |o| o.deinit(allocator),
+            else => {},
+        }
+    }
 };
 
 pub const Obj = struct {
     kind: Kind,
+    count: usize,
 
     pub const Kind = enum {
         string,
     };
 
-    pub fn as(self: *const Obj, comptime T: type) *const T {
+    pub fn deinit(self: *Obj, allocator: std.mem.Allocator) void {
+        if (self.count == 0) return;
+
+        self.count -= 1;
+
+        if (self.count == 0) switch (self.kind) {
+            .string => self.as(String).deinit(allocator),
+        };
+    }
+
+    pub fn as(self: *Obj, comptime T: type) *T {
         return @alignCast(@fieldParentPtr("obj", self));
     }
 
@@ -24,18 +42,21 @@ pub const Obj = struct {
         obj: Obj,
         bytes: []u8,
 
-        pub fn init(allocator: std.mem.Allocator, v: []const u8) !String {
-            return .{
-                .obj = .{ .kind = .string },
+        pub fn init(allocator: std.mem.Allocator, v: []const u8) !*String {
+            const string_ptr = try allocator.create(String);
+            string_ptr.* = String{
+                .obj = .{ .kind = .string, .count = 1 },
                 .bytes = try allocator.dupe(u8, v),
             };
+            return string_ptr;
         }
 
         pub fn deinit(self: *String, allocator: std.mem.Allocator) void {
             allocator.free(self.bytes);
+            allocator.destroy(self);
         }
 
-        pub fn copy(self: String, allocator: std.mem.Allocator) !String {
+        pub fn copy(self: String, allocator: std.mem.Allocator) !*String {
             return String.init(allocator, self.bytes);
         }
 
