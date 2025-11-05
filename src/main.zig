@@ -25,6 +25,11 @@ pub fn main() !void {
     var chunk = Chunk.empty;
     defer chunk.deinit(allocator);
 
+    var s0 = try Obj.String.init(allocator, "wow man!");
+
+    try chunk.emitConstant(allocator, .{ .obj = &s0.obj }, 10);
+    try chunk.emitDefGlobal(allocator, "my_var", 10);
+
     try chunk.emitConstant(allocator, .{ .float = 1.2 }, 123);
     try chunk.emitConstant(allocator, .{ .float = 3.4 }, 123);
     try chunk.emitConstant(allocator, .{ .int = 2 }, 123);
@@ -43,7 +48,8 @@ pub fn main() !void {
     try chunk.emitConstant(allocator, .{ .obj = &s3.obj }, 123);
     try chunk.emitConstant(allocator, .{ .obj = &s2.obj }, 123);
     try chunk.emitConstant(allocator, .{ .obj = &s1.obj }, 123);
-    try chunk.emitConstant(allocator, .{ .int = 3 }, 123);
+    try chunk.emitGetGlobal(allocator, "my_var", 123);
+    try chunk.emitConstant(allocator, .{ .int = 4 }, 123);
     try chunk.append(allocator, .add, 123);
 
     try chunk.append(allocator, .ret, 124);

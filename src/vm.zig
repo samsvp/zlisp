@@ -23,6 +23,7 @@ pub const InterpreterError = error{
 pub const RuntimeError = error{
     WrongType,
     DivisionByZero,
+    UndefinedVariable,
 };
 
 pub const Error = CompileError || InterpreterError || RuntimeError;
@@ -31,12 +32,14 @@ pub const VM = struct {
     chunk: Chunk,
     ip: [*]u8,
     stack: std.ArrayList(Value),
+    globals: std.StringArrayHashMapUnmanaged(Value),
 
     pub fn init() VM {
         return .{
             .chunk = .empty,
             .ip = undefined,
             .stack = .empty,
+            .globals = .empty,
         };
     }
 
@@ -46,6 +49,12 @@ pub const VM = struct {
         }
 
         self.stack.deinit(allocator);
+
+        var iter = self.globals.iterator();
+        while (iter.next()) |kv| {
+            kv.value_ptr.deinit(allocator);
+        }
+        self.globals.deinit(allocator);
     }
 
     fn resetStack(vm: *VM) void {
@@ -149,6 +158,20 @@ pub const VM = struct {
                 .divide => {
                     const val = try Instructions.div(vm, allocator, line, err_ctx);
                     try vm.stack.append(allocator, val);
+                },
+                .def_global => {
+                    const name = try vm.stackPop();
+                    const name_str = name.symbol;
+
+                    const val = try vm.stackPop();
+                    try vm.globals.put(allocator, name_str, val);
+                },
+                .get_global => {
+                    const name = try vm.stackPop();
+                    const name_str = name.symbol;
+
+                    const val = vm.globals.get(name_str) orelse return Error.UndefinedVariable;
+                    try vm.stack.append(allocator, val.borrow());
                 },
                 .noop => {},
             }

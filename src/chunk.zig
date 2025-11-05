@@ -11,6 +11,8 @@ pub const OpCode = enum(u8) {
     subtract,
     multiply,
     divide,
+    def_global,
+    get_global,
 
     pub const Error = error{
         InvalidOpCode,
@@ -65,6 +67,16 @@ pub const Chunk = struct {
             const index_bytes = std.mem.toBytes(index_16);
             try chunk.emitBytes(allocator, &[_]u8{ @intFromEnum(OpCode.constant_long), index_bytes[0], index_bytes[1] }, line);
         }
+    }
+
+    pub fn emitDefGlobal(chunk: *Chunk, allocator: std.mem.Allocator, name: []const u8, line: usize) !void {
+        try chunk.emitConstant(allocator, .{ .symbol = name }, line);
+        try chunk.append(allocator, .def_global, line);
+    }
+
+    pub fn emitGetGlobal(chunk: *Chunk, allocator: std.mem.Allocator, name: []const u8, line: usize) !void {
+        try chunk.emitConstant(allocator, .{ .symbol = name }, line);
+        try chunk.append(allocator, .get_global, line);
     }
 
     pub fn emitRet(chunk: *Chunk, allocator: std.mem.Allocator, line: usize) !void {

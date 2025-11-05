@@ -4,6 +4,7 @@ pub const Value = union(enum) {
     int: i32,
     float: f32,
     boolean: bool,
+    symbol: []const u8,
     nil,
     obj: *Obj,
 
@@ -12,6 +13,14 @@ pub const Value = union(enum) {
             .obj => |o| o.deinit(allocator),
             else => {},
         }
+    }
+
+    pub fn borrow(self: Value) Value {
+        switch (self) {
+            .obj => |o| o.count += 1,
+            else => {},
+        }
+        return self;
     }
 };
 
