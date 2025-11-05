@@ -22,6 +22,15 @@ pub const Value = union(enum) {
         }
         return self;
     }
+
+    pub fn printValue(v: Value) void {
+        switch (v) {
+            .obj => |o| switch (o.kind) {
+                .string => std.debug.print("{s}", .{o.as(Obj.String).bytes}),
+            },
+            else => std.debug.print("{}", .{v}),
+        }
+    }
 };
 
 pub const Obj = struct {
@@ -76,12 +85,3 @@ pub const Obj = struct {
         }
     };
 };
-
-pub fn printValue(v: Value) void {
-    switch (v) {
-        .obj => |o| switch (o.kind) {
-            .string => std.debug.print("{s}", .{o.as(Obj.String).bytes}),
-        },
-        else => std.debug.print("{}", .{v}),
-    }
-}

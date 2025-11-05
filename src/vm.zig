@@ -8,7 +8,6 @@ const OpCode = @import("chunk.zig").OpCode;
 const Obj = @import("value.zig").Obj;
 const Value = @import("value.zig").Value;
 const compiler = @import("compiler.zig");
-const printValue = @import("value.zig").printValue;
 const Instructions = @import("instructions.zig").Instructions;
 
 pub const CompileError = error{
@@ -44,17 +43,17 @@ pub const VM = struct {
     }
 
     pub fn deinit(self: *VM, allocator: std.mem.Allocator) void {
+        defer self.stack.deinit(allocator);
+        defer self.globals.deinit(allocator);
+
         for (self.stack.items) |*v| {
             v.deinit(allocator);
         }
-
-        self.stack.deinit(allocator);
 
         var iter = self.globals.iterator();
         while (iter.next()) |kv| {
             kv.value_ptr.deinit(allocator);
         }
-        self.globals.deinit(allocator);
     }
 
     fn resetStack(vm: *VM) void {
@@ -116,7 +115,7 @@ pub const VM = struct {
                 std.debug.print("==== STACK ====\n", .{});
                 std.debug.print("[ ", .{});
                 for (vm.stack.items) |i| {
-                    printValue(i);
+                    i.printValue();
                     std.debug.print(", ", .{});
                 }
                 std.debug.print("]\n", .{});
@@ -131,7 +130,7 @@ pub const VM = struct {
                     const v = try vm.stackPop();
                     defer v.deinit(allocator);
 
-                    printValue(v);
+                    v.printValue();
                     std.debug.print("\n", .{});
                     return;
                 },
