@@ -31,6 +31,7 @@ pub const VM = struct {
     chunk: Chunk,
     ip: [*]u8,
     stack: std.ArrayList(Value),
+    local_stack: std.ArrayList(Value),
     globals: std.StringArrayHashMapUnmanaged(Value),
 
     pub fn init() VM {
@@ -38,6 +39,7 @@ pub const VM = struct {
             .chunk = .empty,
             .ip = undefined,
             .stack = .empty,
+            .local_stack = .empty,
             .globals = .empty,
         };
     }
@@ -179,6 +181,16 @@ pub const VM = struct {
 
                     const val = vm.globals.get(name_str) orelse return Error.UndefinedVariable;
                     try vm.stack.append(allocator, val);
+                },
+                .def_local => {
+                    const v = try vm.stackPop();
+                    try vm.local_stack.append(allocator, v);
+                },
+                .get_local => {
+                    const slot = try vm.stackPop();
+                    const slot_index: usize = @intCast(slot.int);
+
+                    try vm.stack.append(allocator, vm.local_stack.items[slot_index]);
                 },
                 .noop => {},
             }

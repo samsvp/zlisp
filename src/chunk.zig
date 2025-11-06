@@ -15,6 +15,8 @@ pub const OpCode = enum(u8) {
     jump_if_false,
     def_global,
     get_global,
+    def_local,
+    get_local,
 
     pub const Error = error{
         InvalidOpCode,
@@ -105,12 +107,8 @@ pub const Chunk = struct {
         chunk.replaceBytes(index + 1, &std.mem.toBytes(offset));
     }
 
-    pub fn emitRet(chunk: *Chunk, allocator: std.mem.Allocator, line: usize) !void {
-        try chunk.emitByte(allocator, @intFromEnum(OpCode.ret), line);
-    }
-
-    pub fn end(chunk: *Chunk, allocator: std.mem.Allocator) void {
-        chunk.emitRet(allocator, 0) catch unreachable;
+    pub fn end(chunk: *Chunk, allocator: std.mem.Allocator) !void {
+        try chunk.append(allocator, .ret, 0);
     }
 
     pub fn deinit(self: *Chunk, allocator: std.mem.Allocator) void {

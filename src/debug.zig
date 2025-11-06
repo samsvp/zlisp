@@ -44,6 +44,8 @@ pub fn disassembleInstruction(allocator: std.mem.Allocator, chunk: Chunk, index:
         },
         .def_global => .{ try std.fmt.allocPrint(allocator, "OP_DEF_GLOBAL", .{}), 1 },
         .get_global => .{ try std.fmt.allocPrint(allocator, "OP_GET_GLOBAL", .{}), 1 },
+        .def_local => .{ try std.fmt.allocPrint(allocator, "OP_DEF_LOCAL", .{}), 1 },
+        .get_local => .{ try std.fmt.allocPrint(allocator, "OP_GET_LOCAL", .{}), 1 },
         .ret => .{ std.fmt.allocPrint(allocator, "OP_RETURN", .{}) catch unreachable, 1 },
         .add => .{ std.fmt.allocPrint(allocator, "OP_ADD", .{}) catch unreachable, 1 },
         .subtract => .{ std.fmt.allocPrint(allocator, "OP_SUBTRACT", .{}) catch unreachable, 1 },
