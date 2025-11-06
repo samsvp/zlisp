@@ -30,9 +30,7 @@ pub const Instructions = struct {
         const n: usize = @intCast((try vm.stackPop()).int);
         defer vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
 
-        var val = vm.stack.getLast();
-        defer val.deinit(allocator);
-
+        const val = vm.stack.getLast();
         switch (val) {
             .int => |i_0| {
                 var acc = i_0;
@@ -63,9 +61,7 @@ pub const Instructions = struct {
                     var acc = try s_0.copy(allocator);
 
                     for (1..n) |i| {
-                        var value = vm.stack.items[vm.stack.items.len - i - 1];
-                        defer value.deinit(allocator);
-
+                        const value = vm.stack.items[vm.stack.items.len - i - 1];
                         if (value != .obj) {
                             return wrongType(allocator, "+", @tagName(value), line, err_ctx);
                         }

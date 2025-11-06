@@ -46,10 +46,6 @@ pub const VM = struct {
         defer self.stack.deinit(allocator);
         defer self.globals.deinit(allocator);
 
-        for (self.stack.items) |*v| {
-            v.deinit(allocator);
-        }
-
         var iter = self.globals.iterator();
         while (iter.next()) |kv| {
             kv.value_ptr.deinit(allocator);
@@ -157,6 +153,18 @@ pub const VM = struct {
                 .divide => {
                     const val = try Instructions.div(vm, allocator, line, err_ctx);
                     try vm.stack.append(allocator, val);
+                },
+                .jump => {
+                    const offset: u16 = std.mem.bytesToValue(u16, vm.readBytes(2));
+                    vm.ip += offset;
+                },
+                .jump_if_false => {
+                    const val = try vm.stackPop();
+                    const offset: u16 = std.mem.bytesToValue(u16, vm.readBytes(2));
+
+                    if (val == .nil or val.eql(Value.False)) {
+                        vm.ip += offset;
+                    }
                 },
                 .def_global => {
                     const name = try vm.stackPop();

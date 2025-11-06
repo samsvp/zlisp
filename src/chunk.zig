@@ -11,6 +11,8 @@ pub const OpCode = enum(u8) {
     subtract,
     multiply,
     divide,
+    jump,
+    jump_if_false,
     def_global,
     get_global,
 
@@ -57,26 +59,50 @@ pub const Chunk = struct {
         }
     }
 
-    pub fn emitConstant(chunk: *Chunk, allocator: std.mem.Allocator, v: Value, line: usize) !void {
+    pub fn emitConstant(chunk: *Chunk, allocator: std.mem.Allocator, v: Value, line: usize) !u8 {
         const const_index = try chunk.addConstant(allocator, v);
 
         if (const_index <= 255) {
             try chunk.emitBytes(allocator, &[_]u8{ @intFromEnum(OpCode.constant), @intCast(const_index) }, line);
+            return 2;
         } else {
             const index_16: u16 = @intCast(const_index);
             const index_bytes = std.mem.toBytes(index_16);
             try chunk.emitBytes(allocator, &[_]u8{ @intFromEnum(OpCode.constant_long), index_bytes[0], index_bytes[1] }, line);
+            return 3;
         }
     }
 
     pub fn emitDefGlobal(chunk: *Chunk, allocator: std.mem.Allocator, name: []const u8, line: usize) !void {
-        try chunk.emitConstant(allocator, .{ .symbol = name }, line);
+        _ = try chunk.emitConstant(allocator, .{ .symbol = name }, line);
         try chunk.append(allocator, .def_global, line);
     }
 
     pub fn emitGetGlobal(chunk: *Chunk, allocator: std.mem.Allocator, name: []const u8, line: usize) !void {
-        try chunk.emitConstant(allocator, .{ .symbol = name }, line);
+        _ = try chunk.emitConstant(allocator, .{ .symbol = name }, line);
         try chunk.append(allocator, .get_global, line);
+    }
+
+    pub fn emitJump(chunk: *Chunk, allocator: std.mem.Allocator, offset: u16, line: usize) !usize {
+        const bytes = std.mem.toBytes(offset);
+        try chunk.append(allocator, .jump, line);
+        try chunk.emitBytes(allocator, &bytes, line);
+        return chunk.code.items.len - 3;
+    }
+
+    pub fn emitJumpIfFalse(chunk: *Chunk, allocator: std.mem.Allocator, offset: u16, line: usize) !usize {
+        const bytes = std.mem.toBytes(offset);
+        try chunk.append(allocator, .jump_if_false, line);
+        try chunk.emitBytes(allocator, &bytes, line);
+        return chunk.code.items.len - 3;
+    }
+
+    pub fn replaceBytes(chunk: *Chunk, index: usize, bytes: []const u8) void {
+        @memcpy(chunk.code.items.ptr + index, bytes);
+    }
+
+    pub fn replaceJump(chunk: *Chunk, index: usize, offset: u16) void {
+        chunk.replaceBytes(index + 1, &std.mem.toBytes(offset));
     }
 
     pub fn emitRet(chunk: *Chunk, allocator: std.mem.Allocator, line: usize) !void {
@@ -88,6 +114,10 @@ pub const Chunk = struct {
     }
 
     pub fn deinit(self: *Chunk, allocator: std.mem.Allocator) void {
+        for (self.constants.items) |*c| {
+            c.deinit(allocator);
+        }
+
         self.code.deinit(allocator);
         self.constants.deinit(allocator);
         self.lines.deinit(allocator);

@@ -34,6 +34,14 @@ pub fn disassembleInstruction(allocator: std.mem.Allocator, chunk: Chunk, index:
             };
             break :constant_long .{ res, 3 };
         },
+        .jump => jump: {
+            const v = std.mem.bytesToValue(u16, chunk.code.items[index + 1 .. index + 3]);
+            break :jump .{ try std.fmt.allocPrint(allocator, "OP_JUMP {d}", .{v}), 3 };
+        },
+        .jump_if_false => jump_false: {
+            const v = std.mem.bytesToValue(u16, chunk.code.items[index + 1 .. index + 3]);
+            break :jump_false .{ try std.fmt.allocPrint(allocator, "OP_JUMP_IF_FALSE {d}", .{v}), 3 };
+        },
         .def_global => .{ try std.fmt.allocPrint(allocator, "OP_DEF_GLOBAL", .{}), 1 },
         .get_global => .{ try std.fmt.allocPrint(allocator, "OP_GET_GLOBAL", .{}), 1 },
         .ret => .{ std.fmt.allocPrint(allocator, "OP_RETURN", .{}) catch unreachable, 1 },

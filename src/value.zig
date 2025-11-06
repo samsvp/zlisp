@@ -8,6 +8,9 @@ pub const Value = union(enum) {
     nil,
     obj: *Obj,
 
+    pub const True = Value{ .boolean = true };
+    pub const False = Value{ .boolean = false };
+
     pub fn deinit(self: Value, allocator: std.mem.Allocator) void {
         switch (self) {
             .obj => |o| o.deinit(allocator),
@@ -30,6 +33,43 @@ pub const Value = union(enum) {
             },
             else => std.debug.print("{}", .{v}),
         }
+    }
+
+    pub fn eql(a: Value, b: Value) bool {
+        return switch (a) {
+            .int => |i_1| switch (b) {
+                .int => |i_2| i_1 == i_2,
+                else => false,
+            },
+            .float => |f_1| switch (b) {
+                .float => |f_2| f_1 == f_2,
+                else => false,
+            },
+            .boolean => |b_1| switch (b) {
+                .boolean => |b_2| b_1 == b_2,
+                else => false,
+            },
+            .symbol => |s_1| switch (b) {
+                .symbol => |s_2| std.mem.eql(u8, s_1, s_2),
+                else => false,
+            },
+            .nil => switch (b) {
+                .nil => true,
+                else => false,
+            },
+            .obj => |o_1| switch (b) {
+                .obj => |o_2| switch (o_1.kind) {
+                    .string => switch (o_2.kind) {
+                        .string => std.mem.eql(
+                            u8,
+                            o_1.as(Obj.String).bytes,
+                            o_2.as(Obj.String).bytes,
+                        ),
+                    },
+                },
+                else => false,
+            },
+        };
     }
 };
 
