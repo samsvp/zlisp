@@ -171,14 +171,14 @@ pub const VM = struct {
                     const name_str = name.symbol;
 
                     const val = try vm.stackPop();
-                    try vm.globals.put(allocator, name_str, val);
+                    try vm.globals.put(allocator, name_str, val.borrow());
                 },
                 .get_global => {
                     const name = try vm.stackPop();
                     const name_str = name.symbol;
 
                     const val = vm.globals.get(name_str) orelse return Error.UndefinedVariable;
-                    try vm.stack.append(allocator, val.borrow());
+                    try vm.stack.append(allocator, val);
                 },
                 .noop => {},
             }
