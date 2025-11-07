@@ -27,26 +27,50 @@ pub const RuntimeError = error{
 
 pub const Error = CompileError || InterpreterError || RuntimeError;
 
-pub const VM = struct {
-    chunk: Chunk,
+const CallFrame = struct {
+    function: *Obj.Function,
     ip: [*]u8,
+
+    pub fn deinit(self: *CallFrame, allocator: std.mem.Allocator) void {
+        self.function.deinit(allocator);
+    }
+};
+
+pub const VM = struct {
     stack: std.ArrayList(Value),
     local_stack: std.ArrayList(Value),
     globals: std.StringArrayHashMapUnmanaged(Value),
 
-    pub fn init() VM {
-        return .{
-            .chunk = .empty,
-            .ip = undefined,
+    frames: [FRAMES_MAX]CallFrame,
+    frame_count: u32,
+
+    const FRAMES_MAX = 1024;
+
+    pub fn init(func: *Obj.Function) VM {
+        var vm = VM{
             .stack = .empty,
             .local_stack = .empty,
             .globals = .empty,
+
+            .frames = undefined,
+            .frame_count = 1,
         };
+
+        vm.frames[0] = CallFrame{
+            .function = func,
+            .ip = func.chunk.code.items.ptr,
+        };
+
+        return vm;
     }
 
     pub fn deinit(self: *VM, allocator: std.mem.Allocator) void {
         defer self.stack.deinit(allocator);
         defer self.globals.deinit(allocator);
+
+        for (0..self.frame_count) |i| {
+            self.frames[i].deinit(allocator);
+        }
 
         var iter = self.globals.iterator();
         while (iter.next()) |kv| {
@@ -71,29 +95,31 @@ pub const VM = struct {
     }
 
     fn readByte(vm: *VM) u8 {
-        const b = vm.ip[0];
-        vm.ip += 1;
+        const b = vm.frames[vm.frame_count - 1].ip[0];
+        vm.frames[vm.frame_count - 1].ip += 1;
         return b;
     }
 
     fn readBytes(vm: *VM, n: usize) []const u8 {
-        const bs = vm.ip[0..n];
-        vm.ip += n;
+        const bs = vm.frames[vm.frame_count - 1].ip[0..n];
+        vm.frames[vm.frame_count - 1].ip += n;
         return bs;
     }
 
     fn readConstant(vm: *VM) Value {
         const i = vm.readByte();
-        return vm.chunk.constants.items[i];
+        return vm.frames[vm.frame_count - 1].function.chunk.constants.items[i];
     }
 
     fn readConstantLong(vm: *VM) Value {
         const bs = vm.readBytes(2);
         const c_index = std.mem.bytesToValue(u16, bs);
-        return vm.chunk.constants.items[c_index];
+        return vm.frames[vm.frame_count - 1].function.chunk.constants.items[c_index];
     }
 
     pub fn run(vm: *VM, allocator: std.mem.Allocator, err_ctx: *errors.Ctx) !void {
+        var frame = vm.frames[vm.frame_count - 1];
+
         // debug stuff
         var line_i: usize = 0;
         var index: usize = 0;
@@ -103,11 +129,11 @@ pub const VM = struct {
                 return Error.InvalidInstruction;
             };
 
-            const line = vm.chunk.lines.items[line_i];
+            const line = frame.function.chunk.lines.items[line_i];
             line_i += 1;
 
             if (builtin.mode == .Debug) {
-                const op_name, const offset = debug.disassembleInstruction(allocator, vm.chunk, index) catch unreachable;
+                const op_name, const offset = debug.disassembleInstruction(allocator, frame.function.chunk.*, index) catch unreachable;
                 defer allocator.free(op_name);
 
                 std.debug.print("==== STACK ====\n", .{});
@@ -158,14 +184,14 @@ pub const VM = struct {
                 },
                 .jump => {
                     const offset: u16 = std.mem.bytesToValue(u16, vm.readBytes(2));
-                    vm.ip += offset;
+                    frame.ip += offset;
                 },
                 .jump_if_false => {
                     const val = try vm.stackPop();
                     const offset: u16 = std.mem.bytesToValue(u16, vm.readBytes(2));
 
                     if (val == .nil or val.eql(Value.False)) {
-                        vm.ip += offset;
+                        frame.ip += offset;
                     }
                 },
                 .def_global => {

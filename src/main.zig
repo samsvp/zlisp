@@ -17,14 +17,11 @@ pub fn main() !void {
 
     const allocator = gpa.allocator();
 
-    var vm = VM.init();
-    defer vm.deinit(allocator);
-
     var err_ctx = errors.Ctx{ .msg = "" };
     defer err_ctx.deinit(allocator);
 
     var chunk = Chunk.empty;
-    defer chunk.deinit(allocator);
+    const function = try Obj.Function.init(allocator, 0, &chunk, "main", "");
 
     var s0_1 = try Obj.String.init(allocator, "wow man!");
     var s0_2 = try Obj.String.init(allocator, "wow woman!");
@@ -66,7 +63,8 @@ pub fn main() !void {
 
     try chunk.append(allocator, .ret, 124);
 
-    vm.chunk = chunk;
-    vm.ip = chunk.code.items.ptr;
+    var vm = VM.init(function);
+    defer vm.deinit(allocator);
+
     try vm.run(allocator, &err_ctx);
 }

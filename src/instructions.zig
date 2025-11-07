@@ -67,10 +67,12 @@ pub const Instructions = struct {
                         }
                         switch (value.obj.kind) {
                             .string => try acc.appendMut(allocator, value.obj.as(Obj.String).bytes),
+                            else => return wrongType(allocator, "+", @tagName(value), line, err_ctx),
                         }
                     }
                     return .{ .obj = &acc.obj };
                 },
+                else => return wrongType(allocator, "+", @tagName(val), line, err_ctx),
             },
             else => return wrongType(allocator, "+", @tagName(val), line, err_ctx),
         }

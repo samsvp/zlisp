@@ -1,4 +1,5 @@
 const std = @import("std");
+const Chunk = @import("chunk.zig").Chunk;
 
 pub const Value = union(enum) {
     int: i32,
@@ -30,7 +31,9 @@ pub const Value = union(enum) {
         switch (v) {
             .obj => |o| switch (o.kind) {
                 .string => std.debug.print("{s}", .{o.as(Obj.String).bytes}),
+                .function => std.debug.print("<fn = {s}>", .{o.as(Obj.Function).name}),
             },
+            .symbol => |s| std.debug.print("{s}", .{s}),
             else => std.debug.print("{}", .{v}),
         }
     }
@@ -65,7 +68,9 @@ pub const Value = union(enum) {
                             o_1.as(Obj.String).bytes,
                             o_2.as(Obj.String).bytes,
                         ),
+                        .function => false,
                     },
+                    .function => false,
                 },
                 else => false,
             },
@@ -79,7 +84,12 @@ pub const Obj = struct {
 
     pub const Kind = enum {
         string,
+        function,
     };
+
+    pub fn init(kind: Kind) Obj {
+        return .{ .kind = kind, .count = 1 };
+    }
 
     pub fn deinit(self: *Obj, allocator: std.mem.Allocator) void {
         if (self.count == 0) return;
@@ -88,6 +98,7 @@ pub const Obj = struct {
 
         if (self.count == 0) switch (self.kind) {
             .string => self.as(String).deinit(allocator),
+            .function => self.as(Function).deinit(allocator),
         };
     }
 
@@ -103,7 +114,7 @@ pub const Obj = struct {
         pub fn init(allocator: std.mem.Allocator, v: []const u8) !*String {
             const string_ptr = try allocator.create(String);
             string_ptr.* = String{
-                .obj = .{ .kind = .string, .count = 1 },
+                .obj = Obj.init(.string),
                 .bytes = try allocator.dupe(u8, v),
             };
             return string_ptr;
@@ -122,6 +133,31 @@ pub const Obj = struct {
             const old_len = self.bytes.len;
             self.bytes = try allocator.realloc(self.bytes, self.bytes.len + v.len);
             @memcpy(self.bytes.ptr + old_len, v);
+        }
+    };
+
+    pub const Function = struct {
+        obj: Obj,
+        arity: u32,
+        chunk: *Chunk,
+        name: []const u8,
+        help: []const u8,
+
+        pub fn init(allocator: std.mem.Allocator, arity: u32, chunk: *Chunk, name: []const u8, help: []const u8) !*Function {
+            const func = try allocator.create(Function);
+            func.* = Function{
+                .obj = Obj.init(.function),
+                .arity = arity,
+                .chunk = chunk,
+                .name = name,
+                .help = help,
+            };
+            return func;
+        }
+
+        pub fn deinit(self: *Function, allocator: std.mem.Allocator) void {
+            self.chunk.deinit(allocator);
+            allocator.destroy(self);
         }
     };
 };
