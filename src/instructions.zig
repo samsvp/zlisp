@@ -26,7 +26,9 @@ pub const Instructions = struct {
 
     /// Stack top: arity -> how many values to pop from the stack
     /// Sums the remaining elements in the stack.
-    pub fn add(vm: *VM, allocator: std.mem.Allocator, line: usize, err_ctx: *errors.Ctx) !Value {
+    pub fn add(vm: *VM, allocator: std.mem.Allocator, err_ctx: *errors.Ctx) !Value {
+        const line = 0;
+
         const n: usize = @intCast((try vm.stackPop()).int);
         defer vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
 
@@ -81,7 +83,9 @@ pub const Instructions = struct {
     /// Stack top: arity -> how many values to pop from the stack
     /// If arity == 1, return the negated next element in the stack.
     /// Else subtract the remaining elements from the next.
-    pub fn sub(vm: *VM, allocator: std.mem.Allocator, line: usize, err_ctx: *errors.Ctx) !Value {
+    pub fn sub(vm: *VM, allocator: std.mem.Allocator, err_ctx: *errors.Ctx) !Value {
+        const line = 0;
+
         const n: usize = @intCast((try vm.stackPop()).int);
         defer vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
 
@@ -124,7 +128,9 @@ pub const Instructions = struct {
 
     /// Stack top: arity -> how many values to pop from the stack
     /// Multiplies the remaining elements in the stack.
-    pub fn mult(vm: *VM, allocator: std.mem.Allocator, line: usize, err_ctx: *errors.Ctx) !Value {
+    pub fn mult(vm: *VM, allocator: std.mem.Allocator, err_ctx: *errors.Ctx) !Value {
+        const line = 0;
+
         const n: usize = @intCast((try vm.stackPop()).int);
         defer vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
 
@@ -160,7 +166,9 @@ pub const Instructions = struct {
 
     /// Stack top: arity -> how many values to pop from the stack
     /// Divides the remaining elements in the stack.
-    pub fn div(vm: *VM, allocator: std.mem.Allocator, line: usize, err_ctx: *errors.Ctx) !Value {
+    pub fn div(vm: *VM, allocator: std.mem.Allocator, err_ctx: *errors.Ctx) !Value {
+        const line = 0;
+
         const n: usize = @intCast((try vm.stackPop()).int);
         defer vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
 

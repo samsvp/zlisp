@@ -157,6 +157,7 @@ pub const Obj = struct {
 
         pub fn deinit(self: *Function, allocator: std.mem.Allocator) void {
             self.chunk.deinit(allocator);
+            allocator.destroy(self.chunk);
             allocator.destroy(self);
         }
     };

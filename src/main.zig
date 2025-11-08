@@ -8,20 +8,40 @@ const reader = @import("reader.zig");
 const Value = @import("value.zig").Value;
 const Obj = @import("value.zig").Obj;
 
+pub fn createFn(allocator: std.mem.Allocator) !*Obj.Function {
+    var chunk = try allocator.create(Chunk);
+    chunk.* = Chunk.empty;
+
+    _ = try chunk.emitConstant(allocator, .{ .int = 3 }, 123);
+    try chunk.append(allocator, .get_local, 123);
+    _ = try chunk.emitConstant(allocator, .{ .int = 2 }, 123);
+    try chunk.append(allocator, .get_local, 123);
+    _ = try chunk.emitConstant(allocator, .{ .int = 1 }, 123);
+    try chunk.append(allocator, .get_local, 123);
+    _ = try chunk.emitConstant(allocator, .{ .int = 0 }, 123);
+    try chunk.append(allocator, .get_local, 123);
+
+    _ = try chunk.emitConstant(allocator, .{ .int = 4 }, 123);
+    try chunk.append(allocator, .add, 123);
+    try chunk.append(allocator, .ret, 124);
+
+    const function = try Obj.Function.init(allocator, 4, chunk, "add-4", "Adds 4 values");
+    return function;
+}
+
 pub fn main() !void {
     var gpa = std.heap.DebugAllocator(.{}){};
-    defer {
-        const deinit_status = gpa.deinit();
-        if (deinit_status == .leak) std.debug.print("WARNING: memory leaked\n", .{});
-    }
+    defer _ = gpa.deinit();
 
     const allocator = gpa.allocator();
 
-    var err_ctx = errors.Ctx{ .msg = "" };
-    defer err_ctx.deinit(allocator);
+    var chunk = try allocator.create(Chunk);
+    chunk.* = Chunk.empty;
+    const function = try Obj.Function.init(allocator, 0, chunk, "main", "");
 
-    var chunk = Chunk.empty;
-    const function = try Obj.Function.init(allocator, 0, &chunk, "main", "");
+    var func = try createFn(allocator);
+    _ = try chunk.emitConstant(allocator, .{ .obj = &func.obj }, 11);
+    try chunk.emitDefGlobal(allocator, "my_fn", 11);
 
     var s0_1 = try Obj.String.init(allocator, "wow man!");
     var s0_2 = try Obj.String.init(allocator, "wow woman!");
@@ -58,13 +78,28 @@ pub fn main() !void {
     _ = try chunk.emitConstant(allocator, .{ .obj = &s2.obj }, 123);
     _ = try chunk.emitConstant(allocator, .{ .obj = &s1.obj }, 123);
     try chunk.emitGetGlobal(allocator, "my_var", 123);
-    _ = try chunk.emitConstant(allocator, .{ .int = 4 }, 123);
-    try chunk.append(allocator, .add, 123);
+
+    // args
+    try chunk.append(allocator, .def_local, 123);
+    try chunk.append(allocator, .def_local, 123);
+    try chunk.append(allocator, .def_local, 123);
+    try chunk.append(allocator, .def_local, 123);
+
+    // call with arity
+    try chunk.emitGetGlobal(allocator, "my_fn", 123);
+    try chunk.append(allocator, .call, 123);
+    try chunk.emitByte(allocator, 4, 123);
 
     try chunk.append(allocator, .ret, 124);
 
     var vm = VM.init(function);
     defer vm.deinit(allocator);
 
-    try vm.run(allocator, &err_ctx);
+    var err_ctx = errors.Ctx{ .msg = "" };
+    defer err_ctx.deinit(allocator);
+
+    vm.run(allocator, &err_ctx) catch |err| {
+        std.debug.print("ERROR: {any}\n", .{err});
+        return err;
+    };
 }

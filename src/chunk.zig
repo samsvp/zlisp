@@ -17,6 +17,7 @@ pub const OpCode = enum(u8) {
     get_global,
     def_local,
     get_local,
+    call,
 
     pub const Error = error{
         InvalidOpCode,
@@ -40,14 +41,9 @@ pub const Chunk = struct {
     }
 
     /// Adds a constant to the constant array and returns its index.
-    pub fn addConstant(self: *Chunk, allocator: std.mem.Allocator, v: Value) !usize {
+    fn addConstant(self: *Chunk, allocator: std.mem.Allocator, v: Value) !usize {
         try self.constants.append(allocator, v);
         return self.constants.items.len - 1;
-    }
-
-    pub fn addString(self: *Chunk, allocator: std.mem.Allocator, str: []const u8) !usize {
-        const string = try Obj.String.init(allocator, str);
-        return self.addConstant(allocator, .{ .obj = .{ .string = string } });
     }
 
     pub fn emitByte(chunk: *Chunk, allocator: std.mem.Allocator, byte: u8, line: usize) !void {

@@ -23,6 +23,9 @@ pub const RuntimeError = error{
     WrongType,
     DivisionByZero,
     UndefinedVariable,
+    TypeNotCallable,
+    WrongArgumentNumber,
+    StackOverflow,
 };
 
 pub const Error = CompileError || InterpreterError || RuntimeError;
@@ -30,6 +33,7 @@ pub const Error = CompileError || InterpreterError || RuntimeError;
 const CallFrame = struct {
     function: *Obj.Function,
     ip: [*]u8,
+    stack_pos: usize,
 
     pub fn deinit(self: *CallFrame, allocator: std.mem.Allocator) void {
         self.function.deinit(allocator);
@@ -59,6 +63,7 @@ pub const VM = struct {
         vm.frames[0] = CallFrame{
             .function = func,
             .ip = func.chunk.code.items.ptr,
+            .stack_pos = 0,
         };
 
         return vm;
@@ -66,10 +71,15 @@ pub const VM = struct {
 
     pub fn deinit(self: *VM, allocator: std.mem.Allocator) void {
         defer self.stack.deinit(allocator);
+        defer self.local_stack.deinit(allocator);
         defer self.globals.deinit(allocator);
 
-        for (0..self.frame_count) |i| {
+        for (0..self.frame_count + 1) |i| {
             self.frames[i].deinit(allocator);
+        }
+
+        for (self.local_stack.items) |*v| {
+            v.deinit(allocator);
         }
 
         var iter = self.globals.iterator();
@@ -117,23 +127,52 @@ pub const VM = struct {
         return vm.frames[vm.frame_count - 1].function.chunk.constants.items[c_index];
     }
 
-    pub fn run(vm: *VM, allocator: std.mem.Allocator, err_ctx: *errors.Ctx) !void {
-        var frame = vm.frames[vm.frame_count - 1];
+    fn call(vm: *VM, f: *Obj.Function, arg_count: u8) !*CallFrame {
+        if (arg_count != f.arity) {
+            return Error.WrongArgumentNumber;
+        }
 
-        // debug stuff
-        var line_i: usize = 0;
-        var index: usize = 0;
+        vm.frame_count += 1;
+        if (vm.frame_count == FRAMES_MAX) {
+            return Error.StackOverflow;
+        }
+
+        const frame = CallFrame{
+            .function = f,
+            .ip = f.chunk.code.items.ptr,
+            // function arguments are loaded at the top of the local stack
+            .stack_pos = vm.local_stack.items.len - arg_count,
+        };
+
+        vm.frames[vm.frame_count - 1] = frame;
+        return &vm.frames[vm.frame_count - 1];
+    }
+
+    fn callValue(vm: *VM, v: Value, arg_count: u8) !*CallFrame {
+        if (v != .obj) {
+            return Error.TypeNotCallable;
+        }
+
+        return switch (v.obj.kind) {
+            .function => try vm.call(v.obj.as(Obj.Function), arg_count),
+            else => Error.TypeNotCallable,
+        };
+    }
+
+    pub fn run(vm: *VM, allocator: std.mem.Allocator, err_ctx: *errors.Ctx) !void {
+        var frame = &vm.frames[vm.frame_count - 1];
 
         while (true) {
             const instruction = std.enums.fromInt(OpCode, vm.readByte()) orelse {
                 return Error.InvalidInstruction;
             };
 
-            const line = frame.function.chunk.lines.items[line_i];
-            line_i += 1;
-
             if (builtin.mode == .Debug) {
-                const op_name, const offset = debug.disassembleInstruction(allocator, frame.function.chunk.*, index) catch unreachable;
+                const op_name, _ = debug.disassembleInstruction(
+                    allocator,
+                    frame.function.chunk.*,
+                    frame.ip - frame.function.chunk.code.items.ptr - 1,
+                ) catch unreachable;
                 defer allocator.free(op_name);
 
                 std.debug.print("==== STACK ====\n", .{});
@@ -145,18 +184,24 @@ pub const VM = struct {
                 std.debug.print("]\n", .{});
 
                 std.debug.print("==== OP ====\n", .{});
-                std.debug.print("[ {d:0>4} ] {d:0>4} {s}\n", .{ index, line, op_name });
-                index += offset;
+                std.debug.print("[ {s}\n", .{op_name});
             }
 
             switch (instruction) {
                 .ret => {
-                    const v = try vm.stackPop();
-                    defer v.deinit(allocator);
+                    const result = try vm.stackPop();
+                    vm.frame_count -= 1;
+                    if (vm.frame_count == 0) {
+                        result.deinit(allocator);
+                        return;
+                    }
 
-                    v.printValue();
-                    std.debug.print("\n", .{});
-                    return;
+                    try vm.stack.append(allocator, result);
+                    for (frame.stack_pos..vm.local_stack.items.len) |i| {
+                        vm.local_stack.items[i].deinit(allocator);
+                    }
+                    vm.local_stack.shrinkRetainingCapacity(frame.stack_pos);
+                    frame = &vm.frames[vm.frame_count - 1];
                 },
                 .constant => {
                     const v = vm.readConstant();
@@ -167,19 +212,19 @@ pub const VM = struct {
                     try vm.stack.append(allocator, v);
                 },
                 .add => {
-                    const val = try Instructions.add(vm, allocator, line, err_ctx);
+                    const val = try Instructions.add(vm, allocator, err_ctx);
                     try vm.stack.append(allocator, val);
                 },
                 .subtract => {
-                    const val = try Instructions.sub(vm, allocator, line, err_ctx);
+                    const val = try Instructions.sub(vm, allocator, err_ctx);
                     try vm.stack.append(allocator, val);
                 },
                 .multiply => {
-                    const val = try Instructions.mult(vm, allocator, line, err_ctx);
+                    const val = try Instructions.mult(vm, allocator, err_ctx);
                     try vm.stack.append(allocator, val);
                 },
                 .divide => {
-                    const val = try Instructions.div(vm, allocator, line, err_ctx);
+                    const val = try Instructions.div(vm, allocator, err_ctx);
                     try vm.stack.append(allocator, val);
                 },
                 .jump => {
@@ -214,9 +259,14 @@ pub const VM = struct {
                 },
                 .get_local => {
                     const slot = try vm.stackPop();
-                    const slot_index: usize = @intCast(slot.int);
+                    const slot_index = @as(usize, @intCast(slot.int)) + vm.frames[vm.frame_count - 1].stack_pos;
 
-                    try vm.stack.append(allocator, vm.local_stack.items[slot_index]);
+                    try vm.stack.append(allocator, vm.local_stack.items[slot_index].borrow());
+                },
+                .call => {
+                    const arg_count = vm.readByte();
+                    const v = try vm.stackPop();
+                    frame = try vm.callValue(v, arg_count);
                 },
                 .noop => {},
             }
