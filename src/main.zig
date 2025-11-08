@@ -12,14 +12,10 @@ pub fn createFn(allocator: std.mem.Allocator) !*Obj.Function {
     var chunk = try allocator.create(Chunk);
     chunk.* = Chunk.empty;
 
-    _ = try chunk.emitConstant(allocator, .{ .int = 3 }, 123);
-    try chunk.append(allocator, .get_local, 123);
-    _ = try chunk.emitConstant(allocator, .{ .int = 2 }, 123);
-    try chunk.append(allocator, .get_local, 123);
-    _ = try chunk.emitConstant(allocator, .{ .int = 1 }, 123);
-    try chunk.append(allocator, .get_local, 123);
-    _ = try chunk.emitConstant(allocator, .{ .int = 0 }, 123);
-    try chunk.append(allocator, .get_local, 123);
+    try chunk.emitGetLocal(allocator, 3, 123);
+    try chunk.emitGetLocal(allocator, 2, 123);
+    try chunk.emitGetLocal(allocator, 1, 123);
+    try chunk.emitGetLocal(allocator, 0, 123);
 
     _ = try chunk.emitConstant(allocator, .{ .int = 4 }, 123);
     try chunk.append(allocator, .add, 123);
@@ -80,10 +76,10 @@ pub fn main() !void {
     try chunk.emitGetGlobal(allocator, "my_var", 123);
 
     // args
-    try chunk.append(allocator, .def_local, 123);
-    try chunk.append(allocator, .def_local, 123);
-    try chunk.append(allocator, .def_local, 123);
-    try chunk.append(allocator, .def_local, 123);
+    try chunk.emitDefLocal(allocator, "a", 123);
+    try chunk.emitDefLocal(allocator, "b", 123);
+    try chunk.emitDefLocal(allocator, "c", 123);
+    try chunk.emitDefLocal(allocator, "d", 123);
 
     // call with arity
     try chunk.emitGetGlobal(allocator, "my_fn", 123);

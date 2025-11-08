@@ -258,8 +258,8 @@ pub const VM = struct {
                     try vm.local_stack.append(allocator, v);
                 },
                 .get_local => {
-                    const slot = try vm.stackPop();
-                    const slot_index = @as(usize, @intCast(slot.int)) + vm.frames[vm.frame_count - 1].stack_pos;
+                    const slot: u16 = std.mem.bytesToValue(u16, vm.readBytes(2));
+                    const slot_index = @as(usize, @intCast(slot)) + vm.frames[vm.frame_count - 1].stack_pos;
 
                     try vm.stack.append(allocator, vm.local_stack.items[slot_index].borrow());
                 },

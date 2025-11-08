@@ -81,6 +81,17 @@ pub const Chunk = struct {
         try chunk.append(allocator, .get_global, line);
     }
 
+    pub fn emitDefLocal(chunk: *Chunk, allocator: std.mem.Allocator, name: []const u8, line: usize) !void {
+        _ = name;
+        try chunk.append(allocator, .def_local, line);
+    }
+
+    pub fn emitGetLocal(chunk: *Chunk, allocator: std.mem.Allocator, offset: u16, line: usize) !void {
+        try chunk.append(allocator, .get_local, line);
+        const bs = std.mem.toBytes(offset);
+        try chunk.emitBytes(allocator, &bs, line);
+    }
+
     pub fn emitJump(chunk: *Chunk, allocator: std.mem.Allocator, offset: u16, line: usize) !usize {
         const bytes = std.mem.toBytes(offset);
         try chunk.append(allocator, .jump, line);
