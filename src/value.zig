@@ -1,4 +1,5 @@
 const std = @import("std");
+const errors = @import("errors.zig");
 const Chunk = @import("chunk.zig").Chunk;
 
 pub const Value = union(enum) {
@@ -239,5 +240,9 @@ pub const Obj = struct {
         }
     };
 
-    pub const NativeFn = *const fn (allocator: std.mem.Allocator, args: []const Value) anyerror!Value;
+    pub const NativeFn = *const fn (
+        allocator: std.mem.Allocator,
+        args: []const Value,
+        err_ctx: *errors.Ctx,
+    ) anyerror!Value;
 };

@@ -53,7 +53,7 @@ pub fn createClosure(allocator: std.mem.Allocator) !*Obj.Closure {
     return closure;
 }
 
-fn testFn(allocator: std.mem.Allocator, _: []const Value) anyerror!Value {
+fn testFn(allocator: std.mem.Allocator, _: []const Value, _: *errors.Ctx) anyerror!Value {
     std.debug.print("Hello\n", .{});
     const str = try Obj.String.init(allocator, "hello?");
     return .{ .obj = &str.obj };
@@ -142,10 +142,7 @@ pub fn main() !void {
     var vm = VM.init(function);
     defer vm.deinit(allocator);
 
-    var err_ctx = errors.Ctx{ .msg = "" };
-    defer err_ctx.deinit(allocator);
-
-    vm.run(allocator, &err_ctx) catch |err| {
+    vm.run(allocator) catch |err| {
         std.debug.print("ERROR: {any}\n", .{err});
         return err;
     };

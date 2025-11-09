@@ -48,6 +48,8 @@ pub const VM = struct {
     frames: [FRAMES_MAX]CallFrame,
     frame_count: u32,
 
+    err_ctx: errors.Ctx,
+
     const FRAMES_MAX = 1024;
 
     pub fn init(func: *Obj.Function) VM {
@@ -58,6 +60,8 @@ pub const VM = struct {
 
             .frames = undefined,
             .frame_count = 1,
+
+            .err_ctx = .empty,
         };
 
         vm.frames[0] = CallFrame{
@@ -182,7 +186,7 @@ pub const VM = struct {
             args[i] = try vm.stackPop();
         }
 
-        const res = try f.native_fn(allocator, args);
+        const res = try f.native_fn(allocator, args, &vm.err_ctx);
         try vm.stack.append(allocator, res);
 
         // dummy stack frame with just ret
@@ -209,7 +213,7 @@ pub const VM = struct {
         };
     }
 
-    pub fn run(vm: *VM, allocator: std.mem.Allocator, err_ctx: *errors.Ctx) !void {
+    pub fn run(vm: *VM, allocator: std.mem.Allocator) !void {
         var frame = &vm.frames[vm.frame_count - 1];
 
         while (true) {
@@ -262,19 +266,19 @@ pub const VM = struct {
                     try vm.stack.append(allocator, v);
                 },
                 .add => {
-                    const val = try Instructions.add(vm, allocator, err_ctx);
+                    const val = try Instructions.add(vm, allocator, &vm.err_ctx);
                     try vm.stack.append(allocator, val);
                 },
                 .subtract => {
-                    const val = try Instructions.sub(vm, allocator, err_ctx);
+                    const val = try Instructions.sub(vm, allocator, &vm.err_ctx);
                     try vm.stack.append(allocator, val);
                 },
                 .multiply => {
-                    const val = try Instructions.mult(vm, allocator, err_ctx);
+                    const val = try Instructions.mult(vm, allocator, &vm.err_ctx);
                     try vm.stack.append(allocator, val);
                 },
                 .divide => {
-                    const val = try Instructions.div(vm, allocator, err_ctx);
+                    const val = try Instructions.div(vm, allocator, &vm.err_ctx);
                     try vm.stack.append(allocator, val);
                 },
                 .jump => {
