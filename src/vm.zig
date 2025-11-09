@@ -165,6 +165,37 @@ pub const VM = struct {
         return vm.call(allocator, f.function, arg_count, @intCast(f.args.len));
     }
 
+    fn callNative(vm: *VM, allocator: std.mem.Allocator, f: *Obj.NativeFunction, arg_count: u8) !*CallFrame {
+        if (arg_count != f.arity) {
+            return Error.WrongArgumentNumber;
+        }
+
+        vm.frame_count += 1;
+        if (vm.frame_count == FRAMES_MAX) {
+            return Error.StackOverflow;
+        }
+
+        var args = try allocator.alloc(Value, arg_count);
+        defer allocator.free(args);
+
+        for (0..f.arity, 0..) |_, i| {
+            args[i] = try vm.stackPop();
+        }
+
+        const res = try f.native_fn(allocator, args);
+        try vm.stack.append(allocator, res);
+
+        // dummy stack frame with just ret
+        const frame = CallFrame{
+            .function = f.function,
+            .ip = f.function.chunk.code.items.ptr,
+            .stack_pos = vm.local_stack.items.len,
+        };
+
+        vm.frames[vm.frame_count - 1] = frame;
+        return &vm.frames[vm.frame_count - 1];
+    }
+
     fn callValue(vm: *VM, allocator: std.mem.Allocator, v: Value, arg_count: u8) !*CallFrame {
         if (v != .obj) {
             return Error.TypeNotCallable;
@@ -173,6 +204,7 @@ pub const VM = struct {
         return switch (v.obj.kind) {
             .function => try vm.call(allocator, v.obj.as(Obj.Function), arg_count, 0),
             .closure => try vm.callClosure(allocator, v.obj.as(Obj.Closure), arg_count),
+            .native_fn => try vm.callNative(allocator, v.obj.as(Obj.NativeFunction), arg_count),
             else => Error.TypeNotCallable,
         };
     }

@@ -20,6 +20,7 @@ pub fn disassembleInstruction(allocator: std.mem.Allocator, chunk: Chunk, index:
                     .string => try std.fmt.allocPrint(allocator, "OP_CONSTANT {s}", .{o.as(Obj.String).bytes}),
                     .function => try std.fmt.allocPrint(allocator, "OP_CONSTANT <fn = {s}>", .{o.as(Obj.Function).name}),
                     .closure => try std.fmt.allocPrint(allocator, "OP_CONSTANT <fn = {s}>", .{o.as(Obj.Closure).function.name}),
+                    .native_fn => try std.fmt.allocPrint(allocator, "OP_CONSTANT <native_fn = {s}>", .{o.as(Obj.NativeFunction).name}),
                 },
                 else => try std.fmt.allocPrint(allocator, "OP_CONSTANT {}", .{v}),
             };
@@ -33,6 +34,7 @@ pub fn disassembleInstruction(allocator: std.mem.Allocator, chunk: Chunk, index:
                     .string => std.fmt.allocPrint(allocator, "OP_CONSTANT_LONG {s}", .{o.as(Obj.String).bytes}) catch unreachable,
                     .function => try std.fmt.allocPrint(allocator, "OP_CONSTANT <fn = {s}>", .{o.as(Obj.Function).name}),
                     .closure => try std.fmt.allocPrint(allocator, "OP_CONSTANT <fn = {s}>", .{o.as(Obj.Closure).function.name}),
+                    .native_fn => try std.fmt.allocPrint(allocator, "OP_CONSTANT <native_fn = {s}>", .{o.as(Obj.NativeFunction).name}),
                 },
                 else => std.fmt.allocPrint(allocator, "OP_CONSTANT_LONG {}", .{v}) catch unreachable,
             };

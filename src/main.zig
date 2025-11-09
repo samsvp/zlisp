@@ -21,7 +21,7 @@ pub fn createFn(allocator: std.mem.Allocator) !*Obj.Function {
     try chunk.append(allocator, .add, 123);
     try chunk.append(allocator, .ret, 124);
 
-    const function = try Obj.Function.init(allocator, 4, chunk, "add-4", "Adds 4 values");
+    const function = try Obj.Function.init(allocator, chunk, 4, "add-4", "Adds 4 values");
     return function;
 }
 
@@ -43,14 +43,24 @@ pub fn createClosure(allocator: std.mem.Allocator) !*Obj.Closure {
 
     const closure = try Obj.Closure.init(
         allocator,
-        3,
         chunk,
+        3,
         "add-3",
         "adds 3 values with initial condition",
         // simulate closing over a variable with value
         &args,
     );
     return closure;
+}
+
+fn testFn(allocator: std.mem.Allocator, _: []const Value) anyerror!Value {
+    std.debug.print("Hello\n", .{});
+    const str = try Obj.String.init(allocator, "hello?");
+    return .{ .obj = &str.obj };
+}
+
+pub fn createNative(allocator: std.mem.Allocator) !*Obj.NativeFunction {
+    return Obj.NativeFunction.init(allocator, testFn, 0, "test", "");
 }
 
 pub fn main() !void {
@@ -61,7 +71,11 @@ pub fn main() !void {
 
     var chunk = try allocator.create(Chunk);
     chunk.* = Chunk.empty;
-    const function = try Obj.Function.init(allocator, 0, chunk, "main", "");
+    const function = try Obj.Function.init(allocator, chunk, 0, "main", "");
+
+    var native_fn = try createNative(allocator);
+    _ = try chunk.emitConstant(allocator, .{ .obj = &native_fn.obj }, 10);
+    try chunk.emitDefGlobal(allocator, "my_nat_fn", 10);
 
     var func = try createFn(allocator);
     _ = try chunk.emitConstant(allocator, .{ .obj = &func.obj }, 11);
@@ -118,6 +132,10 @@ pub fn main() !void {
     try chunk.emitGetGlobal(allocator, "my_cls", 123);
     try chunk.append(allocator, .call, 123);
     try chunk.emitByte(allocator, 3, 123);
+
+    try chunk.emitGetGlobal(allocator, "my_nat_fn", 125);
+    try chunk.append(allocator, .call, 125);
+    try chunk.emitByte(allocator, 0, 125);
 
     try chunk.append(allocator, .ret, 124);
 

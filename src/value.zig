@@ -33,6 +33,7 @@ pub const Value = union(enum) {
                 .string => std.debug.print("{s}", .{o.as(Obj.String).bytes}),
                 .function => std.debug.print("<fn = {s}>", .{o.as(Obj.Function).name}),
                 .closure => std.debug.print("<fn = {s}>", .{o.as(Obj.Closure).function.name}),
+                .native_fn => std.debug.print("<native_fn = {s}>", .{o.as(Obj.NativeFunction).name}),
             },
             .symbol => |s| std.debug.print("{s}", .{s}),
             else => std.debug.print("{}", .{v}),
@@ -73,6 +74,7 @@ pub const Value = union(enum) {
                     },
                     .function => false,
                     .closure => false,
+                    .native_fn => false,
                 },
                 else => false,
             },
@@ -88,6 +90,7 @@ pub const Obj = struct {
         string,
         function,
         closure,
+        native_fn,
     };
 
     pub fn init(kind: Kind) Obj {
@@ -103,6 +106,7 @@ pub const Obj = struct {
             .string => self.as(String).deinit(allocator),
             .function => self.as(Function).deinit(allocator),
             .closure => self.as(Closure).deinit(allocator),
+            .native_fn => self.as(NativeFunction).deinit(allocator),
         };
     }
 
@@ -147,7 +151,7 @@ pub const Obj = struct {
         name: []const u8,
         help: []const u8,
 
-        pub fn init(allocator: std.mem.Allocator, arity: u32, chunk: *Chunk, name: []const u8, help: []const u8) !*Function {
+        pub fn init(allocator: std.mem.Allocator, chunk: *Chunk, arity: u8, name: []const u8, help: []const u8) !*Function {
             const func = try allocator.create(Function);
             func.* = Function{
                 .obj = Obj.init(.function),
@@ -164,6 +168,22 @@ pub const Obj = struct {
             allocator.destroy(self.chunk);
             allocator.destroy(self);
         }
+
+        pub fn native(allocator: std.mem.Allocator, arity: u32, name: []const u8, help: []const u8) !*Function {
+            var chunk = try allocator.create(Chunk);
+            chunk.* = .empty;
+            try chunk.append(allocator, .ret, 0);
+
+            const func = try allocator.create(Function);
+            func.* = Function{
+                .obj = Obj.init(.function),
+                .arity = arity,
+                .chunk = chunk,
+                .name = name,
+                .help = help,
+            };
+            return func;
+        }
     };
 
     pub const Closure = struct {
@@ -171,11 +191,11 @@ pub const Obj = struct {
         function: *Function,
         args: []const Value,
 
-        pub fn init(allocator: std.mem.Allocator, arity: u32, chunk: *Chunk, name: []const u8, help: []const u8, args: []Value) !*Closure {
+        pub fn init(allocator: std.mem.Allocator, chunk: *Chunk, arity: u8, name: []const u8, help: []const u8, args: []Value) !*Closure {
             const closure = try allocator.create(Closure);
             closure.* = Closure{
                 .obj = Obj.init(.closure),
-                .function = try Function.init(allocator, arity, chunk, name, help),
+                .function = try Function.init(allocator, chunk, arity, name, help),
                 .args = try allocator.dupe(Value, args),
             };
             return closure;
@@ -190,4 +210,34 @@ pub const Obj = struct {
             allocator.destroy(self);
         }
     };
+
+    pub const NativeFunction = struct {
+        obj: Obj,
+        arity: u32,
+        native_fn: NativeFn,
+        function: *Function,
+        name: []const u8,
+        help: []const u8,
+
+        pub fn init(allocator: std.mem.Allocator, func: NativeFn, arity: u8, name: []const u8, help: []const u8) !*NativeFunction {
+            const native_func = try allocator.create(NativeFunction);
+            native_func.* = NativeFunction{
+                .obj = Obj.init(.native_fn),
+                .arity = arity,
+                .native_fn = func,
+                .name = name,
+                .help = help,
+                .function = try Function.native(allocator, arity, name, help),
+            };
+            return native_func;
+        }
+
+        pub fn deinit(self: *NativeFunction, allocator: std.mem.Allocator) void {
+            defer allocator.destroy(self);
+
+            self.function.deinit(allocator);
+        }
+    };
+
+    pub const NativeFn = *const fn (allocator: std.mem.Allocator, args: []const Value) anyerror!Value;
 };
