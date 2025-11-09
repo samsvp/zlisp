@@ -75,12 +75,6 @@ pub fn main() !void {
     _ = try chunk.emitConstant(allocator, .{ .obj = &s1.obj }, 123);
     try chunk.emitGetGlobal(allocator, "my_var", 123);
 
-    // args
-    try chunk.emitDefLocal(allocator, "a", 123);
-    try chunk.emitDefLocal(allocator, "b", 123);
-    try chunk.emitDefLocal(allocator, "c", 123);
-    try chunk.emitDefLocal(allocator, "d", 123);
-
     // call with arity
     try chunk.emitGetGlobal(allocator, "my_fn", 123);
     try chunk.append(allocator, .call, 123);
