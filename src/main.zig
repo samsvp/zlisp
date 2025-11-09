@@ -1,9 +1,9 @@
 const std = @import("std");
 const ln = @import("linenoise");
 
-const Chunk = @import("chunk.zig").Chunk;
+const Chunk = @import("backend/chunk.zig").Chunk;
 const errors = @import("errors.zig");
-const VM = @import("vm.zig").VM;
+const VM = @import("backend/vm.zig").VM;
 const reader = @import("reader.zig");
 const Value = @import("value.zig").Value;
 const Obj = @import("value.zig").Obj;

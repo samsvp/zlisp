@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const Obj = @import("value.zig").Obj;
+const Obj = @import("../value.zig").Obj;
 const chunk_ = @import("chunk.zig");
 const OpCode = chunk_.OpCode;
 const Chunk = chunk_.Chunk;

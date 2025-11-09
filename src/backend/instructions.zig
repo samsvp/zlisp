@@ -1,8 +1,8 @@
 const std = @import("std");
 
-const errors = @import("errors.zig");
-const Obj = @import("value.zig").Obj;
-const Value = @import("value.zig").Value;
+const errors = @import("../errors.zig");
+const Obj = @import("../value.zig").Obj;
+const Value = @import("../value.zig").Value;
 
 const vm_module = @import("vm.zig");
 const Error = vm_module.Error;

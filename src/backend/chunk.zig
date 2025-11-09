@@ -1,6 +1,6 @@
 const std = @import("std");
-const Obj = @import("value.zig").Obj;
-const Value = @import("value.zig").Value;
+const Obj = @import("../value.zig").Obj;
+const Value = @import("../value.zig").Value;
 
 pub const OpCode = enum(u8) {
     noop,

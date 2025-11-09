@@ -1,6 +1,6 @@
 const std = @import("std");
 const errors = @import("errors.zig");
-const Chunk = @import("chunk.zig").Chunk;
+const Chunk = @import("backend/chunk.zig").Chunk;
 
 pub const Value = union(enum) {
     int: i32,

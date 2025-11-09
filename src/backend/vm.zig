@@ -1,13 +1,12 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const errors = @import("errors.zig");
+const errors = @import("../errors.zig");
 const debug = @import("debug.zig");
 const Chunk = @import("chunk.zig").Chunk;
 const OpCode = @import("chunk.zig").OpCode;
-const Obj = @import("value.zig").Obj;
-const Value = @import("value.zig").Value;
-const compiler = @import("compiler.zig");
+const Obj = @import("../value.zig").Obj;
+const Value = @import("../value.zig").Value;
 const Instructions = @import("instructions.zig").Instructions;
 
 pub const CompileError = error{
