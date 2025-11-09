@@ -25,6 +25,34 @@ pub fn createFn(allocator: std.mem.Allocator) !*Obj.Function {
     return function;
 }
 
+pub fn createClosure(allocator: std.mem.Allocator) !*Obj.Closure {
+    var chunk = try allocator.create(Chunk);
+    chunk.* = Chunk.empty;
+
+    try chunk.emitGetLocal(allocator, 3, 123);
+    try chunk.emitGetLocal(allocator, 2, 123);
+    try chunk.emitGetLocal(allocator, 1, 123);
+    try chunk.emitGetLocal(allocator, 0, 123);
+
+    _ = try chunk.emitConstant(allocator, .{ .int = 4 }, 123);
+    try chunk.append(allocator, .add, 123);
+    try chunk.append(allocator, .ret, 124);
+
+    const s = try Obj.String.init(allocator, "closure");
+    var args = [_]Value{.{ .obj = &s.obj }};
+
+    const closure = try Obj.Closure.init(
+        allocator,
+        3,
+        chunk,
+        "add-3",
+        "adds 3 values with initial condition",
+        // simulate closing over a variable with value
+        &args,
+    );
+    return closure;
+}
+
 pub fn main() !void {
     var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -38,6 +66,10 @@ pub fn main() !void {
     var func = try createFn(allocator);
     _ = try chunk.emitConstant(allocator, .{ .obj = &func.obj }, 11);
     try chunk.emitDefGlobal(allocator, "my_fn", 11);
+
+    var cls = try createClosure(allocator);
+    _ = try chunk.emitConstant(allocator, .{ .obj = &cls.obj }, 11);
+    try chunk.emitDefGlobal(allocator, "my_cls", 11);
 
     var s0_1 = try Obj.String.init(allocator, "wow man!");
     var s0_2 = try Obj.String.init(allocator, "wow woman!");
@@ -79,6 +111,13 @@ pub fn main() !void {
     try chunk.emitGetGlobal(allocator, "my_fn", 123);
     try chunk.append(allocator, .call, 123);
     try chunk.emitByte(allocator, 4, 123);
+
+    _ = try chunk.emitConstant(allocator, .{ .obj = &s3.obj }, 123);
+    _ = try chunk.emitConstant(allocator, .{ .obj = &s2.obj }, 123);
+    _ = try chunk.emitConstant(allocator, .{ .obj = &s1.obj }, 123);
+    try chunk.emitGetGlobal(allocator, "my_cls", 123);
+    try chunk.append(allocator, .call, 123);
+    try chunk.emitByte(allocator, 3, 123);
 
     try chunk.append(allocator, .ret, 124);
 

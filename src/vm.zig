@@ -78,6 +78,10 @@ pub const VM = struct {
             self.frames[i].deinit(allocator);
         }
 
+        for (self.stack.items) |s| {
+            s.deinit(allocator);
+        }
+
         for (self.local_stack.items) |*v| {
             v.deinit(allocator);
         }
@@ -127,7 +131,7 @@ pub const VM = struct {
         return vm.frames[vm.frame_count - 1].function.chunk.constants.items[c_index];
     }
 
-    fn call(vm: *VM, allocator: std.mem.Allocator, f: *Obj.Function, arg_count: u8) !*CallFrame {
+    fn call(vm: *VM, allocator: std.mem.Allocator, f: *Obj.Function, arg_count: u8, offset: u8) !*CallFrame {
         if (arg_count != f.arity) {
             return Error.WrongArgumentNumber;
         }
@@ -141,7 +145,7 @@ pub const VM = struct {
             .function = f,
             .ip = f.chunk.code.items.ptr,
             // function arguments are loaded at the top of the local stack
-            .stack_pos = vm.local_stack.items.len,
+            .stack_pos = vm.local_stack.items.len - offset,
         };
 
         for (0..f.arity) |_| {
@@ -153,13 +157,22 @@ pub const VM = struct {
         return &vm.frames[vm.frame_count - 1];
     }
 
+    fn callClosure(vm: *VM, allocator: std.mem.Allocator, f: *Obj.Closure, arg_count: u8) !*CallFrame {
+        for (f.args) |arg| {
+            try vm.local_stack.append(allocator, arg);
+        }
+
+        return vm.call(allocator, f.function, arg_count, @intCast(f.args.len));
+    }
+
     fn callValue(vm: *VM, allocator: std.mem.Allocator, v: Value, arg_count: u8) !*CallFrame {
         if (v != .obj) {
             return Error.TypeNotCallable;
         }
 
         return switch (v.obj.kind) {
-            .function => try vm.call(allocator, v.obj.as(Obj.Function), arg_count),
+            .function => try vm.call(allocator, v.obj.as(Obj.Function), arg_count, 0),
+            .closure => try vm.callClosure(allocator, v.obj.as(Obj.Closure), arg_count),
             else => Error.TypeNotCallable,
         };
     }

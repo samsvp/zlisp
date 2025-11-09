@@ -32,6 +32,7 @@ pub const Value = union(enum) {
             .obj => |o| switch (o.kind) {
                 .string => std.debug.print("{s}", .{o.as(Obj.String).bytes}),
                 .function => std.debug.print("<fn = {s}>", .{o.as(Obj.Function).name}),
+                .closure => std.debug.print("<fn = {s}>", .{o.as(Obj.Closure).function.name}),
             },
             .symbol => |s| std.debug.print("{s}", .{s}),
             else => std.debug.print("{}", .{v}),
@@ -68,9 +69,10 @@ pub const Value = union(enum) {
                             o_1.as(Obj.String).bytes,
                             o_2.as(Obj.String).bytes,
                         ),
-                        .function => false,
+                        else => false,
                     },
                     .function => false,
+                    .closure => false,
                 },
                 else => false,
             },
@@ -85,6 +87,7 @@ pub const Obj = struct {
     pub const Kind = enum {
         string,
         function,
+        closure,
     };
 
     pub fn init(kind: Kind) Obj {
@@ -99,6 +102,7 @@ pub const Obj = struct {
         if (self.count == 0) switch (self.kind) {
             .string => self.as(String).deinit(allocator),
             .function => self.as(Function).deinit(allocator),
+            .closure => self.as(Closure).deinit(allocator),
         };
     }
 
@@ -158,6 +162,31 @@ pub const Obj = struct {
         pub fn deinit(self: *Function, allocator: std.mem.Allocator) void {
             self.chunk.deinit(allocator);
             allocator.destroy(self.chunk);
+            allocator.destroy(self);
+        }
+    };
+
+    pub const Closure = struct {
+        obj: Obj,
+        function: *Function,
+        args: []const Value,
+
+        pub fn init(allocator: std.mem.Allocator, arity: u32, chunk: *Chunk, name: []const u8, help: []const u8, args: []Value) !*Closure {
+            const closure = try allocator.create(Closure);
+            closure.* = Closure{
+                .obj = Obj.init(.closure),
+                .function = try Function.init(allocator, arity, chunk, name, help),
+                .args = try allocator.dupe(Value, args),
+            };
+            return closure;
+        }
+
+        pub fn deinit(self: *Closure, allocator: std.mem.Allocator) void {
+            self.function.deinit(allocator);
+            for (self.args) |*v| {
+                v.deinit(allocator);
+            }
+            allocator.free(self.args);
             allocator.destroy(self);
         }
     };
