@@ -28,7 +28,7 @@ pub const Value = union(enum) {
         return self;
     }
 
-    pub fn printValue(v: Value) void {
+    pub fn print(v: Value) void {
         switch (v) {
             .obj => |o| switch (o.kind) {
                 .string => std.debug.print("{s}", .{o.as(Obj.String).items}),
@@ -147,7 +147,7 @@ pub const Obj = struct {
 
                 ptr.* = Self{
                     .obj = Obj.init(kind),
-                    .items = try allocator.dupe(u8, v),
+                    .items = try allocator.dupe(T, v),
                 };
 
                 return ptr;
@@ -162,7 +162,11 @@ pub const Obj = struct {
                 return Self.init(allocator, self.items);
             }
 
-            pub fn appendMut(self: *Self, allocator: std.mem.Allocator, v: []const u8) !void {
+            pub fn appendMut(self: *Self, allocator: std.mem.Allocator, v: T) !void {
+                return self.appendManyMut(allocator, &[1]T{v});
+            }
+
+            pub fn appendManyMut(self: *Self, allocator: std.mem.Allocator, v: []const T) !void {
                 const old_len = self.items.len;
                 self.items = try allocator.realloc(self.items, self.items.len + v.len);
                 @memcpy(self.items.ptr + old_len, v);

@@ -6,6 +6,7 @@ const errors = @import("errors.zig");
 const VM = @import("backend/vm.zig").VM;
 const Value = @import("value.zig").Value;
 const Obj = @import("value.zig").Obj;
+const reader = @import("frontend/reader.zig");
 
 pub fn createFn(allocator: std.mem.Allocator) !*Obj.Function {
     var chunk = try allocator.create(Chunk);
@@ -145,4 +146,17 @@ pub fn main() !void {
         std.debug.print("ERROR: {any}\n", .{err});
         return err;
     };
+
+    var err_ctx = errors.Ctx.empty;
+    defer err_ctx.deinit(allocator);
+
+    std.debug.print("\nParsed\n", .{});
+    var tokens = try reader.readStr(allocator, "(1 2 3 (+ 1 2 3))", &err_ctx);
+    defer tokens.deinit(allocator);
+
+    for (tokens.items) |*t| {
+        t.print();
+        t.deinit(allocator);
+    }
+    std.debug.print("\n", .{});
 }

@@ -231,7 +231,7 @@ pub const VM = struct {
                 std.debug.print("==== STACK ====\n", .{});
                 std.debug.print("[ ", .{});
                 for (vm.stack.items) |i| {
-                    i.printValue();
+                    i.print();
                     std.debug.print(", ", .{});
                 }
                 std.debug.print("]\n", .{});
