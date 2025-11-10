@@ -151,12 +151,13 @@ pub fn main() !void {
     defer err_ctx.deinit(allocator);
 
     std.debug.print("\nParsed\n", .{});
-    var tokens = try reader.readStr(allocator, "(1 2 3 (+ 1 2 3))", &err_ctx);
+    var tokens = try reader.readStr(allocator, "(1 2 3 (+ 1 2 3))\n(/ 5 8)", &err_ctx);
     defer tokens.deinit(allocator);
 
     for (tokens.items) |*t| {
-        t.print();
+        try t.print(allocator);
         t.deinit(allocator);
+
+        std.debug.print("\n", .{});
     }
-    std.debug.print("\n", .{});
 }

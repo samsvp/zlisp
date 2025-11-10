@@ -98,6 +98,31 @@ pub const Value = union(enum) {
             },
         };
     }
+
+    pub fn toString(self: Value, allocator: std.mem.Allocator) ![]const u8 {
+        return switch (self) {
+            .obj => |o| switch (o.kind) {
+                .string => try std.fmt.allocPrint(allocator, "{s}", .{o.as(Obj.String).items}),
+                .list => list: {
+                    var buffer: std.ArrayList(u8) = .empty;
+                    try buffer.append(allocator, '(');
+                    const lst = o.as(Obj.List).items;
+                    var writer = buffer.writer(allocator);
+                    for (lst) |v| {
+                        try writer.print("{s}, ", .{try v.toString(allocator)});
+                    }
+                    try buffer.append(allocator, ')');
+                    break :list buffer.items;
+                },
+                .function => try std.fmt.allocPrint(allocator, "<fn = {s}>", .{o.as(Obj.Function).name}),
+                .closure => try std.fmt.allocPrint(allocator, "<fn = {s}>", .{o.as(Obj.Closure).function.name}),
+                .native_fn => try std.fmt.allocPrint(allocator, "<native_fn = {s}>", .{o.as(Obj.NativeFunction).name}),
+            },
+            .symbol => |s| try std.fmt.allocPrint(allocator, "{s}", .{s}),
+            .nil => try std.fmt.allocPrint(allocator, "nil", .{}),
+            inline else => |v| try std.fmt.allocPrint(allocator, "{}", .{v}),
+        };
+    }
 };
 
 pub const Obj = struct {

@@ -15,31 +15,17 @@ pub fn disassembleInstruction(allocator: std.mem.Allocator, chunk: Chunk, index:
         .constant => constant: {
             const c_index = chunk.code.items[index + 1];
             const v = chunk.constants.items[c_index];
-            const res = switch (v) {
-                .obj => |o| switch (o.kind) {
-                    .string => try std.fmt.allocPrint(allocator, "OP_CONSTANT {s}", .{o.as(Obj.String).items}),
-                    .list => try std.fmt.allocPrint(allocator, "OP_CONSTANT <list>", .{}),
-                    .function => try std.fmt.allocPrint(allocator, "OP_CONSTANT <fn = {s}>", .{o.as(Obj.Function).name}),
-                    .closure => try std.fmt.allocPrint(allocator, "OP_CONSTANT <fn = {s}>", .{o.as(Obj.Closure).function.name}),
-                    .native_fn => try std.fmt.allocPrint(allocator, "OP_CONSTANT <native_fn = {s}>", .{o.as(Obj.NativeFunction).name}),
-                },
-                else => try std.fmt.allocPrint(allocator, "OP_CONSTANT {}", .{v}),
-            };
+            const str = try v.toString(allocator);
+            defer allocator.free(str);
+            const res = try std.fmt.allocPrint(allocator, "OP_CONSTANT {s}", .{str});
             break :constant .{ res, 2 };
         },
         .constant_long => constant_long: {
             const c_index = std.mem.bytesToValue(u16, chunk.code.items[index + 1 .. index + 3]);
             const v = chunk.constants.items[c_index];
-            const res = switch (v) {
-                .obj => |o| switch (o.kind) {
-                    .string => std.fmt.allocPrint(allocator, "OP_CONSTANT_LONG {s}", .{o.as(Obj.String).items}) catch unreachable,
-                    .list => try std.fmt.allocPrint(allocator, "OP_CONSTANT <list>", .{}),
-                    .function => try std.fmt.allocPrint(allocator, "OP_CONSTANT <fn = {s}>", .{o.as(Obj.Function).name}),
-                    .closure => try std.fmt.allocPrint(allocator, "OP_CONSTANT <fn = {s}>", .{o.as(Obj.Closure).function.name}),
-                    .native_fn => try std.fmt.allocPrint(allocator, "OP_CONSTANT <native_fn = {s}>", .{o.as(Obj.NativeFunction).name}),
-                },
-                else => std.fmt.allocPrint(allocator, "OP_CONSTANT_LONG {}", .{v}) catch unreachable,
-            };
+            const str = try v.toString(allocator);
+            defer allocator.free(str);
+            const res = try std.fmt.allocPrint(allocator, "OP_CONSTANT_LONG {s}", .{str});
             break :constant_long .{ res, 3 };
         },
         .jump => jump: {

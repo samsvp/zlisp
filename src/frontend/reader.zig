@@ -39,13 +39,18 @@ pub const Token = union(enum) {
         }
     }
 
-    pub fn print(self: Token) void {
+    pub fn print(self: Token, allocator: std.mem.Allocator) !void {
         switch (self) {
-            .atom => |a| a.value.print(),
+            .atom => |a| {
+                const str = try a.value.toString(allocator);
+                defer allocator.free(str);
+
+                std.debug.print("{{value: {s}; line: {}}}", .{ str, a.line });
+            },
             .list => |l| {
                 std.debug.print("(", .{});
                 for (l.items) |t| {
-                    t.print();
+                    try t.print(allocator);
                     std.debug.print(", ", .{});
                 }
                 std.debug.print(")", .{});
