@@ -166,6 +166,10 @@ pub const Obj = struct {
 
             const Self = @This();
 
+            pub fn empty(allocator: std.mem.Allocator) !*Self {
+                return Self.init(allocator, &.{});
+            }
+
             pub fn init(allocator: std.mem.Allocator, v: []const T) !*Self {
                 const ptr = try allocator.create(Self);
                 const kind: Obj.Kind = if (T == u8) .string else if (T == Value) .list else @compileError("Invalid type T");
