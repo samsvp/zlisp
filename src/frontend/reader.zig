@@ -1,6 +1,7 @@
 const std = @import("std");
-const errors = @import("errors.zig");
-const Value = @import("value.zig").Value;
+const errors = @import("../errors.zig");
+const Obj = @import("../value.zig").Obj;
+const Value = @import("../value.zig").Value;
 
 pub const ParserError = error{
     EOFCollectionReadError,
@@ -11,7 +12,7 @@ pub const ParserError = error{
     InvalidToken,
 };
 
-pub const TokenData = struct {
+pub const TokenString = struct {
     str: []const u8,
     line: usize,
 };
@@ -22,7 +23,7 @@ pub const Token = struct {
 };
 
 pub const TokenList = std.ArrayList(Token);
-pub const TokenDataList = std.ArrayList(TokenData);
+pub const TokenDataList = std.ArrayList(TokenString);
 
 /// A helper token reader.
 pub const Reader = struct {
@@ -31,7 +32,7 @@ pub const Reader = struct {
 
     const Self = @This();
 
-    pub fn next(self: *Self) ?TokenData {
+    pub fn next(self: *Self) ?TokenString {
         if (self.token_list.items.len <= self.current) {
             return null;
         }
@@ -39,7 +40,7 @@ pub const Reader = struct {
         return self.token_list.items[self.current - 1];
     }
 
-    pub fn peek(self: Self) ?TokenData {
+    pub fn peek(self: Self) ?TokenString {
         if (self.token_list.items.len <= self.current) {
             return null;
         }
@@ -79,14 +80,6 @@ pub fn tokenize(
                         '\\' => escaped = !escaped,
                         '"' => if (escaped) {
                             escaped = false;
-                        },
-                        'n' => if (escaped) {
-                            escaped = false;
-                            continue;
-                        },
-                        't' => if (escaped) {
-                            escaped = false;
-                            continue;
                         },
                         else => escaped = false,
                     }
@@ -133,7 +126,7 @@ pub fn tokenize(
 
 pub fn readAtom(
     allocator: std.mem.Allocator,
-    atom_token: TokenData,
+    atom_token: TokenString,
     err_ctx: *errors.Ctx,
 ) ParserError!Token {
     const atom = atom_token.str;
@@ -151,8 +144,12 @@ pub fn readAtom(
                 return ParserError.EOFStringReadError;
             }
 
-            err_ctx.setMsg(allocator, "Error reading string on line {}", .{atom_token.line}) catch unreachable;
-            return ParserError.NotImplemented;
+            const str = try Obj.String.init(allocator, atom[1 .. atom.len - 1]);
+
+            return Token{
+                .line = atom_token.line,
+                .value = .{ .obj = &str.obj },
+            };
         },
         else => {
             const maybe_num = std.fmt.parseInt(i32, atom, 10) catch null;
@@ -191,7 +188,8 @@ pub fn readAtom(
 
             return Token{
                 .line = atom_token.line,
-                .value = .{ .symbol = try Value.String.init(allocator, atom) },
+                // this should own the memory
+                .value = .{ .symbol = atom },
             };
         },
     }
@@ -264,8 +262,6 @@ pub fn readStr(
         .token_list = token_list,
         .current = 0,
     };
-
-    std.mem.reverse(TokenData, token_list.items);
 
     var acc: std.ArrayList(Token) = .empty;
     while (reader.peek()) |_| {

@@ -4,7 +4,6 @@ const ln = @import("linenoise");
 const Chunk = @import("backend/chunk.zig").Chunk;
 const errors = @import("errors.zig");
 const VM = @import("backend/vm.zig").VM;
-const reader = @import("reader.zig");
 const Value = @import("value.zig").Value;
 const Obj = @import("value.zig").Obj;
 
