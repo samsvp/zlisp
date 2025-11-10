@@ -17,7 +17,8 @@ pub fn disassembleInstruction(allocator: std.mem.Allocator, chunk: Chunk, index:
             const v = chunk.constants.items[c_index];
             const res = switch (v) {
                 .obj => |o| switch (o.kind) {
-                    .string => try std.fmt.allocPrint(allocator, "OP_CONSTANT {s}", .{o.as(Obj.String).bytes}),
+                    .string => try std.fmt.allocPrint(allocator, "OP_CONSTANT {s}", .{o.as(Obj.String).items}),
+                    .list => try std.fmt.allocPrint(allocator, "OP_CONSTANT <list>", .{}),
                     .function => try std.fmt.allocPrint(allocator, "OP_CONSTANT <fn = {s}>", .{o.as(Obj.Function).name}),
                     .closure => try std.fmt.allocPrint(allocator, "OP_CONSTANT <fn = {s}>", .{o.as(Obj.Closure).function.name}),
                     .native_fn => try std.fmt.allocPrint(allocator, "OP_CONSTANT <native_fn = {s}>", .{o.as(Obj.NativeFunction).name}),
@@ -31,7 +32,8 @@ pub fn disassembleInstruction(allocator: std.mem.Allocator, chunk: Chunk, index:
             const v = chunk.constants.items[c_index];
             const res = switch (v) {
                 .obj => |o| switch (o.kind) {
-                    .string => std.fmt.allocPrint(allocator, "OP_CONSTANT_LONG {s}", .{o.as(Obj.String).bytes}) catch unreachable,
+                    .string => std.fmt.allocPrint(allocator, "OP_CONSTANT_LONG {s}", .{o.as(Obj.String).items}) catch unreachable,
+                    .list => try std.fmt.allocPrint(allocator, "OP_CONSTANT <list>", .{}),
                     .function => try std.fmt.allocPrint(allocator, "OP_CONSTANT <fn = {s}>", .{o.as(Obj.Function).name}),
                     .closure => try std.fmt.allocPrint(allocator, "OP_CONSTANT <fn = {s}>", .{o.as(Obj.Closure).function.name}),
                     .native_fn => try std.fmt.allocPrint(allocator, "OP_CONSTANT <native_fn = {s}>", .{o.as(Obj.NativeFunction).name}),

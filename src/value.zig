@@ -31,7 +31,8 @@ pub const Value = union(enum) {
     pub fn printValue(v: Value) void {
         switch (v) {
             .obj => |o| switch (o.kind) {
-                .string => std.debug.print("{s}", .{o.as(Obj.String).bytes}),
+                .string => std.debug.print("{s}", .{o.as(Obj.String).items}),
+                .list => std.debug.print("List with len {}", .{o.as(Obj.List).items.len}),
                 .function => std.debug.print("<fn = {s}>", .{o.as(Obj.Function).name}),
                 .closure => std.debug.print("<fn = {s}>", .{o.as(Obj.Closure).function.name}),
                 .native_fn => std.debug.print("<native_fn = {s}>", .{o.as(Obj.NativeFunction).name}),
@@ -68,9 +69,25 @@ pub const Value = union(enum) {
                     .string => switch (o_2.kind) {
                         .string => std.mem.eql(
                             u8,
-                            o_1.as(Obj.String).bytes,
-                            o_2.as(Obj.String).bytes,
+                            o_1.as(Obj.String).items,
+                            o_2.as(Obj.String).items,
                         ),
+                        else => false,
+                    },
+                    .list => switch (o_2.kind) {
+                        .list => blk: {
+                            const l_1 = o_1.as(Obj.List).items;
+                            const l_2 = o_2.as(Obj.List).items;
+                            if (l_1.len != l_2.len) {
+                                break :blk false;
+                            }
+
+                            for (0..l_1.len) |i|
+                                if (!l_1[i].eql(l_2[i]))
+                                    break :blk false;
+
+                            break :blk true;
+                        },
                         else => false,
                     },
                     .function => false,
@@ -89,6 +106,7 @@ pub const Obj = struct {
 
     pub const Kind = enum {
         string,
+        list,
         function,
         closure,
         native_fn,
@@ -105,6 +123,7 @@ pub const Obj = struct {
 
         if (self.count == 0) switch (self.kind) {
             .string => self.as(String).deinit(allocator),
+            .list => self.as(List).deinit(allocator),
             .function => self.as(Function).deinit(allocator),
             .closure => self.as(Closure).deinit(allocator),
             .native_fn => self.as(NativeFunction).deinit(allocator),
@@ -115,35 +134,44 @@ pub const Obj = struct {
         return @alignCast(@fieldParentPtr("obj", self));
     }
 
-    /// Objects which live in the heap and must be garbage collected.
-    pub const String = struct {
-        obj: Obj,
-        bytes: []u8,
+    pub fn Array(comptime T: type) type {
+        return struct {
+            obj: Obj,
+            items: []T,
 
-        pub fn init(allocator: std.mem.Allocator, v: []const u8) !*String {
-            const string_ptr = try allocator.create(String);
-            string_ptr.* = String{
-                .obj = Obj.init(.string),
-                .bytes = try allocator.dupe(u8, v),
-            };
-            return string_ptr;
-        }
+            const Self = @This();
 
-        pub fn deinit(self: *String, allocator: std.mem.Allocator) void {
-            allocator.free(self.bytes);
-            allocator.destroy(self);
-        }
+            pub fn init(allocator: std.mem.Allocator, v: []const T) !*Self {
+                const ptr = try allocator.create(Self);
+                const kind: Obj.Kind = if (T == u8) .string else if (T == Value) .list else @compileError("Invalid type T");
 
-        pub fn copy(self: String, allocator: std.mem.Allocator) !*String {
-            return String.init(allocator, self.bytes);
-        }
+                ptr.* = Self{
+                    .obj = Obj.init(kind),
+                    .items = try allocator.dupe(u8, v),
+                };
 
-        pub fn appendMut(self: *String, allocator: std.mem.Allocator, v: []const u8) !void {
-            const old_len = self.bytes.len;
-            self.bytes = try allocator.realloc(self.bytes, self.bytes.len + v.len);
-            @memcpy(self.bytes.ptr + old_len, v);
-        }
-    };
+                return ptr;
+            }
+
+            pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
+                allocator.free(self.items);
+                allocator.destroy(self);
+            }
+
+            pub fn copy(self: Self, allocator: std.mem.Allocator) !*Self {
+                return Self.init(allocator, self.items);
+            }
+
+            pub fn appendMut(self: *Self, allocator: std.mem.Allocator, v: []const u8) !void {
+                const old_len = self.items.len;
+                self.items = try allocator.realloc(self.items, self.items.len + v.len);
+                @memcpy(self.items.ptr + old_len, v);
+            }
+        };
+    }
+
+    pub const String = Array(u8);
+    pub const List = Array(Value);
 
     pub const Function = struct {
         obj: Obj,

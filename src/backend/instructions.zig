@@ -79,7 +79,7 @@ pub const Instructions = struct {
                             return wrongType(allocator, "+", @tagName(value), err_ctx);
                         }
                         switch (value.obj.kind) {
-                            .string => try acc.appendMut(allocator, value.obj.as(Obj.String).bytes),
+                            .string => try acc.appendMut(allocator, value.obj.as(Obj.String).items),
                             else => return wrongType(allocator, "+", @tagName(value), err_ctx),
                         }
                     }
