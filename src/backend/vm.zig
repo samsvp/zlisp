@@ -7,7 +7,7 @@ const Chunk = @import("chunk.zig").Chunk;
 const OpCode = @import("chunk.zig").OpCode;
 const Obj = @import("../value.zig").Obj;
 const Value = @import("../value.zig").Value;
-const Instructions = @import("instructions.zig").Instructions;
+const instructions = @import("instructions.zig");
 
 pub const CompileError = error{
     InvalidInstruction,
@@ -266,22 +266,22 @@ pub const VM = struct {
                 },
                 .add => {
                     const arg_count = vm.readByte();
-                    const val = try Instructions.add(vm, allocator, arg_count, &vm.err_ctx);
+                    const val = try instructions.add(vm, allocator, arg_count, &vm.err_ctx);
                     try vm.stack.append(allocator, val);
                 },
                 .subtract => {
                     const arg_count = vm.readByte();
-                    const val = try Instructions.sub(vm, allocator, arg_count, &vm.err_ctx);
+                    const val = try instructions.sub(vm, allocator, arg_count, &vm.err_ctx);
                     try vm.stack.append(allocator, val);
                 },
                 .multiply => {
                     const arg_count = vm.readByte();
-                    const val = try Instructions.mult(vm, allocator, arg_count, &vm.err_ctx);
+                    const val = try instructions.mult(vm, allocator, arg_count, &vm.err_ctx);
                     try vm.stack.append(allocator, val);
                 },
                 .divide => {
                     const arg_count = vm.readByte();
-                    const val = try Instructions.div(vm, allocator, arg_count, &vm.err_ctx);
+                    const val = try instructions.div(vm, allocator, arg_count, &vm.err_ctx);
                     try vm.stack.append(allocator, val);
                 },
                 .jump => {
