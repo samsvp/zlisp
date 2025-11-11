@@ -6,7 +6,7 @@ const errors = @import("errors.zig");
 const VM = @import("backend/vm.zig").VM;
 const Value = @import("value.zig").Value;
 const Obj = @import("value.zig").Obj;
-const reader = @import("frontend/reader.zig");
+const compiler = @import("frontend/compiler.zig");
 
 pub fn createFn(allocator: std.mem.Allocator) !*Obj.Function {
     var chunk = try allocator.create(Chunk);
@@ -17,8 +17,8 @@ pub fn createFn(allocator: std.mem.Allocator) !*Obj.Function {
     try chunk.emitGetLocal(allocator, 1, 123);
     try chunk.emitGetLocal(allocator, 0, 123);
 
-    _ = try chunk.emitConstant(allocator, .{ .int = 4 }, 123);
     try chunk.append(allocator, .add, 123);
+    try chunk.emitByte(allocator, 4, 123);
     try chunk.append(allocator, .ret, 124);
 
     const function = try Obj.Function.init(allocator, chunk, 4, "add-4", "Adds 4 values");
@@ -34,8 +34,8 @@ pub fn createClosure(allocator: std.mem.Allocator) !*Obj.Closure {
     try chunk.emitGetLocal(allocator, 1, 123);
     try chunk.emitGetLocal(allocator, 0, 123);
 
-    _ = try chunk.emitConstant(allocator, .{ .int = 4 }, 123);
     try chunk.append(allocator, .add, 123);
+    try chunk.emitByte(allocator, 4, 123);
     try chunk.append(allocator, .ret, 124);
 
     const s = try Obj.String.init(allocator, "closure");
@@ -103,15 +103,15 @@ pub fn main() !void {
 
     _ = try chunk.emitConstant(allocator, .{ .float = 1.2 }, 123);
     _ = try chunk.emitConstant(allocator, .{ .float = 3.4 }, 123);
-    _ = try chunk.emitConstant(allocator, .{ .int = 2 }, 123);
     try chunk.append(allocator, .add, 123);
+    try chunk.emitByte(allocator, 2, 123);
 
     _ = try chunk.emitConstant(allocator, .{ .float = 5.6 }, 123);
-    _ = try chunk.emitConstant(allocator, .{ .int = 2 }, 123);
     try chunk.append(allocator, .divide, 123);
+    try chunk.emitByte(allocator, 2, 123);
 
-    _ = try chunk.emitConstant(allocator, .{ .int = 1 }, 123);
     try chunk.append(allocator, .subtract, 123);
+    try chunk.emitByte(allocator, 1, 123);
 
     var s3 = try Obj.String.init(allocator, "!");
     var s2 = try Obj.String.init(allocator, "world");
@@ -150,14 +150,15 @@ pub fn main() !void {
     var err_ctx = errors.Ctx.empty;
     defer err_ctx.deinit(allocator);
 
-    std.debug.print("\nParsed\n", .{});
-    var tokens = try reader.readStr(allocator, "(1 2 3 (+ 1 2 3))\n(/ 5 8)", &err_ctx);
-    defer tokens.deinit(allocator);
+    std.debug.print("\nCompiled\n", .{});
+    const m_chunk = try compiler.compile(allocator, "(+ 1 2 3)", &err_ctx);
 
-    for (tokens.items) |*t| {
-        try t.print(allocator);
-        t.deinit(allocator);
+    const m_function = try Obj.Function.init(allocator, m_chunk, 0, "main", "");
+    var m_vm = VM.init(m_function);
+    defer m_vm.deinit(allocator);
 
-        std.debug.print("\n", .{});
-    }
+    m_vm.run(allocator) catch |err| {
+        std.debug.print("ERROR: {any}\n", .{err});
+        return err;
+    };
 }

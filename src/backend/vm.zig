@@ -265,19 +265,23 @@ pub const VM = struct {
                     try vm.stack.append(allocator, v);
                 },
                 .add => {
-                    const val = try Instructions.add(vm, allocator, &vm.err_ctx);
+                    const arg_count = vm.readByte();
+                    const val = try Instructions.add(vm, allocator, arg_count, &vm.err_ctx);
                     try vm.stack.append(allocator, val);
                 },
                 .subtract => {
-                    const val = try Instructions.sub(vm, allocator, &vm.err_ctx);
+                    const arg_count = vm.readByte();
+                    const val = try Instructions.sub(vm, allocator, arg_count, &vm.err_ctx);
                     try vm.stack.append(allocator, val);
                 },
                 .multiply => {
-                    const val = try Instructions.mult(vm, allocator, &vm.err_ctx);
+                    const arg_count = vm.readByte();
+                    const val = try Instructions.mult(vm, allocator, arg_count, &vm.err_ctx);
                     try vm.stack.append(allocator, val);
                 },
                 .divide => {
-                    const val = try Instructions.div(vm, allocator, &vm.err_ctx);
+                    const arg_count = vm.readByte();
+                    const val = try Instructions.div(vm, allocator, arg_count, &vm.err_ctx);
                     try vm.stack.append(allocator, val);
                 },
                 .jump => {
