@@ -9,6 +9,16 @@ const OpCode = @import("../backend/chunk.zig").OpCode;
 
 pub const Errors = error{
     NonFunctionAsHeadOfList,
+    WrongNumberOfArguments,
+    WrongArgumentType,
+};
+
+pub const Compiler = struct {
+    chunk: *Chunk,
+};
+
+const Constants = enum {
+    def,
 };
 
 /// Returns false if the function is a builtin (+,-,*,/) or a true function to be called.
@@ -35,6 +45,34 @@ pub fn compileAtom(allocator: std.mem.Allocator, chunk: *Chunk, value: Value, li
         else => _ = try chunk.emitConstant(allocator, value, line),
     }
     return true;
+}
+
+fn compileDef(
+    allocator: std.mem.Allocator,
+    chunk: *Chunk,
+    args: []const reader.Token,
+    line: usize,
+    err_ctx: *errors.Ctx,
+) anyerror!void {
+    if (args.len != 2) {
+        try err_ctx.setMsgWithLine(
+            allocator,
+            "def",
+            "Wrong number of arguments. Expected 2, got {}",
+            .{args.len},
+            line,
+        );
+        return Errors.WrongNumberOfArguments;
+    }
+
+    if (args[0].kind != .atom and args[0].kind.atom != .symbol) {
+        try err_ctx.setMsgWithLine(allocator, "def", "Wrong argument type {s}.", .{@tagName(args[0].kind.atom)}, args[0].line);
+        return Errors.WrongArgumentType;
+    }
+
+    try compileToken(allocator, chunk, args[1], err_ctx);
+    _ = try chunk.emitConstant(allocator, args[0].kind.atom, args[0].line);
+    try chunk.append(allocator, .def_global, line);
 }
 
 pub fn compileList(
@@ -65,6 +103,13 @@ pub fn compileList(
         return Errors.NonFunctionAsHeadOfList;
     }
 
+    if (atom == .symbol) if (std.meta.stringToEnum(Constants, atom.symbol)) |c| {
+        switch (c) {
+            .def => try compileDef(allocator, chunk, list.items[1..], line, err_ctx),
+        }
+        return;
+    };
+
     for (list.items[1..]) |token| switch (token.kind) {
         .atom => |v| _ = try compileAtom(allocator, chunk, v, token.line),
         .list => |m_list| try compileList(allocator, chunk, m_list, token.line, err_ctx),
@@ -75,6 +120,18 @@ pub fn compileList(
         try chunk.append(allocator, .call, 125);
     }
     try chunk.emitByte(allocator, @intCast(list.items.len - 1), 125);
+}
+
+pub fn compileToken(
+    allocator: std.mem.Allocator,
+    chunk: *Chunk,
+    token: reader.Token,
+    err_ctx: *errors.Ctx,
+) !void {
+    switch (token.kind) {
+        .atom => |v| _ = try compileAtom(allocator, chunk, v, token.line),
+        .list => |l| try compileList(allocator, chunk, l, token.line, err_ctx),
+    }
 }
 
 pub fn compile(allocator: std.mem.Allocator, source: []const u8, err_ctx: *errors.Ctx) !*Chunk {

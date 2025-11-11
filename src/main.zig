@@ -151,7 +151,13 @@ pub fn main() !void {
     defer err_ctx.deinit(allocator);
 
     std.debug.print("\nCompiled\n", .{});
-    const m_chunk = try compiler.compile(allocator, "(+ 1 2 3)", &err_ctx);
+    const m_chunk = try compiler.compile(
+        allocator,
+        \\(def x 5)
+        \\(+ 1 2 3 x)
+    ,
+        &err_ctx,
+    );
 
     const m_function = try Obj.Function.init(allocator, m_chunk, 0, "main", "");
     var m_vm = VM.init(m_function);

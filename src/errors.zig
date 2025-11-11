@@ -25,6 +25,18 @@ pub const Ctx = struct {
         );
     }
 
+    pub fn setMsgWithLine(
+        self: *Ctx,
+        allocator: std.mem.Allocator,
+        fn_name: []const u8,
+        comptime fmt: []const u8,
+        args: anytype,
+        line: usize,
+    ) !void {
+        self.line = line;
+        try self.setMsg(allocator, fn_name, fmt, args);
+    }
+
     pub fn freeMsg(self: *Ctx, allocator: std.mem.Allocator) void {
         if (self.msg.len > 0) {
             allocator.free(self.msg);
