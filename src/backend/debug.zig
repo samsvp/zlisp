@@ -41,18 +41,18 @@ pub fn disassembleInstruction(allocator: std.mem.Allocator, chunk: Chunk, index:
         .def_local => .{ try std.fmt.allocPrint(allocator, "OP_DEF_LOCAL", .{}), 1 },
         .get_local => .{ try std.fmt.allocPrint(allocator, "OP_GET_LOCAL", .{}), 1 },
         .ret => .{ std.fmt.allocPrint(allocator, "OP_RETURN", .{}) catch unreachable, 1 },
-        .add => .{ std.fmt.allocPrint(allocator, "OP_ADD", .{}) catch unreachable, 1 },
-        .subtract => .{ std.fmt.allocPrint(allocator, "OP_SUBTRACT", .{}) catch unreachable, 1 },
-        .divide => .{ std.fmt.allocPrint(allocator, "OP_DIVIDE", .{}) catch unreachable, 1 },
-        .multiply => .{ std.fmt.allocPrint(allocator, "OP_MULTIPLY", .{}) catch unreachable, 1 },
+        .add => .{ std.fmt.allocPrint(allocator, "OP_ADD", .{}) catch unreachable, 2 },
+        .subtract => .{ std.fmt.allocPrint(allocator, "OP_SUBTRACT", .{}) catch unreachable, 2 },
+        .divide => .{ std.fmt.allocPrint(allocator, "OP_DIVIDE", .{}) catch unreachable, 2 },
+        .multiply => .{ std.fmt.allocPrint(allocator, "OP_MULTIPLY", .{}) catch unreachable, 2 },
         .call => .{ std.fmt.allocPrint(allocator, "OP_CALL", .{}) catch unreachable, 1 },
         .pop => .{ std.fmt.allocPrint(allocator, "OP_POP", .{}) catch unreachable, 1 },
         .noop => .{ std.fmt.allocPrint(allocator, "OP_NOOP", .{}) catch unreachable, 1 },
     };
 }
 
-pub fn disassembleChunk(allocator: std.mem.Allocator, chunk: Chunk, name: []const u8, writer: *std.io.Writer) !void {
-    try writer.print("==== {s} ====\n", .{name});
+pub fn disassembleChunk(allocator: std.mem.Allocator, chunk: Chunk, name: []const u8) !void {
+    std.debug.print("==== {s} ====\n", .{name});
 
     var index: usize = 0;
     var line_i: usize = 0;
@@ -63,12 +63,11 @@ pub fn disassembleChunk(allocator: std.mem.Allocator, chunk: Chunk, name: []cons
 
         const new_line = chunk.lines.items[line_i];
         if (new_line != last_line) {
-            try writer.print("[ {d:0>4} ] {d:0>4} {s}\n", .{ index, new_line, op_name });
+            std.debug.print("[ {d:0>4} ] {d:0>4} {s}\n", .{ index, new_line, op_name });
         } else {
-            try writer.print("[ {d:0>4} ]    | {s}\n", .{ index, op_name });
+            std.debug.print("[ {d:0>4} ]    | {s}\n", .{ index, op_name });
         }
         last_line = new_line;
-        try writer.flush();
         index += offset;
     }
 }

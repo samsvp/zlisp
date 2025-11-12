@@ -7,6 +7,7 @@ const VM = @import("backend/vm.zig").VM;
 const Value = @import("value.zig").Value;
 const Obj = @import("value.zig").Obj;
 const compiler = @import("frontend/compiler.zig");
+const debug = @import("backend/debug.zig");
 
 pub fn createFn(allocator: std.mem.Allocator) !*Obj.Function {
     var chunk = try allocator.create(Chunk);
@@ -153,12 +154,21 @@ pub fn main() !void {
     std.debug.print("\nCompiled\n", .{});
     const m_chunk = try compiler.compile(
         allocator,
-        \\(def x (- 8 2))
+        \\(def x
+        \\  (if (+ 1 2)
+        \\      (- 8 2)
+        \\      (+ 8 2)))
+        \\(def y
+        \\  (if nil
+        \\      (- 8 2)
+        \\      (+ 8 2)))
         \\(+ 1 2 3 x)
-        \\(+ 3 x)
+        \\(+ 3 y)
     ,
         &err_ctx,
     );
+
+    try debug.disassembleChunk(allocator, m_chunk.*, "Compiled chunk");
 
     const m_function = try Obj.Function.init(allocator, m_chunk, 0, "main", "");
     var m_vm = VM.init(m_function);

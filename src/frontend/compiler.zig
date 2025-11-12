@@ -22,6 +22,7 @@ const Constants = enum {
     @"-",
     @"*",
     @"/",
+    @"if",
     def,
 };
 
@@ -58,7 +59,36 @@ fn compileOp(
 ) anyerror!void {
     try compileArgs(allocator, chunk, args, err_ctx);
     try chunk.append(allocator, op, line);
-    try chunk.emitByte(allocator, @intCast(args.len), 125);
+    try chunk.emitByte(allocator, @intCast(args.len), line);
+}
+
+fn compileIf(
+    allocator: std.mem.Allocator,
+    chunk: *Chunk,
+    args: []const reader.Token,
+    line: usize,
+    err_ctx: *errors.Ctx,
+) anyerror!void {
+    if (args.len != 2 and args.len != 3) {
+        try err_ctx.setMsgWithLine(allocator, "if", "Expected 2 or 3 arguments, got {}", .{args.len}, line);
+        return Errors.WrongNumberOfArguments;
+    }
+
+    // place the expr result on the stack
+    try compileToken(allocator, chunk, args[0], err_ctx);
+    const jump_false_index = try chunk.emitJumpIfFalse(allocator, 0, line);
+    // compile the clauses
+    try compileToken(allocator, chunk, args[1], err_ctx);
+    chunk.replaceJump(jump_false_index, @intCast(chunk.code.items.len - jump_false_index));
+
+    const jump_index = try chunk.emitJump(allocator, 0, line);
+    if (args.len == 2) {
+        _ = try chunk.emitConstant(allocator, .nil, line);
+    } else {
+        try compileToken(allocator, chunk, args[2], err_ctx);
+    }
+
+    chunk.replaceJump(jump_index, @intCast(chunk.code.items.len - jump_index - 3));
 }
 
 fn compileDef(
@@ -117,13 +147,15 @@ pub fn compileList(
         return Errors.NonFunctionAsHeadOfList;
     }
 
+    const args = list.items[1..];
     if (atom == .symbol) if (std.meta.stringToEnum(Constants, atom.symbol)) |c| {
         switch (c) {
-            .@"+" => try compileOp(allocator, chunk, .add, list.items[1..], line, err_ctx),
-            .@"-" => try compileOp(allocator, chunk, .subtract, list.items[1..], line, err_ctx),
-            .@"*" => try compileOp(allocator, chunk, .multiply, list.items[1..], line, err_ctx),
-            .@"/" => try compileOp(allocator, chunk, .divide, list.items[1..], line, err_ctx),
-            .def => try compileDef(allocator, chunk, list.items[1..], line, err_ctx),
+            .@"+" => try compileOp(allocator, chunk, .add, args, line, err_ctx),
+            .@"-" => try compileOp(allocator, chunk, .subtract, args, line, err_ctx),
+            .@"*" => try compileOp(allocator, chunk, .multiply, args, line, err_ctx),
+            .@"/" => try compileOp(allocator, chunk, .divide, args, line, err_ctx),
+            .@"if" => try compileIf(allocator, chunk, args, line, err_ctx),
+            .def => try compileDef(allocator, chunk, args, line, err_ctx),
         }
         return;
     };
