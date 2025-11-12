@@ -131,8 +131,8 @@ pub fn compileList(
     // compile the atom last
     try compileArgs(allocator, chunk, list.items[1..], err_ctx);
     try compileAtom(allocator, chunk, atom, line);
-    try chunk.append(allocator, .call, 125);
-    try chunk.emitByte(allocator, @intCast(list.items.len - 1), 125);
+    try chunk.append(allocator, .call, line);
+    try chunk.emitByte(allocator, @intCast(list.items.len - 1), line);
 }
 
 pub fn compileToken(
@@ -165,7 +165,7 @@ pub fn compile(allocator: std.mem.Allocator, source: []const u8, err_ctx: *error
         },
         .list => |list| {
             if (list.items.len == 0 and i != tokens.items.len - 1) {
-                // ignore any atom that is not the last statement
+                // ignore empty list
                 continue;
             }
 
