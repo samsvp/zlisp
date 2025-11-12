@@ -18,33 +18,47 @@ pub const Compiler = struct {
 };
 
 const Constants = enum {
+    @"+",
+    @"-",
+    @"*",
+    @"/",
     def,
 };
 
 /// Returns false if the function is a builtin (+,-,*,/) or a true function to be called.
-pub fn compileAtom(allocator: std.mem.Allocator, chunk: *Chunk, value: Value, line: usize) !bool {
+pub fn compileAtom(allocator: std.mem.Allocator, chunk: *Chunk, value: Value, line: usize) !void {
     switch (value) {
         .symbol => {
-            const v = value.symbol;
-            const maybe_op: ?OpCode = if (v.len == 1) switch (v[0]) {
-                '+' => .add,
-                '-' => .subtract,
-                '*' => .multiply,
-                '/' => .divide,
-                else => null,
-            } else null;
-
-            if (maybe_op) |op| {
-                try chunk.append(allocator, op, line);
-                return false;
-            }
-
             // TODO! check if variable is a local
             try chunk.emitGetGlobal(allocator, value.symbol, line);
         },
         else => _ = try chunk.emitConstant(allocator, value, line),
     }
-    return true;
+}
+
+fn compileArgs(
+    allocator: std.mem.Allocator,
+    chunk: *Chunk,
+    args: []const reader.Token,
+    err_ctx: *errors.Ctx,
+) anyerror!void {
+    for (0..args.len) |i| {
+        const token = args[args.len - i - 1];
+        try compileToken(allocator, chunk, token, err_ctx);
+    }
+}
+
+fn compileOp(
+    allocator: std.mem.Allocator,
+    chunk: *Chunk,
+    op: OpCode,
+    args: []const reader.Token,
+    line: usize,
+    err_ctx: *errors.Ctx,
+) anyerror!void {
+    try compileArgs(allocator, chunk, args, err_ctx);
+    try chunk.append(allocator, op, line);
+    try chunk.emitByte(allocator, @intCast(args.len), 125);
 }
 
 fn compileDef(
@@ -105,20 +119,19 @@ pub fn compileList(
 
     if (atom == .symbol) if (std.meta.stringToEnum(Constants, atom.symbol)) |c| {
         switch (c) {
+            .@"+" => try compileOp(allocator, chunk, .add, list.items[1..], line, err_ctx),
+            .@"-" => try compileOp(allocator, chunk, .subtract, list.items[1..], line, err_ctx),
+            .@"*" => try compileOp(allocator, chunk, .multiply, list.items[1..], line, err_ctx),
+            .@"/" => try compileOp(allocator, chunk, .divide, list.items[1..], line, err_ctx),
             .def => try compileDef(allocator, chunk, list.items[1..], line, err_ctx),
         }
         return;
     };
 
-    for (list.items[1..]) |token| switch (token.kind) {
-        .atom => |v| _ = try compileAtom(allocator, chunk, v, token.line),
-        .list => |m_list| try compileList(allocator, chunk, m_list, token.line, err_ctx),
-    };
-
     // compile the atom last
-    if (try compileAtom(allocator, chunk, atom, line)) {
-        try chunk.append(allocator, .call, 125);
-    }
+    try compileArgs(allocator, chunk, list.items[1..], err_ctx);
+    try compileAtom(allocator, chunk, atom, line);
+    try chunk.append(allocator, .call, 125);
     try chunk.emitByte(allocator, @intCast(list.items.len - 1), 125);
 }
 
@@ -129,7 +142,7 @@ pub fn compileToken(
     err_ctx: *errors.Ctx,
 ) !void {
     switch (token.kind) {
-        .atom => |v| _ = try compileAtom(allocator, chunk, v, token.line),
+        .atom => |v| try compileAtom(allocator, chunk, v, token.line),
         .list => |l| try compileList(allocator, chunk, l, token.line, err_ctx),
     }
 }
@@ -158,7 +171,9 @@ pub fn compile(allocator: std.mem.Allocator, source: []const u8, err_ctx: *error
 
             try compileList(allocator, chunk, list, token.line, err_ctx);
             // pop the last statement value
-            if (i != tokens.items.len - 1) {}
+            if (i != tokens.items.len - 1) {
+                try chunk.append(allocator, .pop, 0);
+            }
         },
     };
 

@@ -153,8 +153,9 @@ pub fn main() !void {
     std.debug.print("\nCompiled\n", .{});
     const m_chunk = try compiler.compile(
         allocator,
-        \\(def x 5)
+        \\(def x (- 8 2))
         \\(+ 1 2 3 x)
+        \\(+ 3 x)
     ,
         &err_ctx,
     );

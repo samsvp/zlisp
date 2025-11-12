@@ -300,7 +300,7 @@ pub const VM = struct {
                     const name = try vm.stackPop();
                     const name_str = name.symbol;
 
-                    const val = try vm.stackPop();
+                    const val = try vm.stackPeek();
                     try vm.globals.put(allocator, name_str, val.borrow());
                 },
                 .get_global => {
@@ -311,7 +311,7 @@ pub const VM = struct {
                     try vm.stack.append(allocator, val);
                 },
                 .def_local => {
-                    const v = try vm.stackPop();
+                    const v = try vm.stackPeek();
                     try vm.local_stack.append(allocator, v.borrow());
                 },
                 .get_local => {
@@ -319,6 +319,9 @@ pub const VM = struct {
                     const slot_index = @as(usize, @intCast(slot)) + vm.frames[vm.frame_count - 1].stack_pos;
 
                     try vm.stack.append(allocator, vm.local_stack.items[slot_index].borrow());
+                },
+                .pop => {
+                    _ = try vm.stackPop();
                 },
                 .call => {
                     const arg_count = vm.readByte();

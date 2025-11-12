@@ -5,6 +5,7 @@ const Value = @import("../value.zig").Value;
 pub const OpCode = enum(u8) {
     noop,
     ret,
+    pop,
     constant,
     constant_long,
     add,
@@ -74,6 +75,7 @@ pub const Chunk = struct {
     pub fn emitDefGlobal(chunk: *Chunk, allocator: std.mem.Allocator, name: []const u8, line: usize) !void {
         _ = try chunk.emitConstant(allocator, .{ .symbol = name }, line);
         try chunk.append(allocator, .def_global, line);
+        try chunk.append(allocator, .pop, line);
     }
 
     pub fn emitGetGlobal(chunk: *Chunk, allocator: std.mem.Allocator, name: []const u8, line: usize) !void {

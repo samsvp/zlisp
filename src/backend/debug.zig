@@ -46,6 +46,7 @@ pub fn disassembleInstruction(allocator: std.mem.Allocator, chunk: Chunk, index:
         .divide => .{ std.fmt.allocPrint(allocator, "OP_DIVIDE", .{}) catch unreachable, 1 },
         .multiply => .{ std.fmt.allocPrint(allocator, "OP_MULTIPLY", .{}) catch unreachable, 1 },
         .call => .{ std.fmt.allocPrint(allocator, "OP_CALL", .{}) catch unreachable, 1 },
+        .pop => .{ std.fmt.allocPrint(allocator, "OP_POP", .{}) catch unreachable, 1 },
         .noop => .{ std.fmt.allocPrint(allocator, "OP_NOOP", .{}) catch unreachable, 1 },
     };
 }
