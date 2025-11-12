@@ -24,12 +24,13 @@ pub const Token = struct {
     pub const Kind = union(enum) {
         atom: Value,
         list: std.ArrayList(Token),
+        vector: std.ArrayList(Token),
     };
 
     pub fn deinit(self: *Token, allocator: std.mem.Allocator) void {
         switch (self.kind) {
             .atom => |*a| a.deinit(allocator),
-            .list => |*l| {
+            .list, .vector => |*l| {
                 for (l.items) |*a| {
                     a.deinit(allocator);
                 }
@@ -238,8 +239,9 @@ fn readCollection(
     allocator: std.mem.Allocator,
     reader: *Reader,
     line: usize,
+    close_char: u8,
     err_ctx: *errors.Ctx,
-) anyerror!Token {
+) anyerror!std.ArrayList(Token) {
     var list: std.ArrayList(Token) = .empty;
     errdefer {
         var token_list: Token = .{ .line = line, .kind = .{ .list = list } };
@@ -248,7 +250,7 @@ fn readCollection(
 
     while (reader.peek()) |token_str| {
         const str = token_str.str;
-        if (str.len == 1 and str[0] == ')') {
+        if (str.len == 1 and str[0] == close_char) {
             _ = reader.next();
             break;
         }
@@ -257,7 +259,7 @@ fn readCollection(
         try list.append(allocator, token);
     }
 
-    return .{ .line = line, .kind = .{ .list = list } };
+    return list;
 }
 
 pub fn readForm(
@@ -266,9 +268,21 @@ pub fn readForm(
     err_ctx: *errors.Ctx,
 ) anyerror!Token {
     const token_data = reader.next() orelse return ParserError.InvalidToken;
+    const line = token_data.line;
 
     return switch (token_data.str[0]) {
-        '(' => try readCollection(allocator, reader, token_data.line, err_ctx),
+        '(' => .{
+            .line = line,
+            .kind = .{
+                .list = try readCollection(allocator, reader, token_data.line, ')', err_ctx),
+            },
+        },
+        '[' => .{
+            .line = line,
+            .kind = .{
+                .vector = try readCollection(allocator, reader, token_data.line, ']', err_ctx),
+            },
+        },
         else => try readAtom(allocator, token_data, err_ctx),
     };
 }

@@ -23,6 +23,7 @@ const Constants = enum {
     @"*",
     @"/",
     @"if",
+    @"fn",
     def,
 };
 
@@ -91,6 +92,8 @@ fn compileIf(
     chunk.replaceJump(jump_index, @intCast(chunk.code.items.len - jump_index - 3));
 }
 
+fn compileFn() anyerror!void {}
+
 fn compileDef(
     allocator: std.mem.Allocator,
     chunk: *Chunk,
@@ -155,6 +158,7 @@ pub fn compileList(
             .@"*" => try compileOp(allocator, chunk, .multiply, args, line, err_ctx),
             .@"/" => try compileOp(allocator, chunk, .divide, args, line, err_ctx),
             .@"if" => try compileIf(allocator, chunk, args, line, err_ctx),
+            .@"fn" => try compileFn(),
             .def => try compileDef(allocator, chunk, args, line, err_ctx),
         }
         return;
@@ -167,6 +171,17 @@ pub fn compileList(
     try chunk.emitByte(allocator, @intCast(list.items.len - 1), line);
 }
 
+pub fn compileVector(
+    allocator: std.mem.Allocator,
+    chunk: *Chunk,
+    vector: std.ArrayList(reader.Token),
+    line: usize,
+    err_ctx: *errors.Ctx,
+) !void {
+    try compileArgs(allocator, chunk, vector.items, err_ctx);
+    _ = line;
+}
+
 pub fn compileToken(
     allocator: std.mem.Allocator,
     chunk: *Chunk,
@@ -176,6 +191,7 @@ pub fn compileToken(
     switch (token.kind) {
         .atom => |v| try compileAtom(allocator, chunk, v, token.line),
         .list => |l| try compileList(allocator, chunk, l, token.line, err_ctx),
+        .vector => |v| try compileVector(allocator, chunk, v, token.line, err_ctx),
     }
 }
 
@@ -194,6 +210,14 @@ pub fn compile(allocator: std.mem.Allocator, source: []const u8, err_ctx: *error
                 continue;
             }
             _ = try compileAtom(allocator, chunk, a, token.line);
+        },
+        .vector => |vec| {
+            if (i != tokens.items.len - 1) {
+                // ignore any atom that is not the last statement
+                continue;
+            }
+
+            try compileVector(allocator, chunk, vec, token.line, err_ctx);
         },
         .list => |list| {
             if (list.items.len == 0 and i != tokens.items.len - 1) {

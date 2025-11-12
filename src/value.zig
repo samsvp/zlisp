@@ -33,6 +33,7 @@ pub const Value = union(enum) {
             .obj => |o| switch (o.kind) {
                 .string => std.debug.print("{s}", .{o.as(Obj.String).items}),
                 .list => std.debug.print("List with len {}", .{o.as(Obj.List).items.len}),
+                .vector => std.debug.print("Vector with len {}", .{o.as(Obj.Vector).items.len}),
                 .function => std.debug.print("<fn = {s}>", .{o.as(Obj.Function).name}),
                 .closure => std.debug.print("<fn = {s}>", .{o.as(Obj.Closure).function.name}),
                 .native_fn => std.debug.print("<native_fn = {s}>", .{o.as(Obj.NativeFunction).name}),
@@ -74,6 +75,22 @@ pub const Value = union(enum) {
                         ),
                         else => false,
                     },
+                    .vector => switch (o_2.kind) {
+                        .vector => blk: {
+                            const l_1 = o_1.as(Obj.Vector).items;
+                            const l_2 = o_2.as(Obj.Vector).items;
+                            if (l_1.len != l_2.len) {
+                                break :blk false;
+                            }
+
+                            for (0..l_1.len) |i|
+                                if (!l_1[i].eql(l_2[i]))
+                                    break :blk false;
+
+                            break :blk true;
+                        },
+                        else => false,
+                    },
                     .list => switch (o_2.kind) {
                         .list => blk: {
                             const l_1 = o_1.as(Obj.List).items;
@@ -99,21 +116,12 @@ pub const Value = union(enum) {
         };
     }
 
-    pub fn toString(self: Value, allocator: std.mem.Allocator) ![]const u8 {
+    pub fn toString(self: Value, allocator: std.mem.Allocator) anyerror![]const u8 {
         return switch (self) {
             .obj => |o| switch (o.kind) {
                 .string => try std.fmt.allocPrint(allocator, "{s}", .{o.as(Obj.String).items}),
-                .list => list: {
-                    var buffer: std.ArrayList(u8) = .empty;
-                    try buffer.append(allocator, '(');
-                    const lst = o.as(Obj.List).items;
-                    var writer = buffer.writer(allocator);
-                    for (lst) |v| {
-                        try writer.print("{s}, ", .{try v.toString(allocator)});
-                    }
-                    try buffer.append(allocator, ')');
-                    break :list buffer.items;
-                },
+                .list => try o.as(Obj.List).toString(allocator, '(', ')'),
+                .vector => try o.as(Obj.Vector).toString(allocator, '[', ']'),
                 .function => try std.fmt.allocPrint(allocator, "<fn = {s}>", .{o.as(Obj.Function).name}),
                 .closure => try std.fmt.allocPrint(allocator, "<fn = {s}>", .{o.as(Obj.Closure).function.name}),
                 .native_fn => try std.fmt.allocPrint(allocator, "<native_fn = {s}>", .{o.as(Obj.NativeFunction).name}),
@@ -132,6 +140,7 @@ pub const Obj = struct {
     pub const Kind = enum {
         string,
         list,
+        vector,
         function,
         closure,
         native_fn,
@@ -149,6 +158,7 @@ pub const Obj = struct {
         if (self.count == 0) switch (self.kind) {
             .string => self.as(String).deinit(allocator),
             .list => self.as(List).deinit(allocator),
+            .vector => self.as(Vector).deinit(allocator),
             .function => self.as(Function).deinit(allocator),
             .closure => self.as(Closure).deinit(allocator),
             .native_fn => self.as(NativeFunction).deinit(allocator),
@@ -159,7 +169,7 @@ pub const Obj = struct {
         return @alignCast(@fieldParentPtr("obj", self));
     }
 
-    pub fn Array(comptime T: type) type {
+    pub fn Array(comptime T: type, kind: Obj.Kind) type {
         return struct {
             obj: Obj,
             items: []T,
@@ -170,19 +180,26 @@ pub const Obj = struct {
                 return Self.init(allocator, &.{});
             }
 
-            pub fn init(allocator: std.mem.Allocator, v: []const T) !*Self {
+            pub fn init(allocator: std.mem.Allocator, vs: []const T) !*Self {
                 const ptr = try allocator.create(Self);
-                const kind: Obj.Kind = if (T == u8) .string else if (T == Value) .list else @compileError("Invalid type T");
 
                 ptr.* = Self{
                     .obj = Obj.init(kind),
-                    .items = try allocator.dupe(T, v),
+                    .items = try allocator.dupe(T, vs),
+                };
+
+                if (T == Value) for (ptr.items) |v| {
+                    _ = v.borrow();
                 };
 
                 return ptr;
             }
 
             pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
+                if (T == Value) for (self.items) |v| {
+                    v.deinit(allocator);
+                };
+
                 allocator.free(self.items);
                 allocator.destroy(self);
             }
@@ -195,16 +212,34 @@ pub const Obj = struct {
                 return self.appendManyMut(allocator, &[1]T{v});
             }
 
-            pub fn appendManyMut(self: *Self, allocator: std.mem.Allocator, v: []const T) !void {
+            pub fn appendManyMut(self: *Self, allocator: std.mem.Allocator, vs: []const T) !void {
                 const old_len = self.items.len;
-                self.items = try allocator.realloc(self.items, self.items.len + v.len);
-                @memcpy(self.items.ptr + old_len, v);
+
+                if (T == Value) for (vs) |v| {
+                    _ = v.borrow();
+                };
+
+                self.items = try allocator.realloc(self.items, self.items.len + vs.len);
+                @memcpy(self.items.ptr + old_len, vs);
+            }
+
+            pub fn toString(self: Self, allocator: std.mem.Allocator, open_icon: u8, close_icon: u8) ![]const u8 {
+                var buffer: std.ArrayList(u8) = .empty;
+                try buffer.append(allocator, open_icon);
+                const lst = self.items;
+                var writer = buffer.writer(allocator);
+                for (lst) |v| {
+                    try writer.print("{s}, ", .{try v.toString(allocator)});
+                }
+                try buffer.append(allocator, close_icon);
+                return buffer.items;
             }
         };
     }
 
-    pub const String = Array(u8);
-    pub const List = Array(Value);
+    pub const String = Array(u8, .string);
+    pub const List = Array(Value, .list);
+    pub const Vector = Array(Value, .vector);
 
     pub const Function = struct {
         obj: Obj,

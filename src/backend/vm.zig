@@ -212,6 +212,12 @@ pub const VM = struct {
         };
     }
 
+    fn createVector(vm: *VM, allocator: std.mem.Allocator, n: usize) !void {
+        const vec = try Obj.Vector.init(allocator, vm.stack.items[vm.stack.items.len - n ..]);
+        vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
+        try vm.stack.append(allocator, .{ .obj = &vec.obj });
+    }
+
     pub fn run(vm: *VM, allocator: std.mem.Allocator) !void {
         var frame = &vm.frames[vm.frame_count - 1];
 
@@ -315,10 +321,18 @@ pub const VM = struct {
                     try vm.local_stack.append(allocator, v.borrow());
                 },
                 .get_local => {
-                    const slot: u16 = std.mem.bytesToValue(u16, vm.readBytes(2));
+                    const slot = std.mem.bytesToValue(u16, vm.readBytes(2));
                     const slot_index = @as(usize, @intCast(slot)) + vm.frames[vm.frame_count - 1].stack_pos;
 
                     try vm.stack.append(allocator, vm.local_stack.items[slot_index].borrow());
+                },
+                .create_vec => {
+                    const n = vm.readByte();
+                    try vm.createVector(allocator, @intCast(n));
+                },
+                .create_vec_long => {
+                    const n = std.mem.bytesToValue(u16, vm.readBytes(2));
+                    try vm.createVector(allocator, @intCast(n));
                 },
                 .pop => {
                     _ = try vm.stackPop();

@@ -14,6 +14,8 @@ pub const OpCode = enum(u8) {
     divide,
     jump,
     jump_if_false,
+    create_vec,
+    create_vec_long,
     def_global,
     get_global,
     def_local,
@@ -114,6 +116,18 @@ pub const Chunk = struct {
 
     pub fn replaceJump(chunk: *Chunk, index: usize, offset: u16) void {
         chunk.replaceBytes(index + 1, &std.mem.toBytes(offset));
+    }
+
+    pub fn emitVec(chunk: *Chunk, allocator: std.mem.Allocator, n: u16, line: usize) !void {
+        if (n < 256) {
+            try chunk.append(allocator, .create_vec, line);
+            try chunk.emitByte(allocator, @intCast(n), line);
+            return;
+        }
+
+        const bytes = std.mem.toBytes(n);
+        try chunk.append(allocator, .create_vec_long, line);
+        try chunk.emitBytes(allocator, bytes, line);
     }
 
     pub fn end(chunk: *Chunk, allocator: std.mem.Allocator) !void {
