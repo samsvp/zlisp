@@ -111,6 +111,10 @@ pub const VM = struct {
         return vm.stack.pop() orelse Error.StackEmpty;
     }
 
+    fn peekByte(vm: *VM) u8 {
+        return vm.frames[vm.frame_count - 1].ip[0];
+    }
+
     fn readByte(vm: *VM) u8 {
         const b = vm.frames[vm.frame_count - 1].ip[0];
         vm.frames[vm.frame_count - 1].ip += 1;
@@ -134,10 +138,29 @@ pub const VM = struct {
         return vm.frames[vm.frame_count - 1].function.chunk.constants.items[c_index];
     }
 
+    fn emptyFnStack(vm: *VM, allocator: std.mem.Allocator) void {
+        const frame = &vm.frames[vm.frame_count - 1];
+        for (frame.stack_pos..vm.local_stack.items.len) |i| {
+            vm.local_stack.items[i].deinit(allocator);
+        }
+        vm.local_stack.shrinkRetainingCapacity(frame.stack_pos);
+    }
+
+    fn optimizeIfTailCall(vm: *VM, allocator: std.mem.Allocator) void {
+        if (vm.frame_count == 1) return;
+
+        if (std.enums.fromInt(OpCode, vm.peekByte())) |op| if (op == .ret) {
+            vm.frame_count -= 1;
+            vm.emptyFnStack(allocator);
+        };
+    }
+
     fn call(vm: *VM, allocator: std.mem.Allocator, f: *Obj.Function, arg_count: u8, offset: u8) !*CallFrame {
         if (arg_count != f.arity) {
             return Error.WrongArgumentNumber;
         }
+
+        vm.optimizeIfTailCall(allocator);
 
         vm.frame_count += 1;
         if (vm.frame_count == FRAMES_MAX) {
@@ -169,34 +192,17 @@ pub const VM = struct {
     }
 
     fn callNative(vm: *VM, allocator: std.mem.Allocator, f: *Obj.NativeFunction, arg_count: u8) !*CallFrame {
-        if (arg_count != f.arity) {
-            return Error.WrongArgumentNumber;
-        }
-
-        vm.frame_count += 1;
-        if (vm.frame_count == FRAMES_MAX) {
-            return Error.StackOverflow;
-        }
-
         var args = try allocator.alloc(Value, arg_count);
         defer allocator.free(args);
 
-        for (0..f.arity, 0..) |_, i| {
+        for (0..arg_count, 0..) |_, i| {
             args[i] = try vm.stackPop();
         }
 
         const res = try f.native_fn(allocator, args, &vm.err_ctx);
         try vm.stack.append(allocator, res);
 
-        // dummy stack frame with just ret
-        const frame = CallFrame{
-            .function = f.function,
-            .ip = f.function.chunk.code.items.ptr,
-            .stack_pos = vm.local_stack.items.len,
-        };
-
-        vm.frames[vm.frame_count - 1] = frame;
-        return &vm.frames[vm.frame_count - 1];
+        return vm.call(allocator, f.function, arg_count, 0);
     }
 
     fn callValue(vm: *VM, allocator: std.mem.Allocator, v: Value, arg_count: u8) !*CallFrame {
@@ -256,10 +262,7 @@ pub const VM = struct {
                     }
 
                     try vm.stack.append(allocator, result);
-                    for (frame.stack_pos..vm.local_stack.items.len) |i| {
-                        vm.local_stack.items[i].deinit(allocator);
-                    }
-                    vm.local_stack.shrinkRetainingCapacity(frame.stack_pos);
+                    vm.emptyFnStack(allocator);
                     frame = &vm.frames[vm.frame_count - 1];
                 },
                 .constant => {
