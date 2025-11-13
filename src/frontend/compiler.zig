@@ -92,7 +92,76 @@ fn compileIf(
     chunk.replaceJump(jump_index, @intCast(chunk.code.items.len - jump_index - 3));
 }
 
-fn compileFn() anyerror!void {}
+fn compileFn(
+    allocator: std.mem.Allocator,
+    chunk: *Chunk,
+    args: []const reader.Token,
+    line: usize,
+    err_ctx: *errors.Ctx,
+) anyerror!void {
+    if (args.len > 5 or args.len < 3) {
+        try err_ctx.setMsgWithLine(allocator, "fn", "Expected 3 to 5 arguments, got {}", .{args.len}, line);
+        return Errors.WrongNumberOfArguments;
+    }
+
+    if (args[0].kind != .atom and args[0].kind.atom != .symbol) {
+        try err_ctx.setMsgWithLine(allocator, "fn", "Expected function name.", .{}, args[0].line);
+        return Errors.WrongArgumentType;
+    }
+
+    const name = args[0].kind.atom.symbol;
+
+    const help = switch (args[1].kind) {
+        .atom => |v| if (v == .obj and v.obj.kind == .string)
+            v.obj.as(Obj.String).items
+        else
+            "",
+        else => "",
+    };
+
+    var fn_chunk = try allocator.create(Chunk);
+    fn_chunk.* = Chunk.empty;
+
+    const fn_args = switch (args[args.len - 2].kind) {
+        .vector => |vs| blk: {
+            const fn_args = try allocator.alloc([]const u8, vs.items.len);
+            for (vs.items, 0..) |v, i| {
+                const arg_name =
+                    if (v.kind == .atom and v.kind.atom == .symbol)
+                        v.kind.atom.symbol
+                    else {
+                        try err_ctx.setMsgWithLine(
+                            allocator,
+                            "fn",
+                            "Function arguments must be symbols",
+                            .{},
+                            args[args.len - 2].line,
+                        );
+                        return Errors.WrongArgumentType;
+                    };
+
+                try fn_chunk.emitDefLocal(allocator, arg_name, v.line);
+                fn_args[i] = arg_name;
+            }
+            break :blk fn_args;
+        },
+        else => {
+            try err_ctx.setMsgWithLine(allocator, "fn", "Arguments must be a list of symbols.", .{}, line);
+            return Errors.WrongArgumentType;
+        },
+    };
+
+    if (args[args.len - 1].kind != .list) {
+        try err_ctx.setMsgWithLine(allocator, "fn", "Function body must be list.", .{}, args[args.len - 1].line);
+        return Errors.WrongArgumentType;
+    }
+
+    try compileToChunk(allocator, args[args.len].kind.list, chunk, err_ctx);
+
+    const func = try Obj.Function.init(allocator, chunk, @intCast(fn_args.len), name, help);
+    _ = try chunk.emitConstant(allocator, .{ .obj = &func.obj }, line);
+    try chunk.emitDefGlobal(allocator, name, line);
+}
 
 fn compileDef(
     allocator: std.mem.Allocator,
@@ -158,7 +227,7 @@ pub fn compileList(
             .@"*" => try compileOp(allocator, chunk, .multiply, args, line, err_ctx),
             .@"/" => try compileOp(allocator, chunk, .divide, args, line, err_ctx),
             .@"if" => try compileIf(allocator, chunk, args, line, err_ctx),
-            .@"fn" => try compileFn(),
+            .@"fn" => try compileFn(allocator, chunk, args, line, err_ctx),
             .def => try compileDef(allocator, chunk, args, line, err_ctx),
         }
         return;
@@ -195,14 +264,12 @@ pub fn compileToken(
     }
 }
 
-pub fn compile(allocator: std.mem.Allocator, source: []const u8, err_ctx: *errors.Ctx) !*Chunk {
-    var tokens = try reader.readStr(allocator, source, err_ctx);
-    defer tokens.deinit(allocator);
-
-    defer for (tokens.items) |*token| token.deinit(allocator);
-
-    const chunk = try allocator.create(Chunk);
-    chunk.* = Chunk.empty;
+pub fn compileToChunk(
+    allocator: std.mem.Allocator,
+    tokens: std.ArrayList(reader.Token),
+    chunk: *Chunk,
+    err_ctx: *errors.Ctx,
+) !void {
     for (tokens.items, 0..) |token, i| switch (token.kind) {
         .atom => |a| {
             if (i != tokens.items.len - 1) {
@@ -234,5 +301,18 @@ pub fn compile(allocator: std.mem.Allocator, source: []const u8, err_ctx: *error
     };
 
     try chunk.append(allocator, .ret, 0);
+}
+
+pub fn compile(allocator: std.mem.Allocator, source: []const u8, err_ctx: *errors.Ctx) !*Chunk {
+    var tokens = try reader.readStr(allocator, source, err_ctx);
+    defer tokens.deinit(allocator);
+
+    defer for (tokens.items) |*token| token.deinit(allocator);
+
+    const chunk = try allocator.create(Chunk);
+    chunk.* = Chunk.empty;
+
+    try compileToChunk(allocator, tokens, chunk, err_ctx);
+
     return chunk;
 }
