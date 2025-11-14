@@ -39,14 +39,19 @@ pub fn createClosure(allocator: std.mem.Allocator) !*Obj.Closure {
     try chunk.emitByte(allocator, 4, 123);
     try chunk.append(allocator, .ret, 124);
 
+    const function = try Obj.Function.init(
+        allocator,
+        chunk,
+        3,
+        "adds 3 values with initial condition",
+    );
+
     const s = try Obj.String.init(allocator, "closure");
     var args = [_]Value{.{ .obj = &s.obj }};
 
     const closure = try Obj.Closure.init(
         allocator,
-        chunk,
-        3,
-        "adds 3 values with initial condition",
+        function,
         // simulate closing over a variable with value
         &args,
     );

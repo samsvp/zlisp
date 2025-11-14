@@ -228,6 +228,19 @@ pub const VM = struct {
         try vm.stack.append(allocator, .{ .obj = &vec.obj });
     }
 
+    fn createClosure(vm: *VM, allocator: std.mem.Allocator) !void {
+        const func_val = try vm.stackPop();
+        const func = func_val.obj.as(Obj.Function);
+
+        var args = try allocator.alloc(Value, func.arity);
+        for (0..func.arity) |i| {
+            args[i] = try vm.stackPop();
+        }
+
+        const closure = try Obj.Closure.init(allocator, func, args);
+        try vm.stack.append(allocator, &closure.obj);
+    }
+
     pub fn run(vm: *VM, allocator: std.mem.Allocator) !void {
         var frame = &vm.frames[vm.frame_count - 1];
 
@@ -341,6 +354,7 @@ pub const VM = struct {
                     const n = std.mem.bytesToValue(u16, vm.readBytes(2));
                     try vm.createVector(allocator, @intCast(n));
                 },
+                .create_closure => {},
                 .pop => {
                     _ = try vm.stackPop();
                 },

@@ -285,11 +285,11 @@ pub const Obj = struct {
         function: *Function,
         args: []const Value,
 
-        pub fn init(allocator: std.mem.Allocator, chunk: *Chunk, arity: u8, help: []const u8, args: []Value) !*Closure {
+        pub fn init(allocator: std.mem.Allocator, func: *Function, args: []Value) !*Closure {
             const closure = try allocator.create(Closure);
             closure.* = Closure{
                 .obj = Obj.init(.closure),
-                .function = try Function.init(allocator, chunk, arity, help),
+                .function = func,
                 .args = try allocator.dupe(Value, args),
             };
             return closure;
