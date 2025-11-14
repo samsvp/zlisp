@@ -141,6 +141,32 @@ fn compileIf(
     chunk.replaceJump(jump_index, @intCast(chunk.code.items.len - jump_index - 3));
 }
 
+fn createArgs(
+    allocator: std.mem.Allocator,
+    locals: *Locals,
+    args: []const reader.Token,
+    line: usize,
+    err_ctx: *errors.Ctx,
+) anyerror!void {
+    for (args) |v| {
+        const arg_name =
+            if (v.kind == .atom and v.kind.atom == .symbol)
+                v.kind.atom.symbol
+            else {
+                try err_ctx.setMsgWithLine(
+                    allocator,
+                    "fn",
+                    "Function arguments must be symbols",
+                    .{},
+                    line,
+                );
+                return Errors.WrongArgumentType;
+            };
+
+        try locals.put(allocator, arg_name);
+    }
+}
+
 fn compileFn(
     allocator: std.mem.Allocator,
     chunk: *Chunk,
@@ -168,29 +194,24 @@ fn compileFn(
     var fn_locals = locals.createNext();
     defer fn_locals.deinit(allocator);
 
+    const is_closure = args.len >= 3 and args[args.len - 3].kind == .vector;
+    if (is_closure) {
+        const closure_tokens = args[args.len - 3];
+        const closure_args = closure_tokens.kind.vector.items;
+
+        try createArgs(allocator, &fn_locals, closure_args, closure_tokens.line, err_ctx);
+        for (closure_args) |arg| {
+            try compileAtom(allocator, chunk, locals, arg.kind.atom, closure_tokens.line);
+        }
+    }
+
     const fn_args_token = args[args.len - 2];
     if (fn_args_token.kind != .vector) {
         try err_ctx.setMsgWithLine(allocator, "fn", "Function arguments must be a vector.", .{}, fn_args_token.line);
     }
 
     const fn_args = fn_args_token.kind.vector.items;
-    for (fn_args) |v| {
-        const arg_name =
-            if (v.kind == .atom and v.kind.atom == .symbol)
-                v.kind.atom.symbol
-            else {
-                try err_ctx.setMsgWithLine(
-                    allocator,
-                    "fn",
-                    "Function arguments must be symbols",
-                    .{},
-                    fn_args_token.line,
-                );
-                return Errors.WrongArgumentType;
-            };
-
-        try fn_locals.put(allocator, arg_name);
-    }
+    try createArgs(allocator, &fn_locals, fn_args, fn_args_token.line, err_ctx);
 
     const ast_token = args[args.len - 1];
     if (ast_token.kind != .list) {
@@ -204,6 +225,13 @@ fn compileFn(
 
     const func = try Obj.Function.init(allocator, fn_chunk, @intCast(fn_args.len), help);
     _ = try chunk.emitConstant(allocator, .{ .obj = &func.obj }, line);
+
+    if (is_closure) {
+        try chunk.append(allocator, .create_closure, line);
+        const closure_args: u16 = @intCast(args[args.len - 3].kind.vector.items.len);
+        const bytes = std.mem.toBytes(closure_args);
+        try chunk.emitBytes(allocator, &bytes, line);
+    }
 }
 
 fn compileDef(

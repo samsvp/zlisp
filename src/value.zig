@@ -292,16 +292,19 @@ pub const Obj = struct {
                 .function = func,
                 .args = try allocator.dupe(Value, args),
             };
+
+            func.obj.count += 1;
             return closure;
         }
 
         pub fn deinit(self: *Closure, allocator: std.mem.Allocator) void {
+            defer allocator.destroy(self);
+            defer allocator.free(self.args);
+
             self.function.deinit(allocator);
             for (self.args) |*v| {
                 v.deinit(allocator);
             }
-            allocator.free(self.args);
-            allocator.destroy(self);
         }
     };
 

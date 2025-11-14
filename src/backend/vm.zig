@@ -91,8 +91,15 @@ pub const VM = struct {
 
         var iter = self.globals.iterator();
         while (iter.next()) |kv| {
+            if (kv.value_ptr.* == .obj) {
+                switch (kv.value_ptr.obj.kind) {
+                    .closure => std.debug.print("count is {}\n", .{kv.value_ptr.obj.count}),
+                    else => {},
+                }
+            }
             kv.value_ptr.deinit(allocator);
         }
+        std.debug.print("finished\n", .{});
     }
 
     fn resetStack(vm: *VM) void {
@@ -146,14 +153,24 @@ pub const VM = struct {
         vm.local_stack.shrinkRetainingCapacity(frame.stack_pos);
     }
 
-    fn getFnArgs(vm: *VM, allocator: std.mem.Allocator, arity: usize) !void {
+    fn getFnArgs(vm: *VM, allocator: std.mem.Allocator, args: []const Value, arity: usize) !void {
+        for (args) |arg| {
+            try vm.local_stack.append(allocator, arg);
+        }
+
         for (0..arity) |_| {
             const v = try vm.stackPop();
             try vm.local_stack.append(allocator, v);
         }
     }
 
-    fn call(vm: *VM, allocator: std.mem.Allocator, f: *Obj.Function, arg_count: u8, offset: u8) !*CallFrame {
+    fn call(
+        vm: *VM,
+        allocator: std.mem.Allocator,
+        f: *Obj.Function,
+        arg_count: u8,
+        args: []const Value,
+    ) !*CallFrame {
         if (arg_count != f.arity) {
             return Error.WrongArgumentNumber;
         }
@@ -161,7 +178,7 @@ pub const VM = struct {
         if (vm.frame_count != 1) {
             if (std.enums.fromInt(OpCode, vm.peekByte())) |op| if (op == .ret) {
                 vm.emptyFnStack(allocator);
-                try vm.getFnArgs(allocator, f.arity);
+                try vm.getFnArgs(allocator, args, f.arity);
 
                 var frame = &vm.frames[vm.frame_count - 1];
                 frame.function = f;
@@ -179,20 +196,16 @@ pub const VM = struct {
             .function = f,
             .ip = f.chunk.code.items.ptr,
             // function arguments are loaded at the top of the local stack
-            .stack_pos = vm.local_stack.items.len - offset,
+            .stack_pos = vm.local_stack.items.len,
         };
 
-        try vm.getFnArgs(allocator, f.arity);
+        try vm.getFnArgs(allocator, args, f.arity);
         vm.frames[vm.frame_count - 1] = frame;
         return &vm.frames[vm.frame_count - 1];
     }
 
     fn callClosure(vm: *VM, allocator: std.mem.Allocator, f: *Obj.Closure, arg_count: u8) !*CallFrame {
-        for (f.args) |arg| {
-            try vm.local_stack.append(allocator, arg);
-        }
-
-        return vm.call(allocator, f.function, arg_count, @intCast(f.args.len));
+        return vm.call(allocator, f.function, arg_count, f.args);
     }
 
     fn callNative(vm: *VM, allocator: std.mem.Allocator, f: *Obj.NativeFunction, arg_count: u8) !*CallFrame {
@@ -206,7 +219,7 @@ pub const VM = struct {
         const res = try f.native_fn(allocator, args, &vm.err_ctx);
         try vm.stack.append(allocator, res);
 
-        return vm.call(allocator, f.function, arg_count, 0);
+        return vm.call(allocator, f.function, arg_count, &.{});
     }
 
     fn callValue(vm: *VM, allocator: std.mem.Allocator, v: Value, arg_count: u8) !*CallFrame {
@@ -215,7 +228,7 @@ pub const VM = struct {
         }
 
         return switch (v.obj.kind) {
-            .function => try vm.call(allocator, v.obj.as(Obj.Function), arg_count, 0),
+            .function => try vm.call(allocator, v.obj.as(Obj.Function), arg_count, &.{}),
             .closure => try vm.callClosure(allocator, v.obj.as(Obj.Closure), arg_count),
             .native_fn => try vm.callNative(allocator, v.obj.as(Obj.NativeFunction), arg_count),
             else => Error.TypeNotCallable,
@@ -228,17 +241,19 @@ pub const VM = struct {
         try vm.stack.append(allocator, .{ .obj = &vec.obj });
     }
 
-    fn createClosure(vm: *VM, allocator: std.mem.Allocator) !void {
+    fn createClosure(vm: *VM, allocator: std.mem.Allocator, n: u16) !void {
         const func_val = try vm.stackPop();
         const func = func_val.obj.as(Obj.Function);
 
-        var args = try allocator.alloc(Value, func.arity);
-        for (0..func.arity) |i| {
+        var args = try allocator.alloc(Value, n);
+        defer allocator.free(args);
+
+        for (0..n) |i| {
             args[i] = try vm.stackPop();
         }
 
         const closure = try Obj.Closure.init(allocator, func, args);
-        try vm.stack.append(allocator, &closure.obj);
+        try vm.stack.append(allocator, .{ .obj = &closure.obj });
     }
 
     pub fn run(vm: *VM, allocator: std.mem.Allocator) !void {
@@ -327,7 +342,7 @@ pub const VM = struct {
                     const name_str = name.symbol;
 
                     const val = try vm.stackPeek();
-                    try vm.globals.put(allocator, name_str, val.borrow());
+                    try vm.globals.put(allocator, name_str, val);
                 },
                 .get_global => {
                     const name = try vm.stackPop();
@@ -354,7 +369,10 @@ pub const VM = struct {
                     const n = std.mem.bytesToValue(u16, vm.readBytes(2));
                     try vm.createVector(allocator, @intCast(n));
                 },
-                .create_closure => {},
+                .create_closure => {
+                    const n = std.mem.bytesToValue(u16, vm.readBytes(2));
+                    try vm.createClosure(allocator, n);
+                },
                 .pop => {
                     _ = try vm.stackPop();
                 },
