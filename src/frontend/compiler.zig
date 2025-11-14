@@ -277,38 +277,43 @@ pub fn compileList(
         return;
     }
 
+    err_ctx.line = line;
     const first = list.items[0];
-    if (first.kind != .atom) {
-        // TODO! The first element could be a list if it defines an anonymous function
-        err_ctx.line = line;
-        try err_ctx.setMsg(allocator, "COMPILE", "List first element must be function.", .{});
-        return Errors.NonFunctionAsHeadOfList;
-    }
-
-    const atom = first.kind.atom;
-    if (atom != .symbol) {
-        err_ctx.line = line;
-        try err_ctx.setMsg(allocator, "COMPILE", "List first element must be function.", .{});
-        return Errors.NonFunctionAsHeadOfList;
+    switch (first.kind) {
+        .list => {},
+        .atom => |a| if (a != .symbol) {
+            try err_ctx.setMsg(allocator, "COMPILE", "List first element must be function.", .{});
+            return Errors.NonFunctionAsHeadOfList;
+        },
+        .vector => {
+            try err_ctx.setMsg(allocator, "COMPILE", "List first element must be function.", .{});
+            return Errors.NonFunctionAsHeadOfList;
+        },
     }
 
     const args = list.items[1..];
-    if (atom == .symbol) if (std.meta.stringToEnum(Constants, atom.symbol)) |c| {
-        switch (c) {
-            .@"+" => try compileOp(allocator, chunk, locals, .add, args, line, err_ctx),
-            .@"-" => try compileOp(allocator, chunk, locals, .subtract, args, line, err_ctx),
-            .@"*" => try compileOp(allocator, chunk, locals, .multiply, args, line, err_ctx),
-            .@"/" => try compileOp(allocator, chunk, locals, .divide, args, line, err_ctx),
-            .@"if" => try compileIf(allocator, chunk, locals, args, line, err_ctx),
-            .@"fn" => try compileFn(allocator, chunk, locals, args, line, err_ctx),
-            .def => try compileDef(allocator, chunk, locals, args, line, err_ctx),
+    if (first.kind == .atom and first.kind.atom == .symbol) {
+        if (std.meta.stringToEnum(Constants, first.kind.atom.symbol)) |c| {
+            switch (c) {
+                .@"+" => try compileOp(allocator, chunk, locals, .add, args, line, err_ctx),
+                .@"-" => try compileOp(allocator, chunk, locals, .subtract, args, line, err_ctx),
+                .@"*" => try compileOp(allocator, chunk, locals, .multiply, args, line, err_ctx),
+                .@"/" => try compileOp(allocator, chunk, locals, .divide, args, line, err_ctx),
+                .@"if" => try compileIf(allocator, chunk, locals, args, line, err_ctx),
+                .@"fn" => try compileFn(allocator, chunk, locals, args, line, err_ctx),
+                .def => try compileDef(allocator, chunk, locals, args, line, err_ctx),
+            }
+            return;
         }
-        return;
-    };
+    }
 
     // compile the atom last
     try compileArgs(allocator, chunk, locals, list.items[1..], err_ctx);
-    try compileAtom(allocator, chunk, locals, atom, line);
+    switch (first.kind) {
+        .atom => |atom| try compileAtom(allocator, chunk, locals, atom, line),
+        .list => |l| try compileList(allocator, chunk, locals, l, line, err_ctx),
+        else => unreachable,
+    }
     try chunk.append(allocator, .call, line);
     try chunk.emitByte(allocator, @intCast(list.items.len - 1), line);
 }
