@@ -353,7 +353,7 @@ pub const VM = struct {
                 },
                 .def_local => {
                     const v = try vm.stackPeek();
-                    try vm.local_stack.append(allocator, v.borrow());
+                    try vm.local_stack.append(allocator, v);
                 },
                 .get_local => {
                     const slot = std.mem.bytesToValue(u16, vm.readBytes(2));

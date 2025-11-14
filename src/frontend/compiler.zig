@@ -80,7 +80,7 @@ pub fn compileAtom(allocator: std.mem.Allocator, chunk: *Chunk, locals: *Locals,
                 try chunk.emitGetGlobal(allocator, s, line);
             }
         },
-        else => _ = try chunk.emitConstant(allocator, value, line),
+        else => _ = try chunk.emitConstant(allocator, value.borrow(), line),
     }
 }
 

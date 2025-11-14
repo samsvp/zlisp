@@ -26,6 +26,7 @@ pub fn main() !void {
         \\(def add (fn [a b] (+ a b)))
         \\(def add-2 (fn [x] [] (add x (add 5 10))))
         \\(+ 1 (add-2))
+        \\(add "hello " "world")
     ,
         &err_ctx,
     );
