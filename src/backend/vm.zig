@@ -146,13 +146,11 @@ pub const VM = struct {
         vm.local_stack.shrinkRetainingCapacity(frame.stack_pos);
     }
 
-    fn optimizeIfTailCall(vm: *VM, allocator: std.mem.Allocator) void {
-        if (vm.frame_count == 1) return;
-
-        if (std.enums.fromInt(OpCode, vm.peekByte())) |op| if (op == .ret) {
-            vm.frame_count -= 1;
-            vm.emptyFnStack(allocator);
-        };
+    fn getFnArgs(vm: *VM, allocator: std.mem.Allocator, arity: usize) !void {
+        for (0..arity) |_| {
+            const v = try vm.stackPop();
+            try vm.local_stack.append(allocator, v);
+        }
     }
 
     fn call(vm: *VM, allocator: std.mem.Allocator, f: *Obj.Function, arg_count: u8, offset: u8) !*CallFrame {
@@ -160,7 +158,17 @@ pub const VM = struct {
             return Error.WrongArgumentNumber;
         }
 
-        vm.optimizeIfTailCall(allocator);
+        if (vm.frame_count != 1) {
+            if (std.enums.fromInt(OpCode, vm.peekByte())) |op| if (op == .ret) {
+                vm.emptyFnStack(allocator);
+                try vm.getFnArgs(allocator, f.arity);
+
+                var frame = &vm.frames[vm.frame_count - 1];
+                frame.function = f;
+                frame.ip = f.chunk.code.items.ptr;
+                return frame;
+            };
+        }
 
         vm.frame_count += 1;
         if (vm.frame_count == FRAMES_MAX) {
@@ -174,11 +182,7 @@ pub const VM = struct {
             .stack_pos = vm.local_stack.items.len - offset,
         };
 
-        for (0..f.arity) |_| {
-            const v = try vm.stackPop();
-            try vm.local_stack.append(allocator, v);
-        }
-
+        try vm.getFnArgs(allocator, f.arity);
         vm.frames[vm.frame_count - 1] = frame;
         return &vm.frames[vm.frame_count - 1];
     }
@@ -255,6 +259,7 @@ pub const VM = struct {
             switch (instruction) {
                 .ret => {
                     const result = try vm.stackPop();
+                    vm.emptyFnStack(allocator);
                     vm.frame_count -= 1;
                     if (vm.frame_count == 0) {
                         result.deinit(allocator);
@@ -262,7 +267,6 @@ pub const VM = struct {
                     }
 
                     try vm.stack.append(allocator, result);
-                    vm.emptyFnStack(allocator);
                     frame = &vm.frames[vm.frame_count - 1];
                 },
                 .constant => {

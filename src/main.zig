@@ -154,6 +154,7 @@ pub fn main() !void {
     const m_chunk = try compiler.compile(
         allocator,
         \\(def add (fn [a b] (+ a b)))
+        \\(def add-2 (fn [x] (add x (add 5 10))))
         \\(def x
         \\  (if (+ 1 2)
         \\      (- 8 2)
@@ -164,7 +165,7 @@ pub fn main() !void {
         \\      (+ 8 2)))
         \\(+ 1 2 3 x)
         \\(+ 3 y)
-        \\(+ 1 (add 2 3))
+        \\(+ 1 (add-2 3))
     ,
         &err_ctx,
     );
