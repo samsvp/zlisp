@@ -56,6 +56,14 @@ pub const Token = struct {
                 }
                 std.debug.print(")}}", .{});
             },
+            .vector => |l| {
+                std.debug.print("{{line: {}; value: [", .{self.line});
+                for (l.items) |t| {
+                    try t.print(allocator);
+                    std.debug.print(", ", .{});
+                }
+                std.debug.print("]}}", .{});
+            },
         }
     }
 };

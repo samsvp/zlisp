@@ -22,7 +22,7 @@ pub fn createFn(allocator: std.mem.Allocator) !*Obj.Function {
     try chunk.emitByte(allocator, 4, 123);
     try chunk.append(allocator, .ret, 124);
 
-    const function = try Obj.Function.init(allocator, chunk, 4, "add-4", "Adds 4 values");
+    const function = try Obj.Function.init(allocator, chunk, 4, "Adds 4 values");
     return function;
 }
 
@@ -46,7 +46,6 @@ pub fn createClosure(allocator: std.mem.Allocator) !*Obj.Closure {
         allocator,
         chunk,
         3,
-        "add-3",
         "adds 3 values with initial condition",
         // simulate closing over a variable with value
         &args,
@@ -61,7 +60,7 @@ fn testFn(allocator: std.mem.Allocator, _: []const Value, _: *errors.Ctx) anyerr
 }
 
 pub fn createNative(allocator: std.mem.Allocator) !*Obj.NativeFunction {
-    return Obj.NativeFunction.init(allocator, testFn, 0, "test", "");
+    return Obj.NativeFunction.init(allocator, testFn, 0, "");
 }
 
 pub fn main() !void {
@@ -72,7 +71,7 @@ pub fn main() !void {
 
     var chunk = try allocator.create(Chunk);
     chunk.* = Chunk.empty;
-    const function = try Obj.Function.init(allocator, chunk, 0, "main", "");
+    const function = try Obj.Function.init(allocator, chunk, 0, "");
 
     var native_fn = try createNative(allocator);
     _ = try chunk.emitConstant(allocator, .{ .obj = &native_fn.obj }, 10);
@@ -154,6 +153,7 @@ pub fn main() !void {
     std.debug.print("\nCompiled\n", .{});
     const m_chunk = try compiler.compile(
         allocator,
+        \\(def add (fn [a b] (+ a b)))
         \\(def x
         \\  (if (+ 1 2)
         \\      (- 8 2)
@@ -164,13 +164,14 @@ pub fn main() !void {
         \\      (+ 8 2)))
         \\(+ 1 2 3 x)
         \\(+ 3 y)
+        \\(+ 1 (add 2 3))
     ,
         &err_ctx,
     );
 
     try debug.disassembleChunk(allocator, m_chunk.*, "Compiled chunk");
 
-    const m_function = try Obj.Function.init(allocator, m_chunk, 0, "main", "");
+    const m_function = try Obj.Function.init(allocator, m_chunk, 0, "");
     var m_vm = VM.init(m_function);
     defer m_vm.deinit(allocator);
 

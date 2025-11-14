@@ -17,6 +17,49 @@ pub const Compiler = struct {
     chunk: *Chunk,
 };
 
+pub const Locals = struct {
+    offset: u16,
+    names: std.StringArrayHashMapUnmanaged(u16),
+    node: std.SinglyLinkedList.Node,
+
+    pub const empty: Locals = .{
+        .offset = 0,
+        .names = .empty,
+        .node = .{},
+    };
+
+    pub fn createNext(self: *Locals) Locals {
+        const size: u16 = @intCast(self.names.count());
+        const next: Locals = .{
+            .offset = self.offset + size,
+            .names = .empty,
+            .node = .{ .next = &self.node },
+        };
+        return next;
+    }
+
+    pub fn deinit(self: *Locals, allocator: std.mem.Allocator) void {
+        self.names.deinit(allocator);
+    }
+
+    pub fn put(self: *Locals, allocator: std.mem.Allocator, name: []const u8) !void {
+        const size: u16 = @intCast(self.names.count());
+        _ = try self.names.getOrPutValue(allocator, name, self.offset + size);
+    }
+
+    pub fn get(self: *Locals, name: []const u8) ?u16 {
+        var node: ?*std.SinglyLinkedList.Node = &self.node;
+        while (node) |n| {
+            var locals: *Locals = @fieldParentPtr("node", n);
+            if (locals.names.get(name)) |index| {
+                return index;
+            }
+            node = n.next;
+        }
+        return null;
+    }
+};
+
 const Constants = enum {
     @"+",
     @"-",
@@ -28,11 +71,14 @@ const Constants = enum {
 };
 
 /// Returns false if the function is a builtin (+,-,*,/) or a true function to be called.
-pub fn compileAtom(allocator: std.mem.Allocator, chunk: *Chunk, value: Value, line: usize) !void {
+pub fn compileAtom(allocator: std.mem.Allocator, chunk: *Chunk, locals: *Locals, value: Value, line: usize) !void {
     switch (value) {
-        .symbol => {
-            // TODO! check if variable is a local
-            try chunk.emitGetGlobal(allocator, value.symbol, line);
+        .symbol => |s| {
+            if (locals.get(s)) |index| {
+                try chunk.emitGetLocal(allocator, index, line);
+            } else {
+                try chunk.emitGetGlobal(allocator, s, line);
+            }
         },
         else => _ = try chunk.emitConstant(allocator, value, line),
     }
@@ -41,24 +87,26 @@ pub fn compileAtom(allocator: std.mem.Allocator, chunk: *Chunk, value: Value, li
 fn compileArgs(
     allocator: std.mem.Allocator,
     chunk: *Chunk,
+    locals: *Locals,
     args: []const reader.Token,
     err_ctx: *errors.Ctx,
 ) anyerror!void {
     for (0..args.len) |i| {
         const token = args[args.len - i - 1];
-        try compileToken(allocator, chunk, token, err_ctx);
+        try compileToken(allocator, chunk, token, locals, err_ctx);
     }
 }
 
 fn compileOp(
     allocator: std.mem.Allocator,
     chunk: *Chunk,
+    locals: *Locals,
     op: OpCode,
     args: []const reader.Token,
     line: usize,
     err_ctx: *errors.Ctx,
 ) anyerror!void {
-    try compileArgs(allocator, chunk, args, err_ctx);
+    try compileArgs(allocator, chunk, locals, args, err_ctx);
     try chunk.append(allocator, op, line);
     try chunk.emitByte(allocator, @intCast(args.len), line);
 }
@@ -66,6 +114,7 @@ fn compileOp(
 fn compileIf(
     allocator: std.mem.Allocator,
     chunk: *Chunk,
+    locals: *Locals,
     args: []const reader.Token,
     line: usize,
     err_ctx: *errors.Ctx,
@@ -76,17 +125,17 @@ fn compileIf(
     }
 
     // place the expr result on the stack
-    try compileToken(allocator, chunk, args[0], err_ctx);
+    try compileToken(allocator, chunk, args[0], locals, err_ctx);
     const jump_false_index = try chunk.emitJumpIfFalse(allocator, 0, line);
     // compile the clauses
-    try compileToken(allocator, chunk, args[1], err_ctx);
+    try compileToken(allocator, chunk, args[1], locals, err_ctx);
     chunk.replaceJump(jump_false_index, @intCast(chunk.code.items.len - jump_false_index));
 
     const jump_index = try chunk.emitJump(allocator, 0, line);
     if (args.len == 2) {
         _ = try chunk.emitConstant(allocator, .nil, line);
     } else {
-        try compileToken(allocator, chunk, args[2], err_ctx);
+        try compileToken(allocator, chunk, args[2], locals, err_ctx);
     }
 
     chunk.replaceJump(jump_index, @intCast(chunk.code.items.len - jump_index - 3));
@@ -95,23 +144,17 @@ fn compileIf(
 fn compileFn(
     allocator: std.mem.Allocator,
     chunk: *Chunk,
+    locals: *Locals,
     args: []const reader.Token,
     line: usize,
     err_ctx: *errors.Ctx,
 ) anyerror!void {
-    if (args.len > 5 or args.len < 3) {
-        try err_ctx.setMsgWithLine(allocator, "fn", "Expected 3 to 5 arguments, got {}", .{args.len}, line);
+    if (args.len > 4 or args.len < 2) {
+        try err_ctx.setMsgWithLine(allocator, "fn", "Expected 2 to 4 arguments, got {}", .{args.len}, line);
         return Errors.WrongNumberOfArguments;
     }
 
-    if (args[0].kind != .atom and args[0].kind.atom != .symbol) {
-        try err_ctx.setMsgWithLine(allocator, "fn", "Expected function name.", .{}, args[0].line);
-        return Errors.WrongArgumentType;
-    }
-
-    const name = args[0].kind.atom.symbol;
-
-    const help = switch (args[1].kind) {
+    const help = switch (args[0].kind) {
         .atom => |v| if (v == .obj and v.obj.kind == .string)
             v.obj.as(Obj.String).items
         else
@@ -122,50 +165,51 @@ fn compileFn(
     var fn_chunk = try allocator.create(Chunk);
     fn_chunk.* = Chunk.empty;
 
-    const fn_args = switch (args[args.len - 2].kind) {
-        .vector => |vs| blk: {
-            const fn_args = try allocator.alloc([]const u8, vs.items.len);
-            for (vs.items, 0..) |v, i| {
-                const arg_name =
-                    if (v.kind == .atom and v.kind.atom == .symbol)
-                        v.kind.atom.symbol
-                    else {
-                        try err_ctx.setMsgWithLine(
-                            allocator,
-                            "fn",
-                            "Function arguments must be symbols",
-                            .{},
-                            args[args.len - 2].line,
-                        );
-                        return Errors.WrongArgumentType;
-                    };
+    var fn_locals = locals.createNext();
+    defer fn_locals.deinit(allocator);
 
-                try fn_chunk.emitDefLocal(allocator, arg_name, v.line);
-                fn_args[i] = arg_name;
-            }
-            break :blk fn_args;
-        },
-        else => {
-            try err_ctx.setMsgWithLine(allocator, "fn", "Arguments must be a list of symbols.", .{}, line);
-            return Errors.WrongArgumentType;
-        },
-    };
+    const fn_args_token = args[args.len - 2];
+    if (fn_args_token.kind != .vector) {
+        try err_ctx.setMsgWithLine(allocator, "fn", "Function arguments must be a vector.", .{}, fn_args_token.line);
+    }
 
-    if (args[args.len - 1].kind != .list) {
-        try err_ctx.setMsgWithLine(allocator, "fn", "Function body must be list.", .{}, args[args.len - 1].line);
+    const fn_args = fn_args_token.kind.vector.items;
+    for (fn_args) |v| {
+        const arg_name =
+            if (v.kind == .atom and v.kind.atom == .symbol)
+                v.kind.atom.symbol
+            else {
+                try err_ctx.setMsgWithLine(
+                    allocator,
+                    "fn",
+                    "Function arguments must be symbols",
+                    .{},
+                    fn_args_token.line,
+                );
+                return Errors.WrongArgumentType;
+            };
+
+        try fn_locals.put(allocator, arg_name);
+    }
+
+    const ast_token = args[args.len - 1];
+    if (ast_token.kind != .list) {
+        try err_ctx.setMsgWithLine(allocator, "fn", "Function body must be list.", .{}, ast_token.line);
         return Errors.WrongArgumentType;
     }
 
-    try compileToChunk(allocator, args[args.len].kind.list, chunk, err_ctx);
+    const ast = ast_token.kind.list;
+    try compileList(allocator, fn_chunk, &fn_locals, ast, ast_token.line, err_ctx);
+    try fn_chunk.append(allocator, .ret, ast_token.line);
 
-    const func = try Obj.Function.init(allocator, chunk, @intCast(fn_args.len), name, help);
+    const func = try Obj.Function.init(allocator, fn_chunk, @intCast(fn_args.len), help);
     _ = try chunk.emitConstant(allocator, .{ .obj = &func.obj }, line);
-    try chunk.emitDefGlobal(allocator, name, line);
 }
 
 fn compileDef(
     allocator: std.mem.Allocator,
     chunk: *Chunk,
+    locals: *Locals,
     args: []const reader.Token,
     line: usize,
     err_ctx: *errors.Ctx,
@@ -186,7 +230,7 @@ fn compileDef(
         return Errors.WrongArgumentType;
     }
 
-    try compileToken(allocator, chunk, args[1], err_ctx);
+    try compileToken(allocator, chunk, args[1], locals, err_ctx);
     _ = try chunk.emitConstant(allocator, args[0].kind.atom, args[0].line);
     try chunk.append(allocator, .def_global, line);
 }
@@ -194,6 +238,7 @@ fn compileDef(
 pub fn compileList(
     allocator: std.mem.Allocator,
     chunk: *Chunk,
+    locals: *Locals,
     list: std.ArrayList(reader.Token),
     line: usize,
     err_ctx: *errors.Ctx,
@@ -222,20 +267,20 @@ pub fn compileList(
     const args = list.items[1..];
     if (atom == .symbol) if (std.meta.stringToEnum(Constants, atom.symbol)) |c| {
         switch (c) {
-            .@"+" => try compileOp(allocator, chunk, .add, args, line, err_ctx),
-            .@"-" => try compileOp(allocator, chunk, .subtract, args, line, err_ctx),
-            .@"*" => try compileOp(allocator, chunk, .multiply, args, line, err_ctx),
-            .@"/" => try compileOp(allocator, chunk, .divide, args, line, err_ctx),
-            .@"if" => try compileIf(allocator, chunk, args, line, err_ctx),
-            .@"fn" => try compileFn(allocator, chunk, args, line, err_ctx),
-            .def => try compileDef(allocator, chunk, args, line, err_ctx),
+            .@"+" => try compileOp(allocator, chunk, locals, .add, args, line, err_ctx),
+            .@"-" => try compileOp(allocator, chunk, locals, .subtract, args, line, err_ctx),
+            .@"*" => try compileOp(allocator, chunk, locals, .multiply, args, line, err_ctx),
+            .@"/" => try compileOp(allocator, chunk, locals, .divide, args, line, err_ctx),
+            .@"if" => try compileIf(allocator, chunk, locals, args, line, err_ctx),
+            .@"fn" => try compileFn(allocator, chunk, locals, args, line, err_ctx),
+            .def => try compileDef(allocator, chunk, locals, args, line, err_ctx),
         }
         return;
     };
 
     // compile the atom last
-    try compileArgs(allocator, chunk, list.items[1..], err_ctx);
-    try compileAtom(allocator, chunk, atom, line);
+    try compileArgs(allocator, chunk, locals, list.items[1..], err_ctx);
+    try compileAtom(allocator, chunk, locals, atom, line);
     try chunk.append(allocator, .call, line);
     try chunk.emitByte(allocator, @intCast(list.items.len - 1), line);
 }
@@ -243,11 +288,12 @@ pub fn compileList(
 pub fn compileVector(
     allocator: std.mem.Allocator,
     chunk: *Chunk,
+    locals: *Locals,
     vector: std.ArrayList(reader.Token),
     line: usize,
     err_ctx: *errors.Ctx,
 ) !void {
-    try compileArgs(allocator, chunk, vector.items, err_ctx);
+    try compileArgs(allocator, chunk, locals, vector.items, err_ctx);
     _ = line;
 }
 
@@ -255,12 +301,13 @@ pub fn compileToken(
     allocator: std.mem.Allocator,
     chunk: *Chunk,
     token: reader.Token,
+    locals: *Locals,
     err_ctx: *errors.Ctx,
 ) !void {
     switch (token.kind) {
-        .atom => |v| try compileAtom(allocator, chunk, v, token.line),
-        .list => |l| try compileList(allocator, chunk, l, token.line, err_ctx),
-        .vector => |v| try compileVector(allocator, chunk, v, token.line, err_ctx),
+        .atom => |v| try compileAtom(allocator, chunk, locals, v, token.line),
+        .list => |l| try compileList(allocator, chunk, locals, l, token.line, err_ctx),
+        .vector => |v| try compileVector(allocator, chunk, locals, v, token.line, err_ctx),
     }
 }
 
@@ -268,6 +315,7 @@ pub fn compileToChunk(
     allocator: std.mem.Allocator,
     tokens: std.ArrayList(reader.Token),
     chunk: *Chunk,
+    locals: *Locals,
     err_ctx: *errors.Ctx,
 ) !void {
     for (tokens.items, 0..) |token, i| switch (token.kind) {
@@ -276,7 +324,7 @@ pub fn compileToChunk(
                 // ignore any atom that is not the last statement
                 continue;
             }
-            _ = try compileAtom(allocator, chunk, a, token.line);
+            try compileAtom(allocator, chunk, locals, a, token.line);
         },
         .vector => |vec| {
             if (i != tokens.items.len - 1) {
@@ -284,7 +332,7 @@ pub fn compileToChunk(
                 continue;
             }
 
-            try compileVector(allocator, chunk, vec, token.line, err_ctx);
+            try compileVector(allocator, chunk, locals, vec, token.line, err_ctx);
         },
         .list => |list| {
             if (list.items.len == 0 and i != tokens.items.len - 1) {
@@ -292,7 +340,7 @@ pub fn compileToChunk(
                 continue;
             }
 
-            try compileList(allocator, chunk, list, token.line, err_ctx);
+            try compileList(allocator, chunk, locals, list, token.line, err_ctx);
             // pop the last statement value
             if (i != tokens.items.len - 1) {
                 try chunk.append(allocator, .pop, 0);
@@ -312,7 +360,8 @@ pub fn compile(allocator: std.mem.Allocator, source: []const u8, err_ctx: *error
     const chunk = try allocator.create(Chunk);
     chunk.* = Chunk.empty;
 
-    try compileToChunk(allocator, tokens, chunk, err_ctx);
+    var locals: Locals = .empty;
+    try compileToChunk(allocator, tokens, chunk, &locals, err_ctx);
 
     return chunk;
 }

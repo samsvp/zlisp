@@ -34,9 +34,9 @@ pub const Value = union(enum) {
                 .string => std.debug.print("{s}", .{o.as(Obj.String).items}),
                 .list => std.debug.print("List with len {}", .{o.as(Obj.List).items.len}),
                 .vector => std.debug.print("Vector with len {}", .{o.as(Obj.Vector).items.len}),
-                .function => std.debug.print("<fn = {s}>", .{o.as(Obj.Function).name}),
-                .closure => std.debug.print("<fn = {s}>", .{o.as(Obj.Closure).function.name}),
-                .native_fn => std.debug.print("<native_fn = {s}>", .{o.as(Obj.NativeFunction).name}),
+                .function => std.debug.print("<fn>", .{}),
+                .closure => std.debug.print("<fn>", .{}),
+                .native_fn => std.debug.print("<native_fn>", .{}),
             },
             .symbol => |s| std.debug.print("{s}", .{s}),
             else => std.debug.print("{}", .{v}),
@@ -122,9 +122,9 @@ pub const Value = union(enum) {
                 .string => try std.fmt.allocPrint(allocator, "{s}", .{o.as(Obj.String).items}),
                 .list => try o.as(Obj.List).toString(allocator, '(', ')'),
                 .vector => try o.as(Obj.Vector).toString(allocator, '[', ']'),
-                .function => try std.fmt.allocPrint(allocator, "<fn = {s}>", .{o.as(Obj.Function).name}),
-                .closure => try std.fmt.allocPrint(allocator, "<fn = {s}>", .{o.as(Obj.Closure).function.name}),
-                .native_fn => try std.fmt.allocPrint(allocator, "<native_fn = {s}>", .{o.as(Obj.NativeFunction).name}),
+                .function => try std.fmt.allocPrint(allocator, "<fn>", .{}),
+                .closure => try std.fmt.allocPrint(allocator, "<fn>", .{}),
+                .native_fn => try std.fmt.allocPrint(allocator, "<native_fn>", .{}),
             },
             .symbol => |s| try std.fmt.allocPrint(allocator, "{s}", .{s}),
             .nil => try std.fmt.allocPrint(allocator, "nil", .{}),
@@ -245,16 +245,14 @@ pub const Obj = struct {
         obj: Obj,
         arity: u32,
         chunk: *Chunk,
-        name: []const u8,
         help: []const u8,
 
-        pub fn init(allocator: std.mem.Allocator, chunk: *Chunk, arity: u8, name: []const u8, help: []const u8) !*Function {
+        pub fn init(allocator: std.mem.Allocator, chunk: *Chunk, arity: u8, help: []const u8) !*Function {
             const func = try allocator.create(Function);
             func.* = Function{
                 .obj = Obj.init(.function),
                 .arity = arity,
                 .chunk = chunk,
-                .name = name,
                 .help = help,
             };
             return func;
@@ -266,7 +264,7 @@ pub const Obj = struct {
             allocator.destroy(self);
         }
 
-        pub fn native(allocator: std.mem.Allocator, arity: u32, name: []const u8, help: []const u8) !*Function {
+        pub fn native(allocator: std.mem.Allocator, arity: u32, help: []const u8) !*Function {
             var chunk = try allocator.create(Chunk);
             chunk.* = .empty;
             try chunk.append(allocator, .ret, 0);
@@ -276,7 +274,6 @@ pub const Obj = struct {
                 .obj = Obj.init(.function),
                 .arity = arity,
                 .chunk = chunk,
-                .name = name,
                 .help = help,
             };
             return func;
@@ -288,11 +285,11 @@ pub const Obj = struct {
         function: *Function,
         args: []const Value,
 
-        pub fn init(allocator: std.mem.Allocator, chunk: *Chunk, arity: u8, name: []const u8, help: []const u8, args: []Value) !*Closure {
+        pub fn init(allocator: std.mem.Allocator, chunk: *Chunk, arity: u8, help: []const u8, args: []Value) !*Closure {
             const closure = try allocator.create(Closure);
             closure.* = Closure{
                 .obj = Obj.init(.closure),
-                .function = try Function.init(allocator, chunk, arity, name, help),
+                .function = try Function.init(allocator, chunk, arity, help),
                 .args = try allocator.dupe(Value, args),
             };
             return closure;
@@ -313,18 +310,16 @@ pub const Obj = struct {
         arity: u32,
         native_fn: NativeFn,
         function: *Function,
-        name: []const u8,
         help: []const u8,
 
-        pub fn init(allocator: std.mem.Allocator, func: NativeFn, arity: u8, name: []const u8, help: []const u8) !*NativeFunction {
+        pub fn init(allocator: std.mem.Allocator, func: NativeFn, arity: u8, help: []const u8) !*NativeFunction {
             const native_func = try allocator.create(NativeFunction);
             native_func.* = NativeFunction{
                 .obj = Obj.init(.native_fn),
                 .arity = arity,
                 .native_fn = func,
-                .name = name,
                 .help = help,
-                .function = try Function.native(allocator, arity, name, help),
+                .function = try Function.native(allocator, arity, help),
             };
             return native_func;
         }
