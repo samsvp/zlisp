@@ -68,6 +68,8 @@ pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
         },
         .obj => |o| switch (o.kind) {
             .string => {
+                defer o.deinit(allocator);
+
                 const s_0 = o.as(Obj.String);
                 var acc = try s_0.copy(allocator);
 
@@ -76,6 +78,8 @@ pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
                     if (value != .obj) {
                         return wrongType(allocator, "+", @tagName(value), err_ctx);
                     }
+
+                    defer value.deinit(allocator);
                     switch (value.obj.kind) {
                         .string => try acc.appendManyMut(allocator, value.obj.as(Obj.String).items),
                         else => return wrongType(allocator, "+", @tagName(value), err_ctx),
@@ -84,6 +88,8 @@ pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
                 return .{ .obj = &acc.obj };
             },
             inline .vector, .list => |k| {
+                defer o.deinit(allocator);
+
                 const v_0 = if (k == .list) o.as(Obj.List) else o.as(Obj.Vector);
                 var acc = try v_0.copy(allocator);
 
@@ -92,6 +98,8 @@ pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
                     if (value != .obj) {
                         return wrongType(allocator, "+", @tagName(value), err_ctx);
                     }
+
+                    defer value.deinit(allocator);
                     switch (value.obj.kind) {
                         .vector => try acc.appendManyMut(allocator, value.obj.as(Obj.Vector).items),
                         .list => try acc.appendManyMut(allocator, value.obj.as(Obj.List).items),

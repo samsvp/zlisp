@@ -80,7 +80,7 @@ pub fn compileAtom(allocator: std.mem.Allocator, chunk: *Chunk, locals: *Locals,
                 try chunk.emitGetGlobal(allocator, s, line);
             }
         },
-        else => _ = try chunk.emitConstant(allocator, value.borrow(), line),
+        else => _ = try chunk.emitConstant(allocator, value, line),
     }
 }
 
@@ -223,7 +223,9 @@ fn compileFn(
     try compileToken(allocator, fn_chunk, ast_token, &fn_locals, err_ctx);
     try fn_chunk.append(allocator, .ret, ast_token.line);
 
-    const func = try Obj.Function.init(allocator, fn_chunk, @intCast(fn_args.len), is_variadic, help);
+    var func = try Obj.Function.init(allocator, fn_chunk, @intCast(fn_args.len), is_variadic, help);
+    defer func.obj.deinit(allocator);
+
     _ = try chunk.emitConstant(allocator, .{ .obj = &func.obj }, line);
 
     if (is_closure) {
@@ -273,6 +275,8 @@ pub fn compileList(
 ) !void {
     if (list.items.len == 0) {
         const empty_list = try Obj.List.empty(allocator);
+        defer empty_list.obj.deinit(allocator);
+
         _ = try chunk.emitConstant(allocator, .{ .obj = &empty_list.obj }, line);
         return;
     }

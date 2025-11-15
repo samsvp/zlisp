@@ -19,11 +19,8 @@ pub fn main() !void {
     std.debug.print("\nCompiled\n", .{});
     const m_chunk = try compiler.compile(
         allocator,
-        \\(def add (fn [a b] (+ a b)))
-        \\(def add-3 (fn [&xs] (+ &xs [1 2 3])))
-        \\(add "hello" "world")
-        \\(add 1 2)
-        \\(add-3 0 8 12)
+        \\(def add-3 (fn [&xs] (+ &xs [1 "2" 3])))
+        \\(add-3 "12")
         \\nil
     ,
         &err_ctx,
@@ -31,7 +28,9 @@ pub fn main() !void {
 
     try debug.disassembleChunk(allocator, m_chunk.*, "Compiled chunk");
 
-    const m_function = try Obj.Function.init(allocator, m_chunk, 0, false, "");
+    var m_function = try Obj.Function.init(allocator, m_chunk, 0, false, "");
+    defer m_function.deinit(allocator);
+
     var m_vm = VM.init(m_function);
     defer m_vm.deinit(allocator);
 

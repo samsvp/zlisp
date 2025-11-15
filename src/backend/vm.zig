@@ -33,10 +33,6 @@ const CallFrame = struct {
     function: *Obj.Function,
     ip: [*]u8,
     stack_pos: usize,
-
-    pub fn deinit(self: *CallFrame, allocator: std.mem.Allocator) void {
-        self.function.deinit(allocator);
-    }
 };
 
 pub const VM = struct {
@@ -88,10 +84,6 @@ pub const VM = struct {
         var iter = self.globals.iterator();
         while (iter.next()) |kv| {
             kv.value_ptr.deinit(allocator);
-        }
-
-        for (0..self.frame_count + 1) |i| {
-            self.frames[i].deinit(allocator);
         }
     }
 
@@ -155,7 +147,7 @@ pub const VM = struct {
         is_variadic: bool,
     ) !void {
         for (args) |arg| {
-            try vm.local_stack.append(allocator, arg.borrow());
+            try vm.local_stack.append(allocator, arg);
         }
 
         if (arity == 0) {
@@ -176,6 +168,10 @@ pub const VM = struct {
         const variadic_len = arg_count + 1 - arity;
         const variadic_start = vm.stack.items.len - variadic_len;
         const list = try Obj.List.init(allocator, vm.stack.items[variadic_start..]);
+        for (vm.stack.items[variadic_start..]) |item| {
+            item.deinit(allocator);
+        }
+
         vm.stack.shrinkRetainingCapacity(variadic_start);
         try vm.local_stack.append(allocator, .{ .obj = &list.obj });
     }
@@ -253,6 +249,10 @@ pub const VM = struct {
 
     fn createVector(vm: *VM, allocator: std.mem.Allocator, n: usize) !Value {
         const vec = try Obj.Vector.init(allocator, vm.stack.items[vm.stack.items.len - n ..]);
+        for (vm.stack.items[vm.stack.items.len - n ..]) |item| {
+            item.deinit(allocator);
+        }
+
         vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
         const val: Value = .{ .obj = &vec.obj };
         try vm.stack.append(allocator, val);
@@ -318,11 +318,11 @@ pub const VM = struct {
                 },
                 .constant => {
                     const v = vm.readConstant();
-                    try vm.stack.append(allocator, v);
+                    try vm.stack.append(allocator, v.borrow());
                 },
                 .constant_long => {
                     const v = vm.readConstantLong();
-                    try vm.stack.append(allocator, v);
+                    try vm.stack.append(allocator, v.borrow());
                 },
                 .add => {
                     const arg_count = vm.readByte();
@@ -368,7 +368,7 @@ pub const VM = struct {
                     const name_str = name.symbol;
 
                     const val = vm.globals.get(name_str) orelse return Error.UndefinedVariable;
-                    try vm.stack.append(allocator, val);
+                    try vm.stack.append(allocator, val.borrow());
                 },
                 .def_local => {
                     const v = try vm.stackPeek();
@@ -378,7 +378,7 @@ pub const VM = struct {
                     const slot = std.mem.bytesToValue(u16, vm.readBytes(2));
                     const slot_index = @as(usize, @intCast(slot)) + vm.frames[vm.frame_count - 1].stack_pos;
 
-                    try vm.stack.append(allocator, vm.local_stack.items[slot_index]);
+                    try vm.stack.append(allocator, vm.local_stack.items[slot_index].borrow());
                 },
                 .create_vec => {
                     const n = vm.readByte();
@@ -401,6 +401,8 @@ pub const VM = struct {
                 .call => {
                     const arg_count = vm.readByte();
                     const v = try vm.stackPop();
+                    defer v.deinit(allocator);
+
                     frame = try vm.callValue(allocator, v, arg_count);
                 },
                 .noop => {},
