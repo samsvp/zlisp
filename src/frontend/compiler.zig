@@ -65,9 +65,15 @@ const Constants = enum {
     @"-",
     @"*",
     @"/",
+    @"=",
+    @"<",
+    @">",
+    @"<=",
+    @">=",
     @"if",
     @"fn",
     def,
+    not,
 };
 
 /// Returns false if the function is a builtin (+,-,*,/) or a true function to be called.
@@ -109,6 +115,24 @@ fn compileOp(
     try compileArgs(allocator, chunk, locals, args, err_ctx);
     try chunk.append(allocator, op, line);
     try chunk.emitByte(allocator, @intCast(args.len), line);
+}
+
+fn compileNot(
+    allocator: std.mem.Allocator,
+    chunk: *Chunk,
+    locals: *Locals,
+    args: []const reader.Token,
+    line: usize,
+    err_ctx: *errors.Ctx,
+) anyerror!void {
+    if (args.len != 1) {
+        try err_ctx.setMsgWithLine(allocator, "not", "Not takes one parameter, got {}", .{args.len}, line);
+        return Errors.WrongNumberOfArguments;
+    }
+
+    const token = args[0];
+    try compileToken(allocator, chunk, token, locals, err_ctx);
+    try chunk.append(allocator, .not, line);
 }
 
 fn compileIf(
@@ -303,8 +327,14 @@ pub fn compileList(
                 .@"-" => try compileOp(allocator, chunk, locals, .subtract, args, line, err_ctx),
                 .@"*" => try compileOp(allocator, chunk, locals, .multiply, args, line, err_ctx),
                 .@"/" => try compileOp(allocator, chunk, locals, .divide, args, line, err_ctx),
+                .@"=" => try compileOp(allocator, chunk, locals, .eq, args, line, err_ctx),
+                .@"<" => try compileOp(allocator, chunk, locals, .lt, args, line, err_ctx),
+                .@">" => try compileOp(allocator, chunk, locals, .gt, args, line, err_ctx),
+                .@"<=" => try compileOp(allocator, chunk, locals, .leq, args, line, err_ctx),
+                .@">=" => try compileOp(allocator, chunk, locals, .geq, args, line, err_ctx),
                 .@"if" => try compileIf(allocator, chunk, locals, args, line, err_ctx),
                 .@"fn" => try compileFn(allocator, chunk, locals, args, line, err_ctx),
+                .not => try compileNot(allocator, chunk, locals, args, line, err_ctx),
                 .def => try compileDef(allocator, chunk, locals, args, line, err_ctx),
             }
             return;

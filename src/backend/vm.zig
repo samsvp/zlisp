@@ -344,6 +344,26 @@ pub const VM = struct {
                     const val = try instructions.div(vm, allocator, arg_count, &vm.err_ctx);
                     try vm.stack.append(allocator, val);
                 },
+                .eq => {
+                    const arg_count = vm.readByte();
+                    const val = instructions.eql(vm, allocator, arg_count);
+                    try vm.stack.append(allocator, val);
+                },
+                .not => {
+                    const val = instructions.not(vm, allocator);
+                    try vm.stack.append(allocator, val);
+                },
+                inline .lt, .gt, .leq, .geq => |cmp_op| {
+                    const arg_count = vm.readByte();
+                    const val = try instructions.cmp(
+                        vm,
+                        allocator,
+                        arg_count,
+                        @field(instructions.CmpKind, @tagName(cmp_op)),
+                        &vm.err_ctx,
+                    );
+                    try vm.stack.append(allocator, val);
+                },
                 .jump => {
                     const offset: u16 = std.mem.bytesToValue(u16, vm.readBytes(2));
                     frame.ip += offset;

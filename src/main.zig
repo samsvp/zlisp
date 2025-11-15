@@ -19,8 +19,18 @@ pub fn main() !void {
     std.debug.print("\nCompiled\n", .{});
     const m_chunk = try compiler.compile(
         allocator,
-        \\(def add-3 (fn [&xs] (+ &xs [1 "2" 3])))
-        \\(add-3 "12")
+        \\(def x
+        \\  (if (= 1 2)
+        \\      "yo"
+        \\      "hey"))
+        \\(def add-2 (fn [x] [] (add x " my")))
+        \\(def add (fn [a b] (+ a b)))
+        \\(def add-3 (fn [&xs] (+ &xs [1 2 3])))
+        \\(add "hello" "world")
+        \\(add 1 2)
+        \\(add-2)
+        \\(add-2)
+        \\(add-3 "0" "8" 12)
         \\nil
     ,
         &err_ctx,

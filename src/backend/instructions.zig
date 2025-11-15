@@ -36,6 +36,86 @@ fn divisionByZero(
     return Error.DivisionByZero;
 }
 
+pub fn eql(vm: *VM, allocator: std.mem.Allocator, n: usize) Value {
+    defer vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
+    defer for (0..n) |i| {
+        vm.stack.items[vm.stack.items.len - i - 1].deinit(allocator);
+    };
+
+    const val = vm.stack.getLast();
+    for (1..n) |i| {
+        const value = vm.stack.items[vm.stack.items.len - i - 1];
+        if (!val.eql(value)) {
+            return Value.False;
+        }
+    }
+    return Value.True;
+}
+
+pub fn not(vm: *VM, allocator: std.mem.Allocator) Value {
+    const val = vm.stack.pop().?;
+    defer val.deinit(allocator);
+
+    return switch (val) {
+        .nil => Value.True,
+        .boolean => |b| if (b) Value.False else Value.True,
+        else => Value.False,
+    };
+}
+
+pub const CmpKind = enum {
+    lt,
+    gt,
+    leq,
+    geq,
+
+    pub fn toStr(kind: CmpKind) []const u8 {
+        return switch (kind) {
+            .lt => "<",
+            .gt => ">",
+            .leq => "<=",
+            .geq => ">=",
+        };
+    }
+};
+
+pub fn cmp(vm: *VM, allocator: std.mem.Allocator, n: usize, comptime k: CmpKind, err_ctx: *errors.Ctx) !Value {
+    const op_str = k.toStr();
+
+    defer vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
+    defer for (0..n) |i| {
+        vm.stack.items[vm.stack.items.len - i - 1].deinit(allocator);
+    };
+
+    const value_last = vm.stack.getLast();
+    const val: f32 = switch (value_last) {
+        .int => |i| @floatFromInt(i),
+        .float => |f| f,
+        else => return wrongType(allocator, op_str, @tagName(value_last), err_ctx),
+    };
+    for (1..n) |i| {
+        const value = vm.stack.items[vm.stack.items.len - i - 1];
+        const v: f32 = switch (value) {
+            .int => |i_| @floatFromInt(i_),
+            .float => |f| f,
+            else => return wrongType(allocator, op_str, @tagName(value), err_ctx),
+        };
+
+        const res = switch (k) {
+            .lt => v < val,
+            .gt => v > val,
+            .leq => v <= val,
+            .geq => v >= val,
+        };
+
+        if (!res) {
+            return Value.False;
+        }
+    }
+
+    return Value.True;
+}
+
 /// Stack top: arity -> how many values to pop from the stack
 /// Sums the remaining elements in the stack.
 pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx) !Value {
