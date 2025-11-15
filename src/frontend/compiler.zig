@@ -327,7 +327,7 @@ pub fn compileVector(
     err_ctx: *errors.Ctx,
 ) !void {
     try compileArgs(allocator, chunk, locals, vector.items, err_ctx);
-    _ = line;
+    try chunk.emitVec(allocator, @intCast(vector.items.len), line);
 }
 
 pub fn compileToken(

@@ -45,7 +45,7 @@ pub const Chunk = struct {
     }
 
     /// Adds a constant to the constant array and returns its index.
-    fn addConstant(self: *Chunk, allocator: std.mem.Allocator, v: Value) !usize {
+    pub fn addConstant(self: *Chunk, allocator: std.mem.Allocator, v: Value) !usize {
         try self.constants.append(allocator, v.borrow());
         return self.constants.items.len - 1;
     }
@@ -117,7 +117,7 @@ pub const Chunk = struct {
 
         const bytes = std.mem.toBytes(n);
         try chunk.append(allocator, .create_vec_long, line);
-        try chunk.emitBytes(allocator, bytes, line);
+        try chunk.emitBytes(allocator, &bytes, line);
     }
 
     pub fn end(chunk: *Chunk, allocator: std.mem.Allocator) !void {

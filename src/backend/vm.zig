@@ -251,10 +251,12 @@ pub const VM = struct {
         };
     }
 
-    fn createVector(vm: *VM, allocator: std.mem.Allocator, n: usize) !void {
+    fn createVector(vm: *VM, allocator: std.mem.Allocator, n: usize) !Value {
         const vec = try Obj.Vector.init(allocator, vm.stack.items[vm.stack.items.len - n ..]);
         vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
-        try vm.stack.append(allocator, .{ .obj = &vec.obj });
+        const val: Value = .{ .obj = &vec.obj };
+        try vm.stack.append(allocator, val);
+        return val;
     }
 
     fn createClosure(vm: *VM, allocator: std.mem.Allocator, n: u16) !void {
@@ -380,11 +382,13 @@ pub const VM = struct {
                 },
                 .create_vec => {
                     const n = vm.readByte();
-                    try vm.createVector(allocator, @intCast(n));
+                    const vec = try vm.createVector(allocator, @intCast(n));
+                    try frame.function.chunk.constants.append(allocator, vec);
                 },
                 .create_vec_long => {
                     const n = std.mem.bytesToValue(u16, vm.readBytes(2));
-                    try vm.createVector(allocator, @intCast(n));
+                    const vec = try vm.createVector(allocator, @intCast(n));
+                    try frame.function.chunk.constants.append(allocator, vec);
                 },
                 .create_closure => {
                     const n = std.mem.bytesToValue(u16, vm.readBytes(2));

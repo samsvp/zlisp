@@ -83,8 +83,8 @@ pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
                 }
                 return .{ .obj = &acc.obj };
             },
-            .vector => {
-                const v_0 = o.as(Obj.Vector);
+            inline .vector, .list => |k| {
+                const v_0 = if (k == .list) o.as(Obj.List) else o.as(Obj.Vector);
                 var acc = try v_0.copy(allocator);
 
                 for (1..n) |i| {
@@ -94,6 +94,7 @@ pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
                     }
                     switch (value.obj.kind) {
                         .vector => try acc.appendManyMut(allocator, value.obj.as(Obj.Vector).items),
+                        .list => try acc.appendManyMut(allocator, value.obj.as(Obj.List).items),
                         else => return wrongType(allocator, "+", @tagName(value), err_ctx),
                     }
                 }
