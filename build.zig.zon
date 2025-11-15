@@ -11,6 +11,10 @@
             .url = "git+https://github.com/antirez/linenoise.git#d895173d679be70bcd8b23041fff3e458e1a3506",
             .hash = "N-V-__8AAGoRAQDx6biuV6HtPBEQ9sz7y-8mWYqZ7yJdaOFK",
         },
+        .persistent_structures = .{
+            .url = "git+https://github.com/samsvp/zig-persistent-vector#bc881bba13d84fe3a0d772c7616e1868cbce8754",
+            .hash = "persistent_structures-0.0.0-7c72Z9mcAACwJd1mv8Ds2K5ziB7ZtbzH2R0sFWqxC0tP",
+        },
     },
 
     .paths = .{

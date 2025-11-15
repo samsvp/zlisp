@@ -1,4 +1,5 @@
 const std = @import("std");
+const pvector = @import("pvector");
 const errors = @import("errors.zig");
 const Chunk = @import("backend/chunk.zig").Chunk;
 
@@ -237,9 +238,51 @@ pub const Obj = struct {
         };
     }
 
+    pub fn IArrayFunc(comptime _: type) type {
+        return IArray;
+    }
+
     pub const String = Array(u8, .string);
-    pub const List = Array(Value, .list);
     pub const Vector = Array(Value, .vector);
+    pub const List = struct {
+        obj: Obj,
+        vec: IArray,
+
+        pub fn init(allocator: std.mem.Allocator, items: []const Value) !*PVector {
+            const pvec = try allocator.create(PVector);
+            pvec.* = PVector{
+                .obj = Obj.init(.list),
+                .vec = IArray.init(allocator, items),
+            };
+            return pvec;
+        }
+
+        pub fn deinit(self: *PVector, allocator: std.mem.Allocator) void {
+            self.vec.deinit(allocator);
+            allocator.destroy(self);
+        }
+    };
+
+    pub const PVector = struct {
+        obj: Obj,
+        vec: VecT,
+
+        const VecT = pvector.PVector(Value, IArrayFunc);
+
+        pub fn init(allocator: std.mem.Allocator, items: []const Value) !*PVector {
+            const pvec = try allocator.create(PVector);
+            pvec.* = PVector{
+                .obj = Obj.init(.vector),
+                .vec = VecT.init(allocator, items),
+            };
+            return pvec;
+        }
+
+        pub fn deinit(self: *PVector, allocator: std.mem.Allocator) void {
+            self.vec.deinit(allocator);
+            allocator.destroy(self);
+        }
+    };
 
     pub const Function = struct {
         obj: Obj,
@@ -350,4 +393,120 @@ pub const Obj = struct {
         args: []const Value,
         err_ctx: *errors.Ctx,
     ) anyerror!Value;
+};
+
+pub const IArray = struct {
+    items: []Value,
+
+    const Self = @This();
+
+    pub fn empty(allocator: std.mem.Allocator) !*Self {
+        return Self.init(allocator, &.{});
+    }
+
+    pub fn init(allocator: std.mem.Allocator, vs: []const Value) !*Self {
+        const ptr = try allocator.create(Self);
+
+        ptr.* = Self{
+            .items = try allocator.dupe(Value, vs),
+        };
+
+        for (ptr.items) |v| {
+            _ = v.borrow();
+        }
+
+        return ptr;
+    }
+
+    pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
+        for (self.items) |v| {
+            v.deinit(allocator);
+        }
+
+        allocator.free(self.items);
+        allocator.destroy(self);
+    }
+
+    pub fn len(self: Self) usize {
+        return self.items.len;
+    }
+
+    pub fn get(self: Self, i: usize) Value {
+        return self.items[i];
+    }
+
+    pub fn update(self: Self, gpa: std.mem.Allocator, i: usize, val: Value) !Self {
+        var items = try gpa.dupe(Value, self.items);
+        items[i] = val;
+        return .{ .items = items };
+    }
+
+    pub fn append(self: Self, gpa: std.mem.Allocator, val: Value) !Self {
+        const items = try gpa.alloc(Value, self.items.len + 1);
+
+        for (self.items, 0..) |v, i| {
+            items[i] = v.borrow();
+        }
+        items[items.len - 1] = val;
+
+        return .{ .items = items };
+    }
+
+    pub fn remove(self: Self, gpa: std.mem.Allocator, idx: usize) !Self {
+        var items = try gpa.alloc(Value, self.items.len - 1);
+
+        var items_idx: usize = 0;
+        for (0..self.items.len) |i| {
+            if (i == idx) {
+                continue;
+            }
+
+            items[items_idx] = self.items[i].borrow();
+            items_idx += 1;
+        }
+
+        return .{ .items = items };
+    }
+
+    pub fn swapRemove(self: Self, gpa: std.mem.Allocator, idx: usize) !Self {
+        var items = try gpa.alloc(Value, self.items.len - 1);
+
+        for (0..self.items.len) |i| {
+            const item = if (i == idx) self.items[items.len] else self.items[i];
+            items[i] = item.borrow();
+        }
+
+        return .{ .items = items };
+    }
+
+    pub fn copy(self: Self, allocator: std.mem.Allocator) !*Self {
+        return Self.init(allocator, self.items);
+    }
+
+    pub fn appendMut(self: *Self, allocator: std.mem.Allocator, v: Value) !void {
+        return self.appendManyMut(allocator, &[1]Value{v});
+    }
+
+    pub fn appendManyMut(self: *Self, allocator: std.mem.Allocator, vs: []const Value) !void {
+        const old_len = self.items.len;
+
+        for (vs) |v| {
+            _ = v.borrow();
+        }
+
+        self.items = try allocator.realloc(self.items, self.items.len + vs.len);
+        @memcpy(self.items.ptr + old_len, vs);
+    }
+
+    pub fn toString(self: Self, allocator: std.mem.Allocator, open_icon: u8, close_icon: u8) ![]const u8 {
+        var buffer: std.ArrayList(u8) = .empty;
+        try buffer.append(allocator, open_icon);
+        const lst = self.items;
+        var writer = buffer.writer(allocator);
+        for (lst) |v| {
+            try writer.print("{s}, ", .{try v.toString(allocator)});
+        }
+        try buffer.append(allocator, close_icon);
+        return buffer.items;
+    }
 };
