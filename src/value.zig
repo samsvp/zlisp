@@ -35,7 +35,7 @@ pub const Value = union(enum) {
                 .list => std.debug.print("List with len {}", .{o.as(Obj.List).items.len}),
                 .vector => std.debug.print("Vector with len {}", .{o.as(Obj.Vector).items.len}),
                 .function => std.debug.print("<fn>", .{}),
-                .closure => std.debug.print("<fn>", .{}),
+                .closure => std.debug.print("<closure_fn>", .{}),
                 .native_fn => std.debug.print("<native_fn>", .{}),
             },
             .symbol => |s| std.debug.print("{s}", .{s}),
@@ -123,7 +123,7 @@ pub const Value = union(enum) {
                 .list => try o.as(Obj.List).toString(allocator, '(', ')'),
                 .vector => try o.as(Obj.Vector).toString(allocator, '[', ']'),
                 .function => try std.fmt.allocPrint(allocator, "<fn>", .{}),
-                .closure => try std.fmt.allocPrint(allocator, "<fn>", .{}),
+                .closure => try std.fmt.allocPrint(allocator, "<closure_fn>", .{}),
                 .native_fn => try std.fmt.allocPrint(allocator, "<native_fn>", .{}),
             },
             .symbol => |s| try std.fmt.allocPrint(allocator, "{s}", .{s}),
@@ -243,16 +243,24 @@ pub const Obj = struct {
 
     pub const Function = struct {
         obj: Obj,
-        arity: u32,
         chunk: *Chunk,
+        arity: u32,
+        is_variadic: bool,
         help: []const u8,
 
-        pub fn init(allocator: std.mem.Allocator, chunk: *Chunk, arity: u8, help: []const u8) !*Function {
+        pub fn init(
+            allocator: std.mem.Allocator,
+            chunk: *Chunk,
+            arity: u8,
+            is_variadic: bool,
+            help: []const u8,
+        ) !*Function {
             const func = try allocator.create(Function);
             func.* = Function{
                 .obj = Obj.init(.function),
-                .arity = arity,
                 .chunk = chunk,
+                .arity = arity,
+                .is_variadic = is_variadic,
                 .help = help,
             };
             return func;
@@ -264,7 +272,7 @@ pub const Obj = struct {
             allocator.destroy(self);
         }
 
-        pub fn native(allocator: std.mem.Allocator, arity: u32, help: []const u8) !*Function {
+        pub fn native(allocator: std.mem.Allocator, arity: u32, is_variadic: bool, help: []const u8) !*Function {
             var chunk = try allocator.create(Chunk);
             chunk.* = .empty;
             try chunk.append(allocator, .ret, 0);
@@ -273,6 +281,7 @@ pub const Obj = struct {
             func.* = Function{
                 .obj = Obj.init(.function),
                 .arity = arity,
+                .is_variadic = is_variadic,
                 .chunk = chunk,
                 .help = help,
             };
@@ -310,19 +319,21 @@ pub const Obj = struct {
 
     pub const NativeFunction = struct {
         obj: Obj,
-        arity: u32,
         native_fn: NativeFn,
         function: *Function,
-        help: []const u8,
 
-        pub fn init(allocator: std.mem.Allocator, func: NativeFn, arity: u8, help: []const u8) !*NativeFunction {
+        pub fn init(
+            allocator: std.mem.Allocator,
+            func: NativeFn,
+            arity: u8,
+            is_variadic: bool,
+            help: []const u8,
+        ) !*NativeFunction {
             const native_func = try allocator.create(NativeFunction);
             native_func.* = NativeFunction{
                 .obj = Obj.init(.native_fn),
-                .arity = arity,
                 .native_fn = func,
-                .help = help,
-                .function = try Function.native(allocator, arity, help),
+                .function = try Function.native(allocator, arity, is_variadic, help),
             };
             return native_func;
         }

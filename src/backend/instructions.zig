@@ -83,6 +83,22 @@ pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
                 }
                 return .{ .obj = &acc.obj };
             },
+            .vector => {
+                const v_0 = o.as(Obj.Vector);
+                var acc = try v_0.copy(allocator);
+
+                for (1..n) |i| {
+                    const value = vm.stack.items[vm.stack.items.len - i - 1];
+                    if (value != .obj) {
+                        return wrongType(allocator, "+", @tagName(value), err_ctx);
+                    }
+                    switch (value.obj.kind) {
+                        .vector => try acc.appendManyMut(allocator, value.obj.as(Obj.Vector).items),
+                        else => return wrongType(allocator, "+", @tagName(value), err_ctx),
+                    }
+                }
+                return .{ .obj = &acc.obj };
+            },
             else => return wrongType(allocator, "+", @tagName(val), err_ctx),
         },
         else => return wrongType(allocator, "+", @tagName(val), err_ctx),

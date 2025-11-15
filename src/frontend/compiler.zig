@@ -147,8 +147,9 @@ fn createArgs(
     args: []const reader.Token,
     line: usize,
     err_ctx: *errors.Ctx,
-) anyerror!void {
-    for (args) |v| {
+) anyerror!bool {
+    var is_variadic = false;
+    for (args, 0..) |v, i| {
         const arg_name =
             if (v.kind == .atom and v.kind.atom == .symbol)
                 v.kind.atom.symbol
@@ -164,7 +165,12 @@ fn createArgs(
             };
 
         try locals.put(allocator, arg_name);
+
+        if (i == args.len - 1) {
+            is_variadic = arg_name[0] == '&';
+        }
     }
+    return is_variadic;
 }
 
 fn compileFn(
@@ -199,7 +205,7 @@ fn compileFn(
         const closure_tokens = args[args.len - 3];
         const closure_args = closure_tokens.kind.vector.items;
 
-        try createArgs(allocator, &fn_locals, closure_args, closure_tokens.line, err_ctx);
+        _ = try createArgs(allocator, &fn_locals, closure_args, closure_tokens.line, err_ctx);
         for (closure_args) |arg| {
             try compileAtom(allocator, chunk, locals, arg.kind.atom, closure_tokens.line);
         }
@@ -211,19 +217,13 @@ fn compileFn(
     }
 
     const fn_args = fn_args_token.kind.vector.items;
-    try createArgs(allocator, &fn_locals, fn_args, fn_args_token.line, err_ctx);
+    const is_variadic = try createArgs(allocator, &fn_locals, fn_args, fn_args_token.line, err_ctx);
 
     const ast_token = args[args.len - 1];
-    if (ast_token.kind != .list) {
-        try err_ctx.setMsgWithLine(allocator, "fn", "Function body must be list.", .{}, ast_token.line);
-        return Errors.WrongArgumentType;
-    }
-
-    const ast = ast_token.kind.list;
-    try compileList(allocator, fn_chunk, &fn_locals, ast, ast_token.line, err_ctx);
+    try compileToken(allocator, fn_chunk, ast_token, &fn_locals, err_ctx);
     try fn_chunk.append(allocator, .ret, ast_token.line);
 
-    const func = try Obj.Function.init(allocator, fn_chunk, @intCast(fn_args.len), help);
+    const func = try Obj.Function.init(allocator, fn_chunk, @intCast(fn_args.len), is_variadic, help);
     _ = try chunk.emitConstant(allocator, .{ .obj = &func.obj }, line);
 
     if (is_closure) {

@@ -46,7 +46,7 @@ pub const Chunk = struct {
 
     /// Adds a constant to the constant array and returns its index.
     fn addConstant(self: *Chunk, allocator: std.mem.Allocator, v: Value) !usize {
-        try self.constants.append(allocator, v);
+        try self.constants.append(allocator, v.borrow());
         return self.constants.items.len - 1;
     }
 
@@ -75,20 +75,9 @@ pub const Chunk = struct {
         }
     }
 
-    pub fn emitDefGlobal(chunk: *Chunk, allocator: std.mem.Allocator, name: []const u8, line: usize) !void {
-        _ = try chunk.emitConstant(allocator, .{ .symbol = name }, line);
-        try chunk.append(allocator, .def_global, line);
-        try chunk.append(allocator, .pop, line);
-    }
-
     pub fn emitGetGlobal(chunk: *Chunk, allocator: std.mem.Allocator, name: []const u8, line: usize) !void {
         _ = try chunk.emitConstant(allocator, .{ .symbol = name }, line);
         try chunk.append(allocator, .get_global, line);
-    }
-
-    pub fn emitDefLocal(chunk: *Chunk, allocator: std.mem.Allocator, name: []const u8, line: usize) !void {
-        _ = name;
-        try chunk.append(allocator, .def_local, line);
     }
 
     pub fn emitGetLocal(chunk: *Chunk, allocator: std.mem.Allocator, offset: u16, line: usize) !void {

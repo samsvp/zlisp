@@ -21,19 +21,21 @@ pub fn main() !void {
         allocator,
         \\(def x
         \\  (if (+ 1 2)
-        \\      (- 8 2)
-        \\      (+ 8 2)))
+        \\      "yo"
+        \\      "hey"))
+        \\(def add-2 (fn [x] [] (add x " my")))
         \\(def add (fn [a b] (+ a b)))
-        \\(def add-2 (fn [x] [] (add x (add 5 10))))
-        \\(+ 1 (add-2))
-        \\((fn [a b] (+ a b)) "hello " "world")
+        \\(add "hello" "world")
+        \\(add 1 2)
+        \\(add-2)
+        \\nil
     ,
         &err_ctx,
     );
 
     try debug.disassembleChunk(allocator, m_chunk.*, "Compiled chunk");
 
-    const m_function = try Obj.Function.init(allocator, m_chunk, 0, "");
+    const m_function = try Obj.Function.init(allocator, m_chunk, 0, false, "");
     var m_vm = VM.init(m_function);
     defer m_vm.deinit(allocator);
 

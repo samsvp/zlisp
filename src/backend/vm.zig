@@ -77,10 +77,6 @@ pub const VM = struct {
         defer self.local_stack.deinit(allocator);
         defer self.globals.deinit(allocator);
 
-        for (0..self.frame_count + 1) |i| {
-            self.frames[i].deinit(allocator);
-        }
-
         for (self.stack.items) |s| {
             s.deinit(allocator);
         }
@@ -91,15 +87,12 @@ pub const VM = struct {
 
         var iter = self.globals.iterator();
         while (iter.next()) |kv| {
-            if (kv.value_ptr.* == .obj) {
-                switch (kv.value_ptr.obj.kind) {
-                    .closure => std.debug.print("count is {}\n", .{kv.value_ptr.obj.count}),
-                    else => {},
-                }
-            }
             kv.value_ptr.deinit(allocator);
         }
-        std.debug.print("finished\n", .{});
+
+        for (0..self.frame_count + 1) |i| {
+            self.frames[i].deinit(allocator);
+        }
     }
 
     fn resetStack(vm: *VM) void {
@@ -153,15 +146,38 @@ pub const VM = struct {
         vm.local_stack.shrinkRetainingCapacity(frame.stack_pos);
     }
 
-    fn getFnArgs(vm: *VM, allocator: std.mem.Allocator, args: []const Value, arity: usize) !void {
+    fn getFnArgs(
+        vm: *VM,
+        allocator: std.mem.Allocator,
+        args: []const Value,
+        arity: usize,
+        arg_count: usize,
+        is_variadic: bool,
+    ) !void {
         for (args) |arg| {
-            try vm.local_stack.append(allocator, arg);
+            try vm.local_stack.append(allocator, arg.borrow());
         }
 
-        for (0..arity) |_| {
+        if (arity == 0) {
+            return;
+        }
+
+        for (0..arity - 1) |_| {
             const v = try vm.stackPop();
             try vm.local_stack.append(allocator, v);
         }
+
+        if (!is_variadic) {
+            const v = try vm.stackPop();
+            try vm.local_stack.append(allocator, v);
+            return;
+        }
+
+        const variadic_len = arg_count + 1 - arity;
+        const variadic_start = vm.stack.items.len - variadic_len;
+        const list = try Obj.List.init(allocator, vm.stack.items[variadic_start..]);
+        vm.stack.shrinkRetainingCapacity(variadic_start);
+        try vm.local_stack.append(allocator, .{ .obj = &list.obj });
     }
 
     fn call(
@@ -171,14 +187,14 @@ pub const VM = struct {
         arg_count: u8,
         args: []const Value,
     ) !*CallFrame {
-        if (arg_count != f.arity) {
+        if (arg_count != f.arity and (!f.is_variadic or arg_count < f.arity - 1)) {
             return Error.WrongArgumentNumber;
         }
 
         if (vm.frame_count != 1) {
             if (std.enums.fromInt(OpCode, vm.peekByte())) |op| if (op == .ret) {
                 vm.emptyFnStack(allocator);
-                try vm.getFnArgs(allocator, args, f.arity);
+                try vm.getFnArgs(allocator, args, f.arity, arg_count, f.is_variadic);
 
                 var frame = &vm.frames[vm.frame_count - 1];
                 frame.function = f;
@@ -199,7 +215,7 @@ pub const VM = struct {
             .stack_pos = vm.local_stack.items.len,
         };
 
-        try vm.getFnArgs(allocator, args, f.arity);
+        try vm.getFnArgs(allocator, args, f.arity, arg_count, f.is_variadic);
         vm.frames[vm.frame_count - 1] = frame;
         return &vm.frames[vm.frame_count - 1];
     }
@@ -249,7 +265,8 @@ pub const VM = struct {
         defer allocator.free(args);
 
         for (0..n) |i| {
-            args[i] = try vm.stackPop();
+            const val = try vm.stackPop();
+            args[i] = val.borrow();
         }
 
         const closure = try Obj.Closure.init(allocator, func, args);
@@ -342,7 +359,7 @@ pub const VM = struct {
                     const name_str = name.symbol;
 
                     const val = try vm.stackPeek();
-                    try vm.globals.put(allocator, name_str, val);
+                    try vm.globals.put(allocator, name_str, val.borrow());
                 },
                 .get_global => {
                     const name = try vm.stackPop();
@@ -353,13 +370,13 @@ pub const VM = struct {
                 },
                 .def_local => {
                     const v = try vm.stackPeek();
-                    try vm.local_stack.append(allocator, v);
+                    try vm.local_stack.append(allocator, v.borrow());
                 },
                 .get_local => {
                     const slot = std.mem.bytesToValue(u16, vm.readBytes(2));
                     const slot_index = @as(usize, @intCast(slot)) + vm.frames[vm.frame_count - 1].stack_pos;
 
-                    try vm.stack.append(allocator, vm.local_stack.items[slot_index].borrow());
+                    try vm.stack.append(allocator, vm.local_stack.items[slot_index]);
                 },
                 .create_vec => {
                     const n = vm.readByte();
@@ -374,7 +391,8 @@ pub const VM = struct {
                     try vm.createClosure(allocator, n);
                 },
                 .pop => {
-                    _ = try vm.stackPop();
+                    var res = try vm.stackPop();
+                    res.deinit(allocator);
                 },
                 .call => {
                     const arg_count = vm.readByte();
