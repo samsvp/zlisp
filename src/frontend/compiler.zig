@@ -72,6 +72,7 @@ const Constants = enum {
     @">=",
     @"if",
     @"fn",
+    list,
     def,
     not,
 };
@@ -334,6 +335,10 @@ pub fn compileList(
                 .@">=" => try compileOp(allocator, chunk, locals, .geq, args, line, err_ctx),
                 .@"if" => try compileIf(allocator, chunk, locals, args, line, err_ctx),
                 .@"fn" => try compileFn(allocator, chunk, locals, args, line, err_ctx),
+                .list => {
+                    try compileArgs(allocator, chunk, locals, args, err_ctx);
+                    try chunk.emitList(allocator, @intCast(args.len), line);
+                },
                 .not => try compileNot(allocator, chunk, locals, args, line, err_ctx),
                 .def => try compileDef(allocator, chunk, locals, args, line, err_ctx),
             }

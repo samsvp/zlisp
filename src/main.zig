@@ -25,7 +25,7 @@ pub fn main() !void {
         \\      "hey"))
         \\(def add-2 (fn [x] [] (add x " my")))
         \\(def add (fn [a b] (+ a b)))
-        \\(def add-3 (fn [&xs] (+ &xs [1 2 3])))
+        \\(def add-3 (fn [&xs] (+ &xs (list 1 2 3))))
         \\(add "hello" "world")
         \\(add 1 2)
         \\(add-2)

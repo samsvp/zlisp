@@ -167,12 +167,10 @@ pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
                 }
                 return .{ .obj = &acc.obj };
             },
-            inline .vector, .list => |k| {
+            .list => {
                 defer o.deinit(allocator);
 
-                const v_0 = if (k == .list) o.as(Obj.List) else o.as(Obj.Vector);
-                var acc = try v_0.copy(allocator);
-
+                var acc = try o.as(Obj.List).copy(allocator);
                 for (1..n) |i| {
                     const value = vm.stack.items[vm.stack.items.len - i - 1];
                     if (value != .obj) {
@@ -181,8 +179,7 @@ pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
 
                     defer value.deinit(allocator);
                     switch (value.obj.kind) {
-                        .vector => try acc.appendManyMut(allocator, value.obj.as(Obj.Vector).items),
-                        .list => try acc.appendManyMut(allocator, value.obj.as(Obj.List).items),
+                        .list => try acc.appendManyMut(allocator, value.obj.as(Obj.List).vec.items),
                         else => return wrongType(allocator, "+", @tagName(value), err_ctx),
                     }
                 }

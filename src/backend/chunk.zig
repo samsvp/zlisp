@@ -22,6 +22,8 @@ pub const OpCode = enum(u8) {
     jump_if_false,
     create_vec,
     create_vec_long,
+    create_list,
+    create_list_long,
     create_closure,
     def_global,
     get_global,
@@ -123,6 +125,18 @@ pub const Chunk = struct {
 
         const bytes = std.mem.toBytes(n);
         try chunk.append(allocator, .create_vec_long, line);
+        try chunk.emitBytes(allocator, &bytes, line);
+    }
+
+    pub fn emitList(chunk: *Chunk, allocator: std.mem.Allocator, n: u16, line: usize) !void {
+        if (n < 256) {
+            try chunk.append(allocator, .create_list, line);
+            try chunk.emitByte(allocator, @intCast(n), line);
+            return;
+        }
+
+        const bytes = std.mem.toBytes(n);
+        try chunk.append(allocator, .create_list_long, line);
         try chunk.emitBytes(allocator, &bytes, line);
     }
 

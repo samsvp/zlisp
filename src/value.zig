@@ -33,8 +33,8 @@ pub const Value = union(enum) {
         switch (v) {
             .obj => |o| switch (o.kind) {
                 .string => std.debug.print("{s}", .{o.as(Obj.String).items}),
-                .list => std.debug.print("List with len {}", .{o.as(Obj.List).items.len}),
-                .vector => std.debug.print("Vector with len {}", .{o.as(Obj.Vector).items.len}),
+                .list => std.debug.print("List with len {}", .{o.as(Obj.List).vec.len()}),
+                .vector => std.debug.print("Vector with len {}", .{o.as(Obj.PVector).vec.len}),
                 .function => std.debug.print("<fn>", .{}),
                 .closure => std.debug.print("<closure_fn>", .{}),
                 .native_fn => std.debug.print("<native_fn>", .{}),
@@ -78,24 +78,15 @@ pub const Value = union(enum) {
                     },
                     .vector => switch (o_2.kind) {
                         .vector => blk: {
-                            const l_1 = o_1.as(Obj.Vector).items;
-                            const l_2 = o_2.as(Obj.Vector).items;
-                            if (l_1.len != l_2.len) {
-                                break :blk false;
-                            }
-
-                            for (0..l_1.len) |i|
-                                if (!l_1[i].eql(l_2[i]))
-                                    break :blk false;
-
-                            break :blk true;
+                            // placeholder
+                            break :blk false;
                         },
                         else => false,
                     },
                     .list => switch (o_2.kind) {
                         .list => blk: {
-                            const l_1 = o_1.as(Obj.List).items;
-                            const l_2 = o_2.as(Obj.List).items;
+                            const l_1 = o_1.as(Obj.List).vec.items;
+                            const l_2 = o_2.as(Obj.List).vec.items;
                             if (l_1.len != l_2.len) {
                                 break :blk false;
                             }
@@ -121,8 +112,8 @@ pub const Value = union(enum) {
         return switch (self) {
             .obj => |o| switch (o.kind) {
                 .string => try std.fmt.allocPrint(allocator, "{s}", .{o.as(Obj.String).items}),
-                .list => try o.as(Obj.List).toString(allocator, '(', ')'),
-                .vector => try o.as(Obj.Vector).toString(allocator, '[', ']'),
+                .list => try o.as(Obj.List).toString(allocator),
+                .vector => try o.as(Obj.PVector).toString(allocator),
                 .function => try std.fmt.allocPrint(allocator, "<fn>", .{}),
                 .closure => try std.fmt.allocPrint(allocator, "<closure_fn>", .{}),
                 .native_fn => try std.fmt.allocPrint(allocator, "<native_fn>", .{}),
@@ -159,7 +150,7 @@ pub const Obj = struct {
         if (self.count == 0) switch (self.kind) {
             .string => self.as(String).deinit(allocator),
             .list => self.as(List).deinit(allocator),
-            .vector => self.as(Vector).deinit(allocator),
+            .vector => self.as(PVector).deinit(allocator),
             .function => self.as(Function).deinit(allocator),
             .closure => self.as(Closure).deinit(allocator),
             .native_fn => self.as(NativeFunction).deinit(allocator),
@@ -243,23 +234,75 @@ pub const Obj = struct {
     }
 
     pub const String = Array(u8, .string);
-    pub const Vector = Array(Value, .vector);
     pub const List = struct {
         obj: Obj,
         vec: IArray,
 
-        pub fn init(allocator: std.mem.Allocator, items: []const Value) !*PVector {
-            const pvec = try allocator.create(PVector);
-            pvec.* = PVector{
+        pub fn empty(gpa: std.mem.Allocator) !*List {
+            return List.init(gpa, &.{});
+        }
+
+        pub fn init(allocator: std.mem.Allocator, items: []const Value) !*List {
+            const pvec = try allocator.create(List);
+            pvec.* = List{
                 .obj = Obj.init(.list),
-                .vec = IArray.init(allocator, items),
+                .vec = try IArray.init(allocator, items),
             };
             return pvec;
         }
 
-        pub fn deinit(self: *PVector, allocator: std.mem.Allocator) void {
+        pub fn initNoDupe(allocator: std.mem.Allocator, items: []const Value) !*List {
+            const pvec = try allocator.create(List);
+            pvec.* = List{
+                .obj = Obj.init(.list),
+                .vec = try IArray.initNoDupe(items),
+            };
+            return pvec;
+        }
+
+        pub fn deinit(self: *List, allocator: std.mem.Allocator) void {
             self.vec.deinit(allocator);
             allocator.destroy(self);
+        }
+
+        pub fn copy(self: List, gpa: std.mem.Allocator) !*List {
+            return List.init(gpa, self.vec.items);
+        }
+
+        pub fn get(self: List, i: usize) Value {
+            return self.vec.get(i);
+        }
+
+        pub fn update(self: List, gpa: std.mem.Allocator, i: usize, val: Value) !*List {
+            const items = try self.vec.update(gpa, i, val);
+            return List.initNoDupe(gpa, items);
+        }
+
+        pub fn append(self: List, gpa: std.mem.Allocator, val: Value) !*List {
+            const items = try self.vec.append(gpa, val);
+            return List.initNoDupe(gpa, items);
+        }
+
+        pub fn remove(self: List, gpa: std.mem.Allocator, idx: usize) !*List {
+            const items = try self.vec.remove(gpa, idx);
+            return List.initNoDupe(gpa, items);
+        }
+
+        pub fn swapRemove(self: List, gpa: std.mem.Allocator, idx: usize) !*List {
+            const items = try self.vec.swapRemove(gpa, idx);
+            return List.initNoDupe(gpa, items);
+        }
+
+        pub fn appendMut(self: *List, gpa: std.mem.Allocator, v: Value) !void {
+            return self.vec.appendMut(gpa, v);
+        }
+
+        pub fn appendManyMut(self: *List, gpa: std.mem.Allocator, vs: []const Value) !void {
+            return self.vec.appendManyMut(gpa, vs);
+        }
+
+        pub fn toString(self: List, allocator: std.mem.Allocator) ![]const u8 {
+            return self.vec.toString(allocator, '(', ')');
         }
     };
 
@@ -273,7 +316,7 @@ pub const Obj = struct {
             const pvec = try allocator.create(PVector);
             pvec.* = PVector{
                 .obj = Obj.init(.vector),
-                .vec = VecT.init(allocator, items),
+                .vec = try VecT.init(allocator, items),
             };
             return pvec;
         }
@@ -281,6 +324,19 @@ pub const Obj = struct {
         pub fn deinit(self: *PVector, allocator: std.mem.Allocator) void {
             self.vec.deinit(allocator);
             allocator.destroy(self);
+        }
+
+        pub fn append(self: *PVector, gpa: std.mem.Allocator, val: Value) !*PVector {
+            const pvec = try gpa.create(PVector);
+            pvec.* = PVector{
+                .obj = Obj.init(.vector),
+                .vec = try self.vec.append(gpa, val),
+            };
+            return pvec;
+        }
+
+        pub fn toString(self: PVector, gpa: std.mem.Allocator) ![]const u8 {
+            return std.fmt.allocPrint(gpa, "PVector with size {}", .{self.vec.len});
         }
     };
 
@@ -400,22 +456,23 @@ pub const IArray = struct {
 
     const Self = @This();
 
-    pub fn empty(allocator: std.mem.Allocator) !*Self {
-        return Self.init(allocator, &.{});
-    }
+    pub const empty = Self{ .items = &.{} };
 
-    pub fn init(allocator: std.mem.Allocator, vs: []const Value) !*Self {
-        const ptr = try allocator.create(Self);
-
-        ptr.* = Self{
+    pub fn init(allocator: std.mem.Allocator, vs: []const Value) !Self {
+        const self = Self{
             .items = try allocator.dupe(Value, vs),
         };
 
-        for (ptr.items) |v| {
+        for (self.items) |v| {
             _ = v.borrow();
         }
 
-        return ptr;
+        return self;
+    }
+
+    pub fn initNoDupe(vs: []const Value) Self {
+        const self = Self{ .items = vs };
+        return self;
     }
 
     pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
@@ -424,7 +481,6 @@ pub const IArray = struct {
         }
 
         allocator.free(self.items);
-        allocator.destroy(self);
     }
 
     pub fn len(self: Self) usize {
@@ -435,9 +491,11 @@ pub const IArray = struct {
         return self.items[i];
     }
 
-    pub fn update(self: Self, gpa: std.mem.Allocator, i: usize, val: Value) !Self {
-        var items = try gpa.dupe(Value, self.items);
-        items[i] = val;
+    pub fn update(self: Self, gpa: std.mem.Allocator, idx: usize, val: Value) !Self {
+        var items = try gpa.alloc(Value, self.items.len);
+        for (self.items, 0..) |v, i| {
+            items[i] = if (i != idx) v.borrow() else val.borrow();
+        }
         return .{ .items = items };
     }
 
@@ -471,7 +529,7 @@ pub const IArray = struct {
     pub fn swapRemove(self: Self, gpa: std.mem.Allocator, idx: usize) !Self {
         var items = try gpa.alloc(Value, self.items.len - 1);
 
-        for (0..self.items.len) |i| {
+        for (0..self.items.len - 1) |i| {
             const item = if (i == idx) self.items[items.len] else self.items[i];
             items[i] = item.borrow();
         }
@@ -479,34 +537,34 @@ pub const IArray = struct {
         return .{ .items = items };
     }
 
-    pub fn copy(self: Self, allocator: std.mem.Allocator) !*Self {
-        return Self.init(allocator, self.items);
+    pub fn copy(self: Self, gpa: std.mem.Allocator) !*Self {
+        return Self.init(gpa, self.items);
     }
 
-    pub fn appendMut(self: *Self, allocator: std.mem.Allocator, v: Value) !void {
-        return self.appendManyMut(allocator, &[1]Value{v});
+    pub fn appendMut(self: *Self, gpa: std.mem.Allocator, v: Value) !void {
+        return self.appendManyMut(gpa, &[1]Value{v});
     }
 
-    pub fn appendManyMut(self: *Self, allocator: std.mem.Allocator, vs: []const Value) !void {
+    pub fn appendManyMut(self: *Self, gpa: std.mem.Allocator, vs: []const Value) !void {
         const old_len = self.items.len;
 
         for (vs) |v| {
             _ = v.borrow();
         }
 
-        self.items = try allocator.realloc(self.items, self.items.len + vs.len);
+        self.items = try gpa.realloc(self.items, self.items.len + vs.len);
         @memcpy(self.items.ptr + old_len, vs);
     }
 
-    pub fn toString(self: Self, allocator: std.mem.Allocator, open_icon: u8, close_icon: u8) ![]const u8 {
+    pub fn toString(self: Self, gpa: std.mem.Allocator, open_icon: u8, close_icon: u8) ![]const u8 {
         var buffer: std.ArrayList(u8) = .empty;
-        try buffer.append(allocator, open_icon);
+        try buffer.append(gpa, open_icon);
         const lst = self.items;
-        var writer = buffer.writer(allocator);
+        var writer = buffer.writer(gpa);
         for (lst) |v| {
-            try writer.print("{s}, ", .{try v.toString(allocator)});
+            try writer.print("{s}, ", .{try v.toString(gpa)});
         }
-        try buffer.append(allocator, close_icon);
+        try buffer.append(gpa, close_icon);
         return buffer.items;
     }
 };
