@@ -161,7 +161,7 @@ pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
 
                     defer value.deinit(allocator);
                     switch (value.obj.kind) {
-                        .string => try acc.appendManyMut(allocator, value.obj.as(Obj.String).items),
+                        .string => try acc.appendMut(allocator, value.obj.as(Obj.String).items),
                         else => return wrongType(allocator, "+", @tagName(value), err_ctx),
                     }
                 }

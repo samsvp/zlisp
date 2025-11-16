@@ -161,79 +161,47 @@ pub const Obj = struct {
         return @alignCast(@fieldParentPtr("obj", self));
     }
 
-    pub fn Array(comptime T: type, kind: Obj.Kind) type {
-        return struct {
-            obj: Obj,
-            items: []T,
+    pub const String = struct {
+        obj: Obj,
+        items: []u8,
 
-            const Self = @This();
+        const Self = @This();
 
-            pub fn empty(allocator: std.mem.Allocator) !*Self {
-                return Self.init(allocator, &.{});
-            }
+        pub fn empty(allocator: std.mem.Allocator) !*Self {
+            return Self.init(allocator, &.{});
+        }
 
-            pub fn init(allocator: std.mem.Allocator, vs: []const T) !*Self {
-                const ptr = try allocator.create(Self);
+        pub fn init(allocator: std.mem.Allocator, vs: []const u8) !*Self {
+            const ptr = try allocator.create(Self);
 
-                ptr.* = Self{
-                    .obj = Obj.init(kind),
-                    .items = try allocator.dupe(T, vs),
-                };
+            ptr.* = Self{
+                .obj = Obj.init(.string),
+                .items = try allocator.dupe(u8, vs),
+            };
 
-                if (T == Value) for (ptr.items) |v| {
-                    _ = v.borrow();
-                };
+            return ptr;
+        }
 
-                return ptr;
-            }
+        pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
+            allocator.free(self.items);
+            allocator.destroy(self);
+        }
 
-            pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
-                if (T == Value) for (self.items) |v| {
-                    v.deinit(allocator);
-                };
+        pub fn copy(self: Self, allocator: std.mem.Allocator) !*Self {
+            return Self.init(allocator, self.items);
+        }
 
-                allocator.free(self.items);
-                allocator.destroy(self);
-            }
+        pub fn appendMut(self: *Self, allocator: std.mem.Allocator, vs: []const u8) !void {
+            const old_len = self.items.len;
+            self.items = try allocator.realloc(self.items, self.items.len + vs.len);
+            @memcpy(self.items.ptr + old_len, vs);
+        }
 
-            pub fn copy(self: Self, allocator: std.mem.Allocator) !*Self {
-                return Self.init(allocator, self.items);
-            }
+        pub fn toString(self: Self, allocator: std.mem.Allocator) ![]const u8 {
+            return allocator.dupe(u8, self.items);
+        }
+    };
 
-            pub fn appendMut(self: *Self, allocator: std.mem.Allocator, v: T) !void {
-                return self.appendManyMut(allocator, &[1]T{v});
-            }
-
-            pub fn appendManyMut(self: *Self, allocator: std.mem.Allocator, vs: []const T) !void {
-                const old_len = self.items.len;
-
-                if (T == Value) for (vs) |v| {
-                    _ = v.borrow();
-                };
-
-                self.items = try allocator.realloc(self.items, self.items.len + vs.len);
-                @memcpy(self.items.ptr + old_len, vs);
-            }
-
-            pub fn toString(self: Self, allocator: std.mem.Allocator, open_icon: u8, close_icon: u8) ![]const u8 {
-                var buffer: std.ArrayList(u8) = .empty;
-                try buffer.append(allocator, open_icon);
-                const lst = self.items;
-                var writer = buffer.writer(allocator);
-                for (lst) |v| {
-                    try writer.print("{s}, ", .{try v.toString(allocator)});
-                }
-                try buffer.append(allocator, close_icon);
-                return buffer.items;
-            }
-        };
-    }
-
-    pub fn IArrayFunc(comptime _: type) type {
-        return IArray;
-    }
-
-    pub const String = Array(u8, .string);
     pub const List = struct {
         obj: Obj,
         vec: IArray,
@@ -568,3 +536,7 @@ pub const IArray = struct {
         return buffer.items;
     }
 };
+
+pub fn IArrayFunc(comptime _: type) type {
+    return IArray;
+}
