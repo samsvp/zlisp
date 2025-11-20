@@ -12,8 +12,8 @@
             .hash = "N-V-__8AAGoRAQDx6biuV6HtPBEQ9sz7y-8mWYqZ7yJdaOFK",
         },
         .persistent_structures = .{
-            .url = "git+https://github.com/samsvp/zig-persistent-structures#e315b34d7e2ee9589e217b833501c1c6b8da6d39",
-            .hash = "persistent_structures-0.0.0-7c72Z8c8AQDOHqFElzkIlJcDZ3BeXskdi2jOoHHIBdMS",
+            .url = "git+https://github.com/samsvp/zig-persistent-structures#4973a5e81a912bc2e38fdca1d499999ee5f910d0",
+            .hash = "persistent_structures-0.0.0-7c72Zx9lAQAve-e3hKZxGGSaMxsUNVTXiWCPWwjblXE_",
         },
     },
 
