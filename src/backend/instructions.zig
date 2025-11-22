@@ -119,7 +119,13 @@ pub fn cmp(vm: *VM, allocator: std.mem.Allocator, n: usize, comptime k: CmpKind,
 /// Stack top: arity -> how many values to pop from the stack
 /// Sums the remaining elements in the stack.
 pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx) !Value {
-    defer vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
+    defer {
+        for (1..n) |i| {
+            const value = vm.stack.items[vm.stack.items.len - i - 1];
+            value.deinit(allocator);
+        }
+        vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
+    }
 
     const val = vm.stack.getLast();
     switch (val) {
@@ -159,7 +165,6 @@ pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
                         return wrongType(allocator, "+", @tagName(value), err_ctx);
                     }
 
-                    defer value.deinit(allocator);
                     switch (value.obj.kind) {
                         .string => try acc.appendMut(allocator, value.obj.as(Obj.String).items),
                         else => return wrongType(allocator, "+", @tagName(value), err_ctx),
@@ -177,13 +182,33 @@ pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
                         return wrongType(allocator, "+", @tagName(value), err_ctx);
                     }
 
-                    defer value.deinit(allocator);
                     switch (value.obj.kind) {
                         .list => try acc.appendManyMut(allocator, value.obj.as(Obj.List).vec.items),
                         else => return wrongType(allocator, "+", @tagName(value), err_ctx),
                     }
                 }
                 return .{ .obj = &acc.obj };
+            },
+            .vector => {
+                defer o.deinit(allocator);
+
+                const pvec = o.as(Obj.PVector);
+                const others = try allocator.alloc(Obj.PVector.VecT, n - 1);
+                defer allocator.free(others);
+
+                for (1..n) |i| {
+                    const value = vm.stack.items[vm.stack.items.len - i - 1];
+                    if (value != .obj) {
+                        return wrongType(allocator, "+", @tagName(value), err_ctx);
+                    }
+
+                    switch (value.obj.kind) {
+                        .vector => others[i - 1] = value.obj.as(Obj.PVector).vec,
+                        else => return wrongType(allocator, "+", @tagName(value), err_ctx),
+                    }
+                }
+                const new_pvec = try pvec.add(allocator, others);
+                return .{ .obj = &new_pvec.obj };
             },
             else => return wrongType(allocator, "+", @tagName(val), err_ctx),
         },

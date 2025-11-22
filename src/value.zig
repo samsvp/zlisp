@@ -1,5 +1,5 @@
 const std = @import("std");
-const pvector = @import("pvector");
+const pstructs = @import("pstruct");
 const errors = @import("errors.zig");
 const Chunk = @import("backend/chunk.zig").Chunk;
 
@@ -269,8 +269,23 @@ pub const Obj = struct {
             return self.vec.appendManyMut(gpa, vs);
         }
 
-        pub fn toString(self: List, allocator: std.mem.Allocator) ![]const u8 {
-            return self.vec.toString(allocator, '(', ')');
+        pub fn toString(self: List, gpa: std.mem.Allocator) ![]const u8 {
+            var buffer: std.ArrayList(u8) = .empty;
+            defer buffer.deinit(gpa);
+
+            try buffer.append(gpa, '(');
+            var writer = buffer.writer(gpa);
+
+            for (self.vec.items) |v| {
+                const str = try v.toString(gpa);
+                defer gpa.free(str);
+
+                try writer.print("{s}, ", .{str});
+            }
+            try buffer.append(gpa, ')');
+            const owned_str = try gpa.dupe(u8, buffer.items);
+
+            return owned_str;
         }
     };
 
@@ -278,7 +293,7 @@ pub const Obj = struct {
         obj: Obj,
         vec: VecT,
 
-        const VecT = pvector.PVector(Value, IArrayFunc);
+        pub const VecT = pstructs.PVector(Value, IArrayFunc);
 
         pub fn init(allocator: std.mem.Allocator, items: []const Value) !*PVector {
             const pvec = try allocator.create(PVector);
@@ -303,8 +318,34 @@ pub const Obj = struct {
             return pvec;
         }
 
+        pub fn add(self: PVector, gpa: std.mem.Allocator, others: []VecT) !*PVector {
+            const new_vec = try self.vec.concat(gpa, others);
+            const pvec = try gpa.create(PVector);
+            pvec.* = PVector{
+                .obj = Obj.init(.vector),
+                .vec = new_vec,
+            };
+            return pvec;
+        }
+
         pub fn toString(self: PVector, gpa: std.mem.Allocator) ![]const u8 {
-            return std.fmt.allocPrint(gpa, "PVector with size {}", .{self.vec.len});
+            var buffer: std.ArrayList(u8) = .empty;
+            defer buffer.deinit(gpa);
+
+            try buffer.append(gpa, '[');
+            var writer = buffer.writer(gpa);
+
+            var iter = self.vec.toIter();
+            while (iter.next()) |v| {
+                const str = try v.toString(gpa);
+                defer gpa.free(str);
+
+                try writer.print("{s}, ", .{str});
+            }
+            try buffer.append(gpa, ']');
+            const owned_str = try gpa.dupe(u8, buffer.items);
+
+            return owned_str;
         }
     };
 
@@ -524,16 +565,18 @@ pub const IArray = struct {
         @memcpy(self.items.ptr + old_len, vs);
     }
 
-    pub fn toString(self: Self, gpa: std.mem.Allocator, open_icon: u8, close_icon: u8) ![]const u8 {
-        var buffer: std.ArrayList(u8) = .empty;
-        try buffer.append(gpa, open_icon);
-        const lst = self.items;
-        var writer = buffer.writer(gpa);
-        for (lst) |v| {
-            try writer.print("{s}, ", .{try v.toString(gpa)});
+    pub fn toArray(self: Self, gpa: std.mem.Allocator) ![]const Value {
+        const arr = try gpa.alloc(Value, self.items.len);
+        for (self.items, 0..) |v, i| {
+            arr[i] = v.borrow();
         }
-        try buffer.append(gpa, close_icon);
-        return buffer.items;
+        return arr;
+    }
+
+    pub fn toBuffer(self: Self, buffer: []Value) void {
+        for (self.items, 0..) |v, i| {
+            buffer[i] = v.borrow();
+        }
     }
 };
 

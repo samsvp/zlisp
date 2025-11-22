@@ -7,7 +7,7 @@ pub fn build(b: *std.Build) void {
     const pvec_dep = b.dependency("persistent_structures", .{
         .bits = 3,
     });
-    const pvec = pvec_dep.module("pvector");
+    const pvec = pvec_dep.module("pstruct");
 
     const mod = b.addModule("zlisp", .{
         .root_source_file = b.path("src/root.zig"),
@@ -21,7 +21,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    exe_mod.addImport("pvector", pvec);
+    exe_mod.addImport("pstruct", pvec);
 
     const exe = b.addExecutable(.{
         .name = "zlisp",

@@ -248,6 +248,8 @@ pub const VM = struct {
     }
 
     fn createVector(vm: *VM, allocator: std.mem.Allocator, n: usize) !Value {
+        std.mem.reverse(Value, vm.stack.items[vm.stack.items.len - n ..]);
+
         const vec = try Obj.PVector.init(allocator, vm.stack.items[vm.stack.items.len - n ..]);
         for (vm.stack.items[vm.stack.items.len - n ..]) |item| {
             item.deinit(allocator);
@@ -255,11 +257,12 @@ pub const VM = struct {
 
         vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
         const val: Value = .{ .obj = &vec.obj };
-        try vm.stack.append(allocator, val);
         return val;
     }
 
     fn createList(vm: *VM, allocator: std.mem.Allocator, n: usize) !Value {
+        std.mem.reverse(Value, vm.stack.items[vm.stack.items.len - n ..]);
+
         const vec = try Obj.List.init(allocator, vm.stack.items[vm.stack.items.len - n ..]);
         for (vm.stack.items[vm.stack.items.len - n ..]) |item| {
             item.deinit(allocator);
@@ -267,7 +270,6 @@ pub const VM = struct {
 
         vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
         const val: Value = .{ .obj = &vec.obj };
-        try vm.stack.append(allocator, val);
         return val;
     }
 
@@ -306,7 +308,10 @@ pub const VM = struct {
                 std.debug.print("==== STACK ====\n", .{});
                 std.debug.print("[ ", .{});
                 for (vm.stack.items) |i| {
-                    i.print();
+                    const str = try i.toString(allocator);
+                    defer allocator.free(str);
+
+                    std.debug.print("{s}", .{str});
                     std.debug.print(", ", .{});
                 }
                 std.debug.print("]\n", .{});
@@ -412,24 +417,24 @@ pub const VM = struct {
 
                     try vm.stack.append(allocator, vm.local_stack.items[slot_index].borrow());
                 },
-                .create_vec => {
-                    const n = vm.readByte();
+                .create_vec, .create_vec_long => |vec_op| {
+                    const n = switch (vec_op) {
+                        .create_vec => vm.readByte(),
+                        .create_vec_long => std.mem.bytesToValue(u16, vm.readBytes(2)),
+                        else => unreachable,
+                    };
                     const vec = try vm.createVector(allocator, @intCast(n));
+                    try vm.stack.append(allocator, vec);
                     try frame.function.chunk.constants.append(allocator, vec);
                 },
-                .create_vec_long => {
-                    const n = std.mem.bytesToValue(u16, vm.readBytes(2));
-                    const vec = try vm.createVector(allocator, @intCast(n));
-                    try frame.function.chunk.constants.append(allocator, vec);
-                },
-                .create_list => {
-                    const n = vm.readByte();
+                .create_list, .create_list_long => |list_op| {
+                    const n = switch (list_op) {
+                        .create_list => vm.readByte(),
+                        .create_list_long => std.mem.bytesToValue(u16, vm.readBytes(2)),
+                        else => unreachable,
+                    };
                     const vec = try vm.createList(allocator, @intCast(n));
-                    try frame.function.chunk.constants.append(allocator, vec);
-                },
-                .create_list_long => {
-                    const n = std.mem.bytesToValue(u16, vm.readBytes(2));
-                    const vec = try vm.createList(allocator, @intCast(n));
+                    try vm.stack.append(allocator, vec);
                     try frame.function.chunk.constants.append(allocator, vec);
                 },
                 .create_closure => {
