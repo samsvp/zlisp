@@ -29,21 +29,6 @@ pub const Value = union(enum) {
         return self;
     }
 
-    pub fn print(v: Value) void {
-        switch (v) {
-            .obj => |o| switch (o.kind) {
-                .string => std.debug.print("{s}", .{o.as(Obj.String).items}),
-                .list => std.debug.print("List with len {}", .{o.as(Obj.List).vec.len()}),
-                .vector => std.debug.print("Vector with len {}", .{o.as(Obj.PVector).vec.len}),
-                .function => std.debug.print("<fn>", .{}),
-                .closure => std.debug.print("<closure_fn>", .{}),
-                .native_fn => std.debug.print("<native_fn>", .{}),
-            },
-            .symbol => |s| std.debug.print("{s}", .{s}),
-            else => std.debug.print("{}", .{v}),
-        }
-    }
-
     pub fn eql(a: Value, b: Value) bool {
         return switch (a) {
             .int => |i_1| switch (b) {
@@ -78,8 +63,22 @@ pub const Value = union(enum) {
                     },
                     .vector => switch (o_2.kind) {
                         .vector => blk: {
-                            // placeholder
-                            break :blk false;
+                            const vec_1 = o_1.as(Obj.PVector).vec;
+                            const vec_2 = o_2.as(Obj.PVector).vec;
+                            if (vec_1.len != vec_2.len) {
+                                break :blk false;
+                            }
+
+                            var v1_iter = vec_1.toIter();
+                            var v2_iter = vec_2.toIter();
+                            const res = for (0..vec_1.len) |_| {
+                                const v1 = v1_iter.next().?;
+                                const v2 = v2_iter.next().?;
+                                if (v1.eql(v2))
+                                    break false;
+                            } else true;
+
+                            break :blk res;
                         },
                         else => false,
                     },
@@ -91,14 +90,16 @@ pub const Value = union(enum) {
                                 break :blk false;
                             }
 
-                            for (0..l_1.len) |i|
+                            const res = for (0..l_1.len) |i| {
                                 if (!l_1[i].eql(l_2[i]))
-                                    break :blk false;
+                                    break false;
+                            } else true;
 
-                            break :blk true;
+                            break :blk res;
                         },
                         else => false,
                     },
+                    .hash_map => @panic("Not implemented"),
                     .function => false,
                     .closure => false,
                     .native_fn => false,
@@ -108,12 +109,32 @@ pub const Value = union(enum) {
         };
     }
 
+    pub fn hash(a: Value) u32 {
+        var h: std.hash.Wyhash = .init(0);
+
+        const b = switch (a) {
+            inline .int, .float, .boolean => |v| std.mem.asBytes(&v),
+            .symbol => |s| s,
+            .nil => &.{},
+            .obj => switch (a.obj.kind) {
+                .string => a.obj.as(Obj.String).items,
+                .list => std.mem.asBytes(&a.obj.as(Obj.List).vec.items),
+                .vector => std.mem.asBytes(&a.obj.as(Obj.PVector).vec),
+                else => std.mem.asBytes(&a.obj),
+            },
+        };
+
+        h.update(b);
+        return @intCast(h.final() & 0xFFFFFFFF);
+    }
+
     pub fn toString(self: Value, allocator: std.mem.Allocator) anyerror![]const u8 {
         return switch (self) {
             .obj => |o| switch (o.kind) {
                 .string => try std.fmt.allocPrint(allocator, "{s}", .{o.as(Obj.String).items}),
                 .list => try o.as(Obj.List).toString(allocator),
                 .vector => try o.as(Obj.PVector).toString(allocator),
+                .hash_map => @panic("Not implemented"),
                 .function => try std.fmt.allocPrint(allocator, "<fn>", .{}),
                 .closure => try std.fmt.allocPrint(allocator, "<closure_fn>", .{}),
                 .native_fn => try std.fmt.allocPrint(allocator, "<native_fn>", .{}),
@@ -133,6 +154,7 @@ pub const Obj = struct {
         string,
         list,
         vector,
+        hash_map,
         function,
         closure,
         native_fn,
@@ -151,6 +173,7 @@ pub const Obj = struct {
             .string => self.as(String).deinit(allocator),
             .list => self.as(List).deinit(allocator),
             .vector => self.as(PVector).deinit(allocator),
+            .hash_map => self.as(PHashMap).deinit(allocator),
             .function => self.as(Function).deinit(allocator),
             .closure => self.as(Closure).deinit(allocator),
             .native_fn => self.as(NativeFunction).deinit(allocator),
@@ -347,6 +370,64 @@ pub const Obj = struct {
 
             return owned_str;
         }
+    };
+
+    pub const PHashMap = struct {
+        obj: Obj,
+        hash_map: HashMapT,
+        const HashMapT = pstructs.Hamt(Value, Value, HashCtx, KVContext.get());
+
+        pub fn init(gpa: std.mem.Allocator, values: []const Value) !*PHashMap {
+            const phash_map = try gpa.create(PHashMap);
+
+            var hm = HashMapT.init();
+            for (0..values.len / 2) |idx| {
+                const i = 2 * idx;
+                try hm.assocMut(gpa, values[i], values[i + 1]);
+            }
+
+            phash_map.* = PVector{
+                .obj = Obj.init(.hash_map),
+                .hash_map = hm,
+            };
+
+            return phash_map;
+        }
+
+        pub fn deinit(self: *PHashMap, gpa: std.mem.Allocator) void {
+            self.hash_map.deinit(gpa);
+            gpa.destroy(self);
+        }
+
+        const HashCtx = pstructs.HashContext(Value){
+            .eql = Value.eql,
+            .hash = Value.hash,
+        };
+
+        const KV = pstructs.KV(Value, Value);
+
+        const KVContext = struct {
+            fn init(_: std.mem.Allocator, v: Value, k: Value) !KV {
+                return .{ .key = v.borrow(), .value = k.borrow() };
+            }
+
+            fn deinit(gpa: std.mem.Allocator, kv: *KV) void {
+                kv.key.deinit(gpa);
+                kv.value.deinit(gpa);
+            }
+
+            fn clone(gpa: std.mem.Allocator, kv: *KV) !KV {
+                return KVContext.init(gpa, kv.key, kv.value);
+            }
+
+            fn get() pstructs.KVContext(Value, Value) {
+                return .{
+                    .init = KVContext.init,
+                    .deinit = KVContext.deinit,
+                    .clone = KVContext.clone,
+                };
+            }
+        };
     };
 
     pub const Function = struct {
