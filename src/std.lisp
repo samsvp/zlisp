@@ -173,3 +173,21 @@
              (conj! acc)))
       @acc)))
 
+(defmacro ->
+  [arg &asts]
+  (reduce
+    (fn [acc ast]
+      (if (list? ast)
+        (list* (first ast) acc (rest ast))
+        (list ast acc)))
+    arg
+    &asts))
+
+(defmacro ->>
+  [arg &asts]
+  (reduce (fn [acc ast]
+    (if (list? ast)
+      (list* (concat ast [acc]))
+      (list ast acc)))
+    arg
+    &asts))

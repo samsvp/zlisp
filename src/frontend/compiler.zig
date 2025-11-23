@@ -70,11 +70,12 @@ const Constants = enum {
     @">",
     @"<=",
     @">=",
+    not,
     @"if",
     @"fn",
     list,
     def,
-    not,
+    let,
 };
 
 /// Returns false if the function is a builtin (+,-,*,/) or a true function to be called.
@@ -290,6 +291,64 @@ fn compileDef(
     try chunk.append(allocator, .def_global, line);
 }
 
+pub fn compileLet(
+    allocator: std.mem.Allocator,
+    chunk: *Chunk,
+    locals: *Locals,
+    args: []const reader.Token,
+    line: usize,
+    err_ctx: *errors.Ctx,
+) anyerror!void {
+    if (args.len != 2) {
+        try err_ctx.setMsgWithLine(allocator, "let", "Wrong number of arguments. Expected 2, got {}.", .{args.len}, line);
+        return Errors.WrongNumberOfArguments;
+    }
+
+    const args_token = args[0];
+    if (args_token.kind != .vector) {
+        try err_ctx.setMsgWithLine(
+            allocator,
+            "let",
+            "Wrong argument type. Expected vector, got {s}.",
+            .{@tagName(args_token.kind)},
+            args_token.line,
+        );
+        return Errors.WrongArgumentType;
+    }
+
+    const vec = args_token.kind.vector;
+    if (vec.items.len % 2 != 0) {
+        try err_ctx.setMsgWithLine(allocator, "let", "Expect an even number of value-bindings.", .{}, args_token.line);
+        return Errors.WrongNumberOfArguments;
+    }
+
+    var let_locals = locals.createNext();
+    defer let_locals.deinit(allocator);
+
+    for (0..vec.items.len / 2) |idx| {
+        const i = 2 * idx;
+        const key = vec.items[i];
+        const value = vec.items[i + 1];
+
+        const arg_name =
+            if (key.kind == .atom and key.kind.atom == .symbol)
+                key.kind.atom.symbol
+            else {
+                try err_ctx.setMsgWithLine(allocator, "let", "Varuable name must be symbol", .{}, key.line);
+                return Errors.WrongArgumentType;
+            };
+        try let_locals.put(allocator, arg_name);
+        try compileToken(allocator, chunk, value, &let_locals, err_ctx);
+        try chunk.append(allocator, .def_local, line);
+    }
+
+    try compileToken(allocator, chunk, args[1], &let_locals, err_ctx);
+
+    if (vec.items.len > 0) {
+        try chunk.emitShrinkLocals(allocator, @intCast(let_locals.names.count()), line);
+    }
+}
+
 pub fn compileList(
     allocator: std.mem.Allocator,
     chunk: *Chunk,
@@ -333,14 +392,15 @@ pub fn compileList(
                 .@">" => try compileOp(allocator, chunk, locals, .gt, args, line, err_ctx),
                 .@"<=" => try compileOp(allocator, chunk, locals, .leq, args, line, err_ctx),
                 .@">=" => try compileOp(allocator, chunk, locals, .geq, args, line, err_ctx),
+                .not => try compileNot(allocator, chunk, locals, args, line, err_ctx),
                 .@"if" => try compileIf(allocator, chunk, locals, args, line, err_ctx),
                 .@"fn" => try compileFn(allocator, chunk, locals, args, line, err_ctx),
                 .list => {
                     try compileArgs(allocator, chunk, locals, args, err_ctx);
                     try chunk.emitList(allocator, @intCast(args.len), line);
                 },
-                .not => try compileNot(allocator, chunk, locals, args, line, err_ctx),
                 .def => try compileDef(allocator, chunk, locals, args, line, err_ctx),
+                .let => try compileLet(allocator, chunk, locals, args, line, err_ctx),
             }
             return;
         }

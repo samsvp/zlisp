@@ -31,6 +31,7 @@ pub const OpCode = enum(u8) {
     get_global,
     def_local,
     get_local,
+    shrink_locals,
     call,
 
     pub const Error = error{
@@ -151,6 +152,12 @@ pub const Chunk = struct {
 
         const bytes = std.mem.toBytes(n);
         try chunk.append(allocator, .create_hash_map_long, line);
+        try chunk.emitBytes(allocator, &bytes, line);
+    }
+
+    pub fn emitShrinkLocals(chunk: *Chunk, allocator: std.mem.Allocator, n: u16, line: usize) !void {
+        const bytes = std.mem.toBytes(n);
+        try chunk.append(allocator, .shrink_locals, line);
         try chunk.emitBytes(allocator, &bytes, line);
     }
 

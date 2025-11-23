@@ -130,12 +130,17 @@ pub const VM = struct {
         return vm.frames[vm.frame_count - 1].function.chunk.constants.items[c_index];
     }
 
+    fn shrinkLocals(vm: *VM, gpa: std.mem.Allocator, n: usize) void {
+        const locals_len = vm.local_stack.items.len;
+        for (0..n) |i| {
+            vm.local_stack.items[locals_len - i - 1].deinit(gpa);
+        }
+        vm.local_stack.shrinkRetainingCapacity(locals_len - n);
+    }
+
     fn emptyFnStack(vm: *VM, allocator: std.mem.Allocator) void {
         const frame = &vm.frames[vm.frame_count - 1];
-        for (frame.stack_pos..vm.local_stack.items.len) |i| {
-            vm.local_stack.items[i].deinit(allocator);
-        }
-        vm.local_stack.shrinkRetainingCapacity(frame.stack_pos);
+        vm.shrinkLocals(allocator, vm.local_stack.items.len - frame.stack_pos);
     }
 
     fn getFnArgs(
@@ -421,7 +426,7 @@ pub const VM = struct {
                     try vm.stack.append(allocator, val.borrow());
                 },
                 .def_local => {
-                    const v = try vm.stackPeek();
+                    const v = try vm.stackPop();
                     try vm.local_stack.append(allocator, v.borrow());
                 },
                 .get_local => {
@@ -429,6 +434,10 @@ pub const VM = struct {
                     const slot_index = @as(usize, @intCast(slot)) + vm.frames[vm.frame_count - 1].stack_pos;
 
                     try vm.stack.append(allocator, vm.local_stack.items[slot_index].borrow());
+                },
+                .shrink_locals => {
+                    const n = std.mem.bytesToValue(u16, vm.readBytes(2));
+                    vm.shrinkLocals(allocator, @intCast(n));
                 },
                 .create_vec, .create_vec_long => |vec_op| {
                     const n = if (vec_op == .create_vec) vm.readByte() else std.mem.bytesToValue(u16, vm.readBytes(2));
