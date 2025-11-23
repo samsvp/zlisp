@@ -32,6 +32,8 @@ pub fn main() !void {
         \\(add-2)
         \\(add-3 "0" "8" 12)
         \\(def hm {"hello" 0 "world" 1})
+        \\(+ hm {"world" "wat" "new key" 18})
+        \\(+ hm {})
         \\(+ [1 2 3] [4 5 6])
         \\nil
     ,

@@ -120,7 +120,7 @@ pub fn cmp(vm: *VM, allocator: std.mem.Allocator, n: usize, comptime k: CmpKind,
 /// Sums the remaining elements in the stack.
 pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx) !Value {
     defer {
-        for (1..n) |i| {
+        for (0..n) |i| {
             const value = vm.stack.items[vm.stack.items.len - i - 1];
             value.deinit(allocator);
         }
@@ -154,8 +154,6 @@ pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
         },
         .obj => |o| switch (o.kind) {
             .string => {
-                defer o.deinit(allocator);
-
                 const s_0 = o.as(Obj.String);
                 var acc = try s_0.copy(allocator);
 
@@ -173,8 +171,6 @@ pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
                 return .{ .obj = &acc.obj };
             },
             .list => {
-                defer o.deinit(allocator);
-
                 var acc = try o.as(Obj.List).copy(allocator);
                 for (1..n) |i| {
                     const value = vm.stack.items[vm.stack.items.len - i - 1];
@@ -190,8 +186,6 @@ pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
                 return .{ .obj = &acc.obj };
             },
             .vector => {
-                defer o.deinit(allocator);
-
                 const pvec = o.as(Obj.PVector);
                 const others = try allocator.alloc(Obj.PVector.VecT, n - 1);
                 defer allocator.free(others);
@@ -209,6 +203,29 @@ pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
                 }
                 const new_pvec = try pvec.add(allocator, others);
                 return .{ .obj = &new_pvec.obj };
+            },
+            .hash_map => {
+                var hash_map = try o.as(Obj.PHashMap).hash_map.clone(allocator);
+
+                for (1..n) |i| {
+                    const value = vm.stack.items[vm.stack.items.len - i - 1];
+                    if (value != .obj) {
+                        return wrongType(allocator, "+", @tagName(value), err_ctx);
+                    }
+
+                    switch (value.obj.kind) {
+                        .hash_map => {
+                            var hm = value.obj.as(Obj.PHashMap).hash_map;
+                            var iter = hm.iterator();
+                            while (iter.next()) |kv| {
+                                try hash_map.assocMut(allocator, kv.key, kv.value);
+                            }
+                        },
+                        else => return wrongType(allocator, "+", @tagName(value), err_ctx),
+                    }
+                }
+                const new_hash_map = try Obj.PHashMap.initFrom(allocator, hash_map);
+                return .{ .obj = &new_hash_map.obj };
             },
             else => return wrongType(allocator, "+", @tagName(val), err_ctx),
         },

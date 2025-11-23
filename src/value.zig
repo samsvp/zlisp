@@ -413,6 +413,17 @@ pub const Obj = struct {
             return phash_map;
         }
 
+        pub fn initFrom(gpa: std.mem.Allocator, hm: HashMapT) !*PHashMap {
+            const phash_map = try gpa.create(PHashMap);
+
+            phash_map.* = PHashMap{
+                .obj = Obj.init(.hash_map),
+                .hash_map = hm,
+            };
+
+            return phash_map;
+        }
+
         pub fn deinit(self: *PHashMap, gpa: std.mem.Allocator) void {
             self.hash_map.deinit(gpa);
             gpa.destroy(self);
