@@ -68,22 +68,22 @@ pub const VM = struct {
         return vm;
     }
 
-    pub fn deinit(self: *VM, allocator: std.mem.Allocator) void {
-        defer self.stack.deinit(allocator);
-        defer self.local_stack.deinit(allocator);
-        defer self.globals.deinit(allocator);
+    pub fn deinit(self: *VM, gpa: std.mem.Allocator) void {
+        defer self.stack.deinit(gpa);
+        defer self.local_stack.deinit(gpa);
+        defer self.globals.deinit(gpa);
 
         for (self.stack.items) |s| {
-            s.deinit(allocator);
+            s.deinit(gpa);
         }
 
         for (self.local_stack.items) |*v| {
-            v.deinit(allocator);
+            v.deinit(gpa);
         }
 
         var iter = self.globals.iterator();
         while (iter.next()) |kv| {
-            kv.value_ptr.deinit(allocator);
+            kv.value_ptr.deinit(gpa);
         }
     }
 
@@ -138,21 +138,21 @@ pub const VM = struct {
         vm.local_stack.shrinkRetainingCapacity(locals_len - n);
     }
 
-    fn emptyFnStack(vm: *VM, allocator: std.mem.Allocator) void {
+    fn emptyFnStack(vm: *VM, gpa: std.mem.Allocator) void {
         const frame = &vm.frames[vm.frame_count - 1];
-        vm.shrinkLocals(allocator, vm.local_stack.items.len - frame.stack_pos);
+        vm.shrinkLocals(gpa, vm.local_stack.items.len - frame.stack_pos);
     }
 
     fn getFnArgs(
         vm: *VM,
-        allocator: std.mem.Allocator,
+        gpa: std.mem.Allocator,
         args: []const Value,
         arity: usize,
         arg_count: usize,
         is_variadic: bool,
     ) !void {
         for (args) |arg| {
-            try vm.local_stack.append(allocator, arg);
+            try vm.local_stack.append(gpa, arg);
         }
 
         if (arity == 0) {
@@ -161,29 +161,29 @@ pub const VM = struct {
 
         for (0..arity - 1) |_| {
             const v = try vm.stackPop();
-            try vm.local_stack.append(allocator, v);
+            try vm.local_stack.append(gpa, v);
         }
 
         if (!is_variadic) {
             const v = try vm.stackPop();
-            try vm.local_stack.append(allocator, v);
+            try vm.local_stack.append(gpa, v);
             return;
         }
 
         const variadic_len = arg_count + 1 - arity;
         const variadic_start = vm.stack.items.len - variadic_len;
-        const list = try Obj.List.init(allocator, vm.stack.items[variadic_start..]);
+        const list = try Obj.List.init(gpa, vm.stack.items[variadic_start..]);
         for (vm.stack.items[variadic_start..]) |item| {
-            item.deinit(allocator);
+            item.deinit(gpa);
         }
 
         vm.stack.shrinkRetainingCapacity(variadic_start);
-        try vm.local_stack.append(allocator, .{ .obj = &list.obj });
+        try vm.local_stack.append(gpa, .{ .obj = &list.obj });
     }
 
     fn call(
         vm: *VM,
-        allocator: std.mem.Allocator,
+        gpa: std.mem.Allocator,
         f: *Obj.Function,
         arg_count: u8,
         args: []const Value,
@@ -194,8 +194,8 @@ pub const VM = struct {
 
         if (vm.frame_count != 1) {
             if (std.enums.fromInt(OpCode, vm.peekByte())) |op| if (op == .ret) {
-                vm.emptyFnStack(allocator);
-                try vm.getFnArgs(allocator, args, f.arity, arg_count, f.is_variadic);
+                vm.emptyFnStack(gpa);
+                try vm.getFnArgs(gpa, args, f.arity, arg_count, f.is_variadic);
 
                 var frame = &vm.frames[vm.frame_count - 1];
                 frame.function = f;
@@ -216,48 +216,48 @@ pub const VM = struct {
             .stack_pos = vm.local_stack.items.len,
         };
 
-        try vm.getFnArgs(allocator, args, f.arity, arg_count, f.is_variadic);
+        try vm.getFnArgs(gpa, args, f.arity, arg_count, f.is_variadic);
         vm.frames[vm.frame_count - 1] = frame;
         return &vm.frames[vm.frame_count - 1];
     }
 
-    fn callClosure(vm: *VM, allocator: std.mem.Allocator, f: *Obj.Closure, arg_count: u8) !*CallFrame {
-        return vm.call(allocator, f.function, arg_count, f.args);
+    fn callClosure(vm: *VM, gpa: std.mem.Allocator, f: *Obj.Closure, arg_count: u8) !*CallFrame {
+        return vm.call(gpa, f.function, arg_count, f.args);
     }
 
-    fn callNative(vm: *VM, allocator: std.mem.Allocator, f: *Obj.NativeFunction, arg_count: u8) !*CallFrame {
-        var args = try allocator.alloc(Value, arg_count);
-        defer allocator.free(args);
+    fn callNative(vm: *VM, gpa: std.mem.Allocator, f: *Obj.NativeFunction, arg_count: u8) !*CallFrame {
+        var args = try gpa.alloc(Value, arg_count);
+        defer gpa.free(args);
 
         for (0..arg_count, 0..) |_, i| {
             args[i] = try vm.stackPop();
         }
 
-        const res = try f.native_fn(allocator, args, &vm.err_ctx);
-        try vm.stack.append(allocator, res);
+        const res = try f.native_fn(gpa, args, &vm.err_ctx);
+        try vm.stack.append(gpa, res);
 
-        return vm.call(allocator, f.function, arg_count, &.{});
+        return vm.call(gpa, f.function, arg_count, &.{});
     }
 
-    fn callValue(vm: *VM, allocator: std.mem.Allocator, v: Value, arg_count: u8) !*CallFrame {
+    fn callValue(vm: *VM, gpa: std.mem.Allocator, v: Value, arg_count: u8) !*CallFrame {
         if (v != .obj) {
             return Error.TypeNotCallable;
         }
 
         return switch (v.obj.kind) {
-            .function => try vm.call(allocator, v.obj.as(Obj.Function), arg_count, &.{}),
-            .closure => try vm.callClosure(allocator, v.obj.as(Obj.Closure), arg_count),
-            .native_fn => try vm.callNative(allocator, v.obj.as(Obj.NativeFunction), arg_count),
+            .function => try vm.call(gpa, v.obj.as(Obj.Function), arg_count, &.{}),
+            .closure => try vm.callClosure(gpa, v.obj.as(Obj.Closure), arg_count),
+            .native_fn => try vm.callNative(gpa, v.obj.as(Obj.NativeFunction), arg_count),
             else => Error.TypeNotCallable,
         };
     }
 
-    fn createVector(vm: *VM, allocator: std.mem.Allocator, n: usize) !Value {
+    fn createVector(vm: *VM, gpa: std.mem.Allocator, n: usize) !Value {
         std.mem.reverse(Value, vm.stack.items[vm.stack.items.len - n ..]);
 
-        const vec = try Obj.PVector.init(allocator, vm.stack.items[vm.stack.items.len - n ..]);
+        const vec = try Obj.PVector.init(gpa, vm.stack.items[vm.stack.items.len - n ..]);
         for (vm.stack.items[vm.stack.items.len - n ..]) |item| {
-            item.deinit(allocator);
+            item.deinit(gpa);
         }
 
         vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
@@ -265,12 +265,12 @@ pub const VM = struct {
         return val;
     }
 
-    fn createList(vm: *VM, allocator: std.mem.Allocator, n: usize) !Value {
+    fn createList(vm: *VM, gpa: std.mem.Allocator, n: usize) !Value {
         std.mem.reverse(Value, vm.stack.items[vm.stack.items.len - n ..]);
 
-        const vec = try Obj.List.init(allocator, vm.stack.items[vm.stack.items.len - n ..]);
+        const vec = try Obj.List.init(gpa, vm.stack.items[vm.stack.items.len - n ..]);
         for (vm.stack.items[vm.stack.items.len - n ..]) |item| {
-            item.deinit(allocator);
+            item.deinit(gpa);
         }
 
         vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
@@ -278,12 +278,12 @@ pub const VM = struct {
         return val;
     }
 
-    fn createHashMap(vm: *VM, allocator: std.mem.Allocator, n: usize) !Value {
+    fn createHashMap(vm: *VM, gpa: std.mem.Allocator, n: usize) !Value {
         std.mem.reverse(Value, vm.stack.items[vm.stack.items.len - n ..]);
 
-        const vec = try Obj.PHashMap.init(allocator, vm.stack.items[vm.stack.items.len - n ..]);
+        const vec = try Obj.PHashMap.init(gpa, vm.stack.items[vm.stack.items.len - n ..]);
         for (vm.stack.items[vm.stack.items.len - n ..]) |item| {
-            item.deinit(allocator);
+            item.deinit(gpa);
         }
 
         vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
@@ -291,23 +291,23 @@ pub const VM = struct {
         return val;
     }
 
-    fn createClosure(vm: *VM, allocator: std.mem.Allocator, n: u16) !void {
+    fn createClosure(vm: *VM, gpa: std.mem.Allocator, n: u16) !void {
         const func_val = try vm.stackPop();
         const func = func_val.obj.as(Obj.Function);
 
-        var args = try allocator.alloc(Value, n);
-        defer allocator.free(args);
+        var args = try gpa.alloc(Value, n);
+        defer gpa.free(args);
 
         for (0..n) |i| {
             const val = try vm.stackPop();
             args[i] = val.borrow();
         }
 
-        const closure = try Obj.Closure.init(allocator, func, args);
-        try vm.stack.append(allocator, .{ .obj = &closure.obj });
+        const closure = try Obj.Closure.init(gpa, func, args);
+        try vm.stack.append(gpa, .{ .obj = &closure.obj });
     }
 
-    pub fn run(vm: *VM, allocator: std.mem.Allocator) !void {
+    pub fn run(vm: *VM, gpa: std.mem.Allocator) !void {
         var frame = &vm.frames[vm.frame_count - 1];
 
         while (true) {
@@ -317,17 +317,17 @@ pub const VM = struct {
 
             if (builtin.mode == .Debug) {
                 const op_name, _ = debug.disassembleInstruction(
-                    allocator,
+                    gpa,
                     frame.function.chunk.*,
                     frame.ip - frame.function.chunk.code.items.ptr - 1,
                 ) catch unreachable;
-                defer allocator.free(op_name);
+                defer gpa.free(op_name);
 
                 std.debug.print("==== STACK ====\n", .{});
                 std.debug.print("[ ", .{});
                 for (vm.stack.items) |i| {
-                    const str = try i.toString(allocator);
-                    defer allocator.free(str);
+                    const str = try i.toString(gpa);
+                    defer gpa.free(str);
 
                     std.debug.print("{s}", .{str});
                     std.debug.print(", ", .{});
@@ -341,63 +341,63 @@ pub const VM = struct {
             switch (instruction) {
                 .ret => {
                     const result = try vm.stackPop();
-                    vm.emptyFnStack(allocator);
+                    vm.emptyFnStack(gpa);
                     vm.frame_count -= 1;
                     if (vm.frame_count == 0) {
-                        result.deinit(allocator);
+                        result.deinit(gpa);
                         return;
                     }
 
-                    try vm.stack.append(allocator, result);
+                    try vm.stack.append(gpa, result);
                     frame = &vm.frames[vm.frame_count - 1];
                 },
                 .constant => {
                     const v = vm.readConstant();
-                    try vm.stack.append(allocator, v.borrow());
+                    try vm.stack.append(gpa, v.borrow());
                 },
                 .constant_long => {
                     const v = vm.readConstantLong();
-                    try vm.stack.append(allocator, v.borrow());
+                    try vm.stack.append(gpa, v.borrow());
                 },
                 .add => {
                     const arg_count = vm.readByte();
-                    const val = try instructions.add(vm, allocator, arg_count, &vm.err_ctx);
-                    try vm.stack.append(allocator, val);
+                    const val = try instructions.add(vm, gpa, arg_count, &vm.err_ctx);
+                    try vm.stack.append(gpa, val);
                 },
                 .subtract => {
                     const arg_count = vm.readByte();
-                    const val = try instructions.sub(vm, allocator, arg_count, &vm.err_ctx);
-                    try vm.stack.append(allocator, val);
+                    const val = try instructions.sub(vm, gpa, arg_count, &vm.err_ctx);
+                    try vm.stack.append(gpa, val);
                 },
                 .multiply => {
                     const arg_count = vm.readByte();
-                    const val = try instructions.mult(vm, allocator, arg_count, &vm.err_ctx);
-                    try vm.stack.append(allocator, val);
+                    const val = try instructions.mult(vm, gpa, arg_count, &vm.err_ctx);
+                    try vm.stack.append(gpa, val);
                 },
                 .divide => {
                     const arg_count = vm.readByte();
-                    const val = try instructions.div(vm, allocator, arg_count, &vm.err_ctx);
-                    try vm.stack.append(allocator, val);
+                    const val = try instructions.div(vm, gpa, arg_count, &vm.err_ctx);
+                    try vm.stack.append(gpa, val);
                 },
                 .eq => {
                     const arg_count = vm.readByte();
-                    const val = instructions.eql(vm, allocator, arg_count);
-                    try vm.stack.append(allocator, val);
+                    const val = instructions.eql(vm, gpa, arg_count);
+                    try vm.stack.append(gpa, val);
                 },
                 .not => {
-                    const val = instructions.not(vm, allocator);
-                    try vm.stack.append(allocator, val);
+                    const val = instructions.not(vm, gpa);
+                    try vm.stack.append(gpa, val);
                 },
                 inline .lt, .gt, .leq, .geq => |cmp_op| {
                     const arg_count = vm.readByte();
                     const val = try instructions.cmp(
                         vm,
-                        allocator,
+                        gpa,
                         arg_count,
                         @field(instructions.CmpKind, @tagName(cmp_op)),
                         &vm.err_ctx,
                     );
-                    try vm.stack.append(allocator, val);
+                    try vm.stack.append(gpa, val);
                 },
                 .jump => {
                     const offset: u16 = std.mem.bytesToValue(u16, vm.readBytes(2));
@@ -416,61 +416,61 @@ pub const VM = struct {
                     const name_str = name.symbol;
 
                     const val = try vm.stackPeek();
-                    try vm.globals.put(allocator, name_str, val.borrow());
+                    try vm.globals.put(gpa, name_str, val.borrow());
                 },
                 .get_global => {
                     const name = try vm.stackPop();
                     const name_str = name.symbol;
 
                     const val = vm.globals.get(name_str) orelse return Error.UndefinedVariable;
-                    try vm.stack.append(allocator, val.borrow());
+                    try vm.stack.append(gpa, val.borrow());
                 },
                 .def_local => {
                     const v = try vm.stackPop();
-                    try vm.local_stack.append(allocator, v.borrow());
+                    try vm.local_stack.append(gpa, v.borrow());
                 },
                 .get_local => {
                     const slot = std.mem.bytesToValue(u16, vm.readBytes(2));
                     const slot_index = @as(usize, @intCast(slot)) + vm.frames[vm.frame_count - 1].stack_pos;
 
-                    try vm.stack.append(allocator, vm.local_stack.items[slot_index].borrow());
+                    try vm.stack.append(gpa, vm.local_stack.items[slot_index].borrow());
                 },
                 .shrink_locals => {
                     const n = std.mem.bytesToValue(u16, vm.readBytes(2));
-                    vm.shrinkLocals(allocator, @intCast(n));
+                    vm.shrinkLocals(gpa, @intCast(n));
                 },
                 .create_vec, .create_vec_long => |vec_op| {
                     const n = if (vec_op == .create_vec) vm.readByte() else std.mem.bytesToValue(u16, vm.readBytes(2));
-                    const vec = try vm.createVector(allocator, @intCast(n));
-                    try vm.stack.append(allocator, vec);
-                    try frame.function.chunk.constants.append(allocator, vec);
+                    const vec = try vm.createVector(gpa, @intCast(n));
+                    try vm.stack.append(gpa, vec);
+                    try frame.function.chunk.constants.append(gpa, vec);
                 },
                 .create_list, .create_list_long => |list_op| {
                     const n = if (list_op == .create_list) vm.readByte() else std.mem.bytesToValue(u16, vm.readBytes(2));
-                    const vec = try vm.createList(allocator, @intCast(n));
-                    try vm.stack.append(allocator, vec);
-                    try frame.function.chunk.constants.append(allocator, vec);
+                    const vec = try vm.createList(gpa, @intCast(n));
+                    try vm.stack.append(gpa, vec);
+                    try frame.function.chunk.constants.append(gpa, vec);
                 },
                 .create_hash_map, .create_hash_map_long => |hash_map_op| {
                     const n = if (hash_map_op == .create_hash_map) vm.readByte() else std.mem.bytesToValue(u16, vm.readBytes(2));
-                    const vec = try vm.createHashMap(allocator, @intCast(n));
-                    try vm.stack.append(allocator, vec);
-                    try frame.function.chunk.constants.append(allocator, vec);
+                    const vec = try vm.createHashMap(gpa, @intCast(n));
+                    try vm.stack.append(gpa, vec);
+                    try frame.function.chunk.constants.append(gpa, vec);
                 },
                 .create_closure => {
                     const n = std.mem.bytesToValue(u16, vm.readBytes(2));
-                    try vm.createClosure(allocator, n);
+                    try vm.createClosure(gpa, n);
                 },
                 .pop => {
                     var res = try vm.stackPop();
-                    res.deinit(allocator);
+                    res.deinit(gpa);
                 },
                 .call => {
                     const arg_count = vm.readByte();
                     const v = try vm.stackPop();
-                    defer v.deinit(allocator);
+                    defer v.deinit(gpa);
 
-                    frame = try vm.callValue(allocator, v, arg_count);
+                    frame = try vm.callValue(gpa, v, arg_count);
                 },
                 .noop => {},
             }

@@ -11,18 +11,18 @@ pub const PVector = struct {
 
     pub const VecT = pstructs.PVector(Value, IArrayFunc);
 
-    pub fn init(allocator: std.mem.Allocator, items: []const Value) !*PVector {
-        const pvec = try allocator.create(PVector);
+    pub fn init(gpa: std.mem.Allocator, items: []const Value) !*PVector {
+        const pvec = try gpa.create(PVector);
         pvec.* = PVector{
             .obj = Obj.init(.vector),
-            .vec = try VecT.init(allocator, items),
+            .vec = try VecT.init(gpa, items),
         };
         return pvec;
     }
 
-    pub fn deinit(self: *PVector, allocator: std.mem.Allocator) void {
-        self.vec.deinit(allocator);
-        allocator.destroy(self);
+    pub fn deinit(self: *PVector, gpa: std.mem.Allocator) void {
+        self.vec.deinit(gpa);
+        gpa.destroy(self);
     }
 
     pub fn append(self: *PVector, gpa: std.mem.Allocator, val: Value) !*PVector {

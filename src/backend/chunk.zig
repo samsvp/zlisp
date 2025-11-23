@@ -50,64 +50,64 @@ pub const Chunk = struct {
         .lines = .empty,
     };
 
-    pub fn append(self: *Chunk, allocator: std.mem.Allocator, c: OpCode, line: usize) !void {
-        try self.code.append(allocator, @intFromEnum(c));
-        try self.lines.append(allocator, line);
+    pub fn append(self: *Chunk, gpa: std.mem.Allocator, c: OpCode, line: usize) !void {
+        try self.code.append(gpa, @intFromEnum(c));
+        try self.lines.append(gpa, line);
     }
 
     /// Adds a constant to the constant array and returns its index.
-    pub fn addConstant(self: *Chunk, allocator: std.mem.Allocator, v: Value) !usize {
-        try self.constants.append(allocator, v.borrow());
+    pub fn addConstant(self: *Chunk, gpa: std.mem.Allocator, v: Value) !usize {
+        try self.constants.append(gpa, v.borrow());
         return self.constants.items.len - 1;
     }
 
-    pub fn emitByte(chunk: *Chunk, allocator: std.mem.Allocator, byte: u8, line: usize) !void {
-        try chunk.code.append(allocator, byte);
-        try chunk.lines.append(allocator, line);
+    pub fn emitByte(chunk: *Chunk, gpa: std.mem.Allocator, byte: u8, line: usize) !void {
+        try chunk.code.append(gpa, byte);
+        try chunk.lines.append(gpa, line);
     }
 
-    pub fn emitBytes(chunk: *Chunk, allocator: std.mem.Allocator, bytes: []const u8, line: usize) !void {
+    pub fn emitBytes(chunk: *Chunk, gpa: std.mem.Allocator, bytes: []const u8, line: usize) !void {
         for (bytes) |b| {
-            try chunk.emitByte(allocator, b, line);
+            try chunk.emitByte(gpa, b, line);
         }
     }
 
-    pub fn emitConstant(chunk: *Chunk, allocator: std.mem.Allocator, v: Value, line: usize) !u8 {
-        const const_index = try chunk.addConstant(allocator, v);
+    pub fn emitConstant(chunk: *Chunk, gpa: std.mem.Allocator, v: Value, line: usize) !u8 {
+        const const_index = try chunk.addConstant(gpa, v);
 
         if (const_index <= 255) {
-            try chunk.emitBytes(allocator, &[_]u8{ @intFromEnum(OpCode.constant), @intCast(const_index) }, line);
+            try chunk.emitBytes(gpa, &[_]u8{ @intFromEnum(OpCode.constant), @intCast(const_index) }, line);
             return 2;
         } else {
             const index_16: u16 = @intCast(const_index);
             const index_bytes = std.mem.toBytes(index_16);
-            try chunk.emitBytes(allocator, &[_]u8{ @intFromEnum(OpCode.constant_long), index_bytes[0], index_bytes[1] }, line);
+            try chunk.emitBytes(gpa, &[_]u8{ @intFromEnum(OpCode.constant_long), index_bytes[0], index_bytes[1] }, line);
             return 3;
         }
     }
 
-    pub fn emitGetGlobal(chunk: *Chunk, allocator: std.mem.Allocator, name: []const u8, line: usize) !void {
-        _ = try chunk.emitConstant(allocator, .{ .symbol = name }, line);
-        try chunk.append(allocator, .get_global, line);
+    pub fn emitGetGlobal(chunk: *Chunk, gpa: std.mem.Allocator, name: []const u8, line: usize) !void {
+        _ = try chunk.emitConstant(gpa, .{ .symbol = name }, line);
+        try chunk.append(gpa, .get_global, line);
     }
 
-    pub fn emitGetLocal(chunk: *Chunk, allocator: std.mem.Allocator, offset: u16, line: usize) !void {
-        try chunk.append(allocator, .get_local, line);
+    pub fn emitGetLocal(chunk: *Chunk, gpa: std.mem.Allocator, offset: u16, line: usize) !void {
+        try chunk.append(gpa, .get_local, line);
         const bs = std.mem.toBytes(offset);
-        try chunk.emitBytes(allocator, &bs, line);
+        try chunk.emitBytes(gpa, &bs, line);
     }
 
-    pub fn emitJump(chunk: *Chunk, allocator: std.mem.Allocator, offset: u16, line: usize) !usize {
+    pub fn emitJump(chunk: *Chunk, gpa: std.mem.Allocator, offset: u16, line: usize) !usize {
         const bytes = std.mem.toBytes(offset);
-        try chunk.append(allocator, .jump, line);
-        try chunk.emitBytes(allocator, &bytes, line);
+        try chunk.append(gpa, .jump, line);
+        try chunk.emitBytes(gpa, &bytes, line);
         return chunk.code.items.len - 3;
     }
 
-    pub fn emitJumpIfFalse(chunk: *Chunk, allocator: std.mem.Allocator, offset: u16, line: usize) !usize {
+    pub fn emitJumpIfFalse(chunk: *Chunk, gpa: std.mem.Allocator, offset: u16, line: usize) !usize {
         const bytes = std.mem.toBytes(offset);
-        try chunk.append(allocator, .jump_if_false, line);
-        try chunk.emitBytes(allocator, &bytes, line);
+        try chunk.append(gpa, .jump_if_false, line);
+        try chunk.emitBytes(gpa, &bytes, line);
         return chunk.code.items.len - 3;
     }
 
@@ -119,59 +119,59 @@ pub const Chunk = struct {
         chunk.replaceBytes(index + 1, &std.mem.toBytes(offset));
     }
 
-    pub fn emitVec(chunk: *Chunk, allocator: std.mem.Allocator, n: u16, line: usize) !void {
+    pub fn emitVec(chunk: *Chunk, gpa: std.mem.Allocator, n: u16, line: usize) !void {
         if (n < 256) {
-            try chunk.append(allocator, .create_vec, line);
-            try chunk.emitByte(allocator, @intCast(n), line);
+            try chunk.append(gpa, .create_vec, line);
+            try chunk.emitByte(gpa, @intCast(n), line);
             return;
         }
 
         const bytes = std.mem.toBytes(n);
-        try chunk.append(allocator, .create_vec_long, line);
-        try chunk.emitBytes(allocator, &bytes, line);
+        try chunk.append(gpa, .create_vec_long, line);
+        try chunk.emitBytes(gpa, &bytes, line);
     }
 
-    pub fn emitList(chunk: *Chunk, allocator: std.mem.Allocator, n: u16, line: usize) !void {
+    pub fn emitList(chunk: *Chunk, gpa: std.mem.Allocator, n: u16, line: usize) !void {
         if (n < 256) {
-            try chunk.append(allocator, .create_list, line);
-            try chunk.emitByte(allocator, @intCast(n), line);
+            try chunk.append(gpa, .create_list, line);
+            try chunk.emitByte(gpa, @intCast(n), line);
             return;
         }
 
         const bytes = std.mem.toBytes(n);
-        try chunk.append(allocator, .create_list_long, line);
-        try chunk.emitBytes(allocator, &bytes, line);
+        try chunk.append(gpa, .create_list_long, line);
+        try chunk.emitBytes(gpa, &bytes, line);
     }
 
-    pub fn emitHashMap(chunk: *Chunk, allocator: std.mem.Allocator, n: u16, line: usize) !void {
+    pub fn emitHashMap(chunk: *Chunk, gpa: std.mem.Allocator, n: u16, line: usize) !void {
         if (n < 256) {
-            try chunk.append(allocator, .create_hash_map, line);
-            try chunk.emitByte(allocator, @intCast(n), line);
+            try chunk.append(gpa, .create_hash_map, line);
+            try chunk.emitByte(gpa, @intCast(n), line);
             return;
         }
 
         const bytes = std.mem.toBytes(n);
-        try chunk.append(allocator, .create_hash_map_long, line);
-        try chunk.emitBytes(allocator, &bytes, line);
+        try chunk.append(gpa, .create_hash_map_long, line);
+        try chunk.emitBytes(gpa, &bytes, line);
     }
 
-    pub fn emitShrinkLocals(chunk: *Chunk, allocator: std.mem.Allocator, n: u16, line: usize) !void {
+    pub fn emitShrinkLocals(chunk: *Chunk, gpa: std.mem.Allocator, n: u16, line: usize) !void {
         const bytes = std.mem.toBytes(n);
-        try chunk.append(allocator, .shrink_locals, line);
-        try chunk.emitBytes(allocator, &bytes, line);
+        try chunk.append(gpa, .shrink_locals, line);
+        try chunk.emitBytes(gpa, &bytes, line);
     }
 
-    pub fn end(chunk: *Chunk, allocator: std.mem.Allocator) !void {
-        try chunk.append(allocator, .ret, 0);
+    pub fn end(chunk: *Chunk, gpa: std.mem.Allocator) !void {
+        try chunk.append(gpa, .ret, 0);
     }
 
-    pub fn deinit(self: *Chunk, allocator: std.mem.Allocator) void {
+    pub fn deinit(self: *Chunk, gpa: std.mem.Allocator) void {
         for (self.constants.items) |*c| {
-            c.deinit(allocator);
+            c.deinit(gpa);
         }
 
-        self.code.deinit(allocator);
-        self.constants.deinit(allocator);
-        self.lines.deinit(allocator);
+        self.code.deinit(gpa);
+        self.constants.deinit(gpa);
+        self.lines.deinit(gpa);
     }
 };

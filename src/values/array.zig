@@ -8,9 +8,9 @@ pub const IArray = struct {
 
     pub const empty = Self{ .items = &.{} };
 
-    pub fn init(allocator: std.mem.Allocator, vs: []const Value) !Self {
+    pub fn init(gpa: std.mem.Allocator, vs: []const Value) !Self {
         const self = Self{
-            .items = try allocator.dupe(Value, vs),
+            .items = try gpa.dupe(Value, vs),
         };
 
         for (self.items) |v| {
@@ -25,12 +25,12 @@ pub const IArray = struct {
         return self;
     }
 
-    pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
+    pub fn deinit(self: *Self, gpa: std.mem.Allocator) void {
         for (self.items) |v| {
-            v.deinit(allocator);
+            v.deinit(gpa);
         }
 
-        allocator.free(self.items);
+        gpa.free(self.items);
     }
 
     pub fn len(self: Self) usize {

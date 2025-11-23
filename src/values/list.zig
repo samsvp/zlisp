@@ -12,17 +12,17 @@ pub const List = struct {
         return List.init(gpa, &.{});
     }
 
-    pub fn init(allocator: std.mem.Allocator, items: []const Value) !*List {
-        const pvec = try allocator.create(List);
+    pub fn init(gpa: std.mem.Allocator, items: []const Value) !*List {
+        const pvec = try gpa.create(List);
         pvec.* = List{
             .obj = Obj.init(.list),
-            .vec = try IArray.init(allocator, items),
+            .vec = try IArray.init(gpa, items),
         };
         return pvec;
     }
 
-    pub fn initNoDupe(allocator: std.mem.Allocator, items: []const Value) !*List {
-        const pvec = try allocator.create(List);
+    pub fn initNoDupe(gpa: std.mem.Allocator, items: []const Value) !*List {
+        const pvec = try gpa.create(List);
         pvec.* = List{
             .obj = Obj.init(.list),
             .vec = try IArray.initNoDupe(items),
@@ -30,9 +30,9 @@ pub const List = struct {
         return pvec;
     }
 
-    pub fn deinit(self: *List, allocator: std.mem.Allocator) void {
-        self.vec.deinit(allocator);
-        allocator.destroy(self);
+    pub fn deinit(self: *List, gpa: std.mem.Allocator) void {
+        self.vec.deinit(gpa);
+        gpa.destroy(self);
     }
 
     pub fn copy(self: List, gpa: std.mem.Allocator) !*List {

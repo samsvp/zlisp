@@ -9,37 +9,27 @@ const Error = vm_module.Error;
 const VM = vm_module.VM;
 
 fn wrongType(
-    allocator: std.mem.Allocator,
+    gpa: std.mem.Allocator,
     op_name: []const u8,
     type_name: []const u8,
     err_ctx: *errors.Ctx,
 ) anyerror {
-    try err_ctx.setMsg(
-        allocator,
-        op_name,
-        "mismatched type {s} - ensure all types are the same.",
-        .{type_name},
-    );
+    try err_ctx.setMsg(gpa, op_name, "mismatched type {s} - ensure all types are the same.", .{type_name});
     return Error.WrongType;
 }
 
 fn divisionByZero(
-    allocator: std.mem.Allocator,
+    gpa: std.mem.Allocator,
     err_ctx: *errors.Ctx,
 ) anyerror {
-    try err_ctx.setMsg(
-        allocator,
-        "/",
-        "Division by zero.",
-        .{},
-    );
+    try err_ctx.setMsg(gpa, "/", "Division by zero.", .{});
     return Error.DivisionByZero;
 }
 
-pub fn eql(vm: *VM, allocator: std.mem.Allocator, n: usize) Value {
+pub fn eql(vm: *VM, gpa: std.mem.Allocator, n: usize) Value {
     defer vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
     defer for (0..n) |i| {
-        vm.stack.items[vm.stack.items.len - i - 1].deinit(allocator);
+        vm.stack.items[vm.stack.items.len - i - 1].deinit(gpa);
     };
 
     const val = vm.stack.getLast();
@@ -52,9 +42,9 @@ pub fn eql(vm: *VM, allocator: std.mem.Allocator, n: usize) Value {
     return Value.True;
 }
 
-pub fn not(vm: *VM, allocator: std.mem.Allocator) Value {
+pub fn not(vm: *VM, gpa: std.mem.Allocator) Value {
     const val = vm.stack.pop().?;
-    defer val.deinit(allocator);
+    defer val.deinit(gpa);
 
     return switch (val) {
         .nil => Value.True,
@@ -79,26 +69,26 @@ pub const CmpKind = enum {
     }
 };
 
-pub fn cmp(vm: *VM, allocator: std.mem.Allocator, n: usize, comptime k: CmpKind, err_ctx: *errors.Ctx) !Value {
+pub fn cmp(vm: *VM, gpa: std.mem.Allocator, n: usize, comptime k: CmpKind, err_ctx: *errors.Ctx) !Value {
     const op_str = k.toStr();
 
     defer vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
     defer for (0..n) |i| {
-        vm.stack.items[vm.stack.items.len - i - 1].deinit(allocator);
+        vm.stack.items[vm.stack.items.len - i - 1].deinit(gpa);
     };
 
     const value_last = vm.stack.getLast();
     const val: f32 = switch (value_last) {
         .int => |i| @floatFromInt(i),
         .float => |f| f,
-        else => return wrongType(allocator, op_str, @tagName(value_last), err_ctx),
+        else => return wrongType(gpa, op_str, @tagName(value_last), err_ctx),
     };
     for (1..n) |i| {
         const value = vm.stack.items[vm.stack.items.len - i - 1];
         const v: f32 = switch (value) {
             .int => |i_| @floatFromInt(i_),
             .float => |f| f,
-            else => return wrongType(allocator, op_str, @tagName(value), err_ctx),
+            else => return wrongType(gpa, op_str, @tagName(value), err_ctx),
         };
 
         const res = switch (k) {
@@ -118,11 +108,11 @@ pub fn cmp(vm: *VM, allocator: std.mem.Allocator, n: usize, comptime k: CmpKind,
 
 /// Stack top: arity -> how many values to pop from the stack
 /// Sums the remaining elements in the stack.
-pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx) !Value {
+pub fn add(vm: *VM, gpa: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx) !Value {
     defer {
         for (0..n) |i| {
             const value = vm.stack.items[vm.stack.items.len - i - 1];
-            value.deinit(allocator);
+            value.deinit(gpa);
         }
         vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
     }
@@ -135,7 +125,7 @@ pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
                 const value = vm.stack.items[vm.stack.items.len - i - 1];
                 switch (value) {
                     .int => |i_val| acc += i_val,
-                    else => return wrongType(allocator, "+", @tagName(value), err_ctx),
+                    else => return wrongType(gpa, "+", @tagName(value), err_ctx),
                 }
             }
             return .{ .int = acc };
@@ -147,7 +137,7 @@ pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
                 switch (value) {
                     .float => |f_val| acc += f_val,
                     .int => |i_val| acc += @floatFromInt(i_val),
-                    else => return wrongType(allocator, "+", @tagName(value), err_ctx),
+                    else => return wrongType(gpa, "+", @tagName(value), err_ctx),
                 }
             }
             return .{ .float = acc };
@@ -155,62 +145,62 @@ pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
         .obj => |o| switch (o.kind) {
             .string => {
                 const s_0 = o.as(Obj.String);
-                var acc = try s_0.copy(allocator);
+                var acc = try s_0.copy(gpa);
 
                 for (1..n) |i| {
                     const value = vm.stack.items[vm.stack.items.len - i - 1];
                     if (value != .obj) {
-                        return wrongType(allocator, "+", @tagName(value), err_ctx);
+                        return wrongType(gpa, "+", @tagName(value), err_ctx);
                     }
 
                     switch (value.obj.kind) {
-                        .string => try acc.appendMut(allocator, value.obj.as(Obj.String).items),
-                        else => return wrongType(allocator, "+", @tagName(value), err_ctx),
+                        .string => try acc.appendMut(gpa, value.obj.as(Obj.String).items),
+                        else => return wrongType(gpa, "+", @tagName(value), err_ctx),
                     }
                 }
                 return .{ .obj = &acc.obj };
             },
             .list => {
-                var acc = try o.as(Obj.List).copy(allocator);
+                var acc = try o.as(Obj.List).copy(gpa);
                 for (1..n) |i| {
                     const value = vm.stack.items[vm.stack.items.len - i - 1];
                     if (value != .obj) {
-                        return wrongType(allocator, "+", @tagName(value), err_ctx);
+                        return wrongType(gpa, "+", @tagName(value), err_ctx);
                     }
 
                     switch (value.obj.kind) {
-                        .list => try acc.appendManyMut(allocator, value.obj.as(Obj.List).vec.items),
-                        else => return wrongType(allocator, "+", @tagName(value), err_ctx),
+                        .list => try acc.appendManyMut(gpa, value.obj.as(Obj.List).vec.items),
+                        else => return wrongType(gpa, "+", @tagName(value), err_ctx),
                     }
                 }
                 return .{ .obj = &acc.obj };
             },
             .vector => {
                 const pvec = o.as(Obj.PVector);
-                const others = try allocator.alloc(Obj.PVector.VecT, n - 1);
-                defer allocator.free(others);
+                const others = try gpa.alloc(Obj.PVector.VecT, n - 1);
+                defer gpa.free(others);
 
                 for (1..n) |i| {
                     const value = vm.stack.items[vm.stack.items.len - i - 1];
                     if (value != .obj) {
-                        return wrongType(allocator, "+", @tagName(value), err_ctx);
+                        return wrongType(gpa, "+", @tagName(value), err_ctx);
                     }
 
                     switch (value.obj.kind) {
                         .vector => others[i - 1] = value.obj.as(Obj.PVector).vec,
-                        else => return wrongType(allocator, "+", @tagName(value), err_ctx),
+                        else => return wrongType(gpa, "+", @tagName(value), err_ctx),
                     }
                 }
-                const new_pvec = try pvec.add(allocator, others);
+                const new_pvec = try pvec.add(gpa, others);
                 return .{ .obj = &new_pvec.obj };
             },
             .hash_map => {
-                var hash_map = try o.as(Obj.PHashMap).hash_map.clone(allocator);
+                var hash_map = try o.as(Obj.PHashMap).hash_map.clone(gpa);
 
                 for (1..n) |i| {
                     const value = vm.stack.items[vm.stack.items.len - i - 1];
                     if (value != .obj) {
-                        return wrongType(allocator, "+", @tagName(value), err_ctx);
+                        return wrongType(gpa, "+", @tagName(value), err_ctx);
                     }
 
                     switch (value.obj.kind) {
@@ -218,25 +208,25 @@ pub fn add(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
                             var hm = value.obj.as(Obj.PHashMap).hash_map;
                             var iter = hm.iterator();
                             while (iter.next()) |kv| {
-                                try hash_map.assocMut(allocator, kv.key, kv.value);
+                                try hash_map.assocMut(gpa, kv.key, kv.value);
                             }
                         },
-                        else => return wrongType(allocator, "+", @tagName(value), err_ctx),
+                        else => return wrongType(gpa, "+", @tagName(value), err_ctx),
                     }
                 }
-                const new_hash_map = try Obj.PHashMap.initFrom(allocator, hash_map);
+                const new_hash_map = try Obj.PHashMap.initFrom(gpa, hash_map);
                 return .{ .obj = &new_hash_map.obj };
             },
-            else => return wrongType(allocator, "+", @tagName(val), err_ctx),
+            else => return wrongType(gpa, "+", @tagName(val), err_ctx),
         },
-        else => return wrongType(allocator, "+", @tagName(val), err_ctx),
+        else => return wrongType(gpa, "+", @tagName(val), err_ctx),
     }
 }
 
 /// Stack top: arity -> how many values to pop from the stack
 /// If arity == 1, return the negated next element in the stack.
 /// Else subtract the remaining elements from the next.
-pub fn sub(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx) !Value {
+pub fn sub(vm: *VM, gpa: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx) !Value {
     defer vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
 
     const val = vm.stack.getLast();
@@ -251,7 +241,7 @@ pub fn sub(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
                 const value = vm.stack.items[vm.stack.items.len - i - 1];
                 switch (value) {
                     .int => |i_val| acc -= i_val,
-                    else => return wrongType(allocator, "+", @tagName(value), err_ctx),
+                    else => return wrongType(gpa, "+", @tagName(value), err_ctx),
                 }
             }
             return .{ .int = acc };
@@ -267,18 +257,18 @@ pub fn sub(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
                 switch (value) {
                     .float => |f_val| acc -= f_val,
                     .int => |i_val| acc -= @floatFromInt(i_val),
-                    else => return wrongType(allocator, "+", @tagName(value), err_ctx),
+                    else => return wrongType(gpa, "+", @tagName(value), err_ctx),
                 }
             }
             return .{ .float = acc };
         },
-        else => return wrongType(allocator, "+", @tagName(val), err_ctx),
+        else => return wrongType(gpa, "+", @tagName(val), err_ctx),
     }
 }
 
 /// Stack top: arity -> how many values to pop from the stack
 /// Multiplies the remaining elements in the stack.
-pub fn mult(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx) !Value {
+pub fn mult(vm: *VM, gpa: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx) !Value {
     defer vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
 
     const val = vm.stack.getLast();
@@ -290,7 +280,7 @@ pub fn mult(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ct
                 const value = vm.stack.items[vm.stack.items.len - i - 1];
                 switch (value) {
                     .int => |i_val| acc *= i_val,
-                    else => return wrongType(allocator, "+", @tagName(value), err_ctx),
+                    else => return wrongType(gpa, "+", @tagName(value), err_ctx),
                 }
             }
             return .{ .int = acc };
@@ -302,18 +292,18 @@ pub fn mult(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ct
                 switch (value) {
                     .float => |f_val| acc *= f_val,
                     .int => |i_val| acc *= @floatFromInt(i_val),
-                    else => return wrongType(allocator, "+", @tagName(value), err_ctx),
+                    else => return wrongType(gpa, "+", @tagName(value), err_ctx),
                 }
             }
             return .{ .float = acc };
         },
-        else => return wrongType(allocator, "+", @tagName(val), err_ctx),
+        else => return wrongType(gpa, "+", @tagName(val), err_ctx),
     };
 }
 
 /// Stack top: arity -> how many values to pop from the stack
 /// Divides the remaining elements in the stack.
-pub fn div(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx) !Value {
+pub fn div(vm: *VM, gpa: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx) !Value {
     defer vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
 
     const val = vm.stack.getLast();
@@ -326,9 +316,9 @@ pub fn div(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
                     .int => |i_val| if (i_val != 0) {
                         acc = @divFloor(acc, i_val);
                     } else {
-                        return divisionByZero(allocator, err_ctx);
+                        return divisionByZero(gpa, err_ctx);
                     },
-                    else => return wrongType(allocator, "+", @tagName(value), err_ctx),
+                    else => return wrongType(gpa, "+", @tagName(value), err_ctx),
                 }
             }
             return .{ .int = acc };
@@ -341,18 +331,18 @@ pub fn div(vm: *VM, allocator: std.mem.Allocator, n: usize, err_ctx: *errors.Ctx
                     .float => |f_val| if (f_val != 0) {
                         acc /= f_val;
                     } else {
-                        return divisionByZero(allocator, err_ctx);
+                        return divisionByZero(gpa, err_ctx);
                     },
                     .int => |i_val| if (i_val != 0) {
                         acc /= @floatFromInt(i_val);
                     } else {
-                        return divisionByZero(allocator, err_ctx);
+                        return divisionByZero(gpa, err_ctx);
                     },
-                    else => return wrongType(allocator, "+", @tagName(value), err_ctx),
+                    else => return wrongType(gpa, "+", @tagName(value), err_ctx),
                 }
             }
             return .{ .float = acc };
         },
-        else => return wrongType(allocator, "+", @tagName(val), err_ctx),
+        else => return wrongType(gpa, "+", @tagName(val), err_ctx),
     };
 }

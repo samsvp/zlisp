@@ -20,9 +20,9 @@ pub const Value = union(enum) {
     pub const True = Value{ .boolean = true };
     pub const False = Value{ .boolean = false };
 
-    pub fn deinit(self: Value, allocator: std.mem.Allocator) void {
+    pub fn deinit(self: Value, gpa: std.mem.Allocator) void {
         switch (self) {
-            .obj => |o| o.deinit(allocator),
+            .obj => |o| o.deinit(gpa),
             else => {},
         }
     }
@@ -153,20 +153,20 @@ pub const Value = union(enum) {
         return @intCast(h.final() & 0xFFFFFFFF);
     }
 
-    pub fn toString(self: Value, allocator: std.mem.Allocator) anyerror![]const u8 {
+    pub fn toString(self: Value, gpa: std.mem.Allocator) anyerror![]const u8 {
         return switch (self) {
             .obj => |o| switch (o.kind) {
-                .string => try std.fmt.allocPrint(allocator, "{s}", .{o.as(Obj.String).items}),
-                .list => try o.as(Obj.List).toString(allocator),
-                .vector => try o.as(Obj.PVector).toString(allocator),
-                .hash_map => try o.as(Obj.PHashMap).toString(allocator),
-                .function => try std.fmt.allocPrint(allocator, "<fn>", .{}),
-                .closure => try std.fmt.allocPrint(allocator, "<closure_fn>", .{}),
-                .native_fn => try std.fmt.allocPrint(allocator, "<native_fn>", .{}),
+                .string => try std.fmt.allocPrint(gpa, "{s}", .{o.as(Obj.String).items}),
+                .list => try o.as(Obj.List).toString(gpa),
+                .vector => try o.as(Obj.PVector).toString(gpa),
+                .hash_map => try o.as(Obj.PHashMap).toString(gpa),
+                .function => try std.fmt.allocPrint(gpa, "<fn>", .{}),
+                .closure => try std.fmt.allocPrint(gpa, "<closure_fn>", .{}),
+                .native_fn => try std.fmt.allocPrint(gpa, "<native_fn>", .{}),
             },
-            .symbol => |s| try std.fmt.allocPrint(allocator, "{s}", .{s}),
-            .nil => try std.fmt.allocPrint(allocator, "nil", .{}),
-            inline else => |v| try std.fmt.allocPrint(allocator, "{}", .{v}),
+            .symbol => |s| try std.fmt.allocPrint(gpa, "{s}", .{s}),
+            .nil => try std.fmt.allocPrint(gpa, "nil", .{}),
+            inline else => |v| try std.fmt.allocPrint(gpa, "{}", .{v}),
         };
     }
 };
@@ -189,19 +189,19 @@ pub const Obj = struct {
         return .{ .kind = kind, .count = 1 };
     }
 
-    pub fn deinit(self: *Obj, allocator: std.mem.Allocator) void {
+    pub fn deinit(self: *Obj, gpa: std.mem.Allocator) void {
         if (self.count == 0) return;
 
         self.count -= 1;
 
         if (self.count == 0) switch (self.kind) {
-            .string => self.as(String).deinit(allocator),
-            .list => self.as(List).deinit(allocator),
-            .vector => self.as(PVector).deinit(allocator),
-            .hash_map => self.as(PHashMap).deinit(allocator),
-            .function => self.as(Function).deinit(allocator),
-            .closure => self.as(f.Closure).deinit(allocator),
-            .native_fn => self.as(f.Native).deinit(allocator),
+            .string => self.as(String).deinit(gpa),
+            .list => self.as(List).deinit(gpa),
+            .vector => self.as(PVector).deinit(gpa),
+            .hash_map => self.as(PHashMap).deinit(gpa),
+            .function => self.as(Function).deinit(gpa),
+            .closure => self.as(f.Closure).deinit(gpa),
+            .native_fn => self.as(f.Native).deinit(gpa),
         };
     }
 
