@@ -5,8 +5,8 @@ const errors = @import("../errors.zig");
 const debug = @import("debug.zig");
 const Chunk = @import("chunk.zig").Chunk;
 const OpCode = @import("chunk.zig").OpCode;
-const Obj = @import("../value.zig").Obj;
-const Value = @import("../value.zig").Value;
+const Obj = @import("../values/value.zig").Obj;
+const Value = @import("../values/value.zig").Value;
 const instructions = @import("instructions.zig");
 
 pub const CompileError = error{

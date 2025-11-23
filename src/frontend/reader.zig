@@ -1,7 +1,7 @@
 const std = @import("std");
 const errors = @import("../errors.zig");
-const Obj = @import("../value.zig").Obj;
-const Value = @import("../value.zig").Value;
+const Obj = @import("../values/value.zig").Obj;
+const Value = @import("../values/value.zig").Value;
 
 pub const ParserError = error{
     EOFCollectionReadError,

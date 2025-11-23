@@ -3,7 +3,7 @@ const ln = @import("linenoise");
 
 const errors = @import("errors.zig");
 const VM = @import("backend/vm.zig").VM;
-const Obj = @import("value.zig").Obj;
+const Obj = @import("values/value.zig").Obj;
 const compiler = @import("frontend/compiler.zig");
 const debug = @import("backend/debug.zig");
 
