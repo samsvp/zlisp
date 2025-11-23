@@ -314,7 +314,7 @@ pub fn compileList(
             try err_ctx.setMsg(allocator, "COMPILE", "List first element must be function.", .{});
             return Errors.NonFunctionAsHeadOfList;
         },
-        .vector => {
+        .vector, .hash_map => {
             try err_ctx.setMsg(allocator, "COMPILE", "List first element must be function.", .{});
             return Errors.NonFunctionAsHeadOfList;
         },
@@ -369,6 +369,29 @@ pub fn compileVector(
     try chunk.emitVec(allocator, @intCast(vector.items.len), line);
 }
 
+pub fn compileHashMap(
+    allocator: std.mem.Allocator,
+    chunk: *Chunk,
+    locals: *Locals,
+    vector: std.ArrayList(reader.Token),
+    line: usize,
+    err_ctx: *errors.Ctx,
+) !void {
+    if (vector.items.len % 2 != 0) {
+        try err_ctx.setMsgWithLine(
+            allocator,
+            "hash_map",
+            "Expects an even number of arguments, got {}.",
+            .{vector.items.len},
+            line,
+        );
+        return Errors.WrongNumberOfArguments;
+    }
+
+    try compileArgs(allocator, chunk, locals, vector.items, err_ctx);
+    try chunk.emitHashMap(allocator, @intCast(vector.items.len), line);
+}
+
 pub fn compileToken(
     allocator: std.mem.Allocator,
     chunk: *Chunk,
@@ -380,6 +403,7 @@ pub fn compileToken(
         .atom => |v| try compileAtom(allocator, chunk, locals, v, token.line),
         .list => |l| try compileList(allocator, chunk, locals, l, token.line, err_ctx),
         .vector => |v| try compileVector(allocator, chunk, locals, v, token.line, err_ctx),
+        .hash_map => |hm| try compileHashMap(allocator, chunk, locals, hm, token.line, err_ctx),
     }
 }
 
@@ -406,9 +430,15 @@ pub fn compileToChunk(
 
             try compileVector(allocator, chunk, locals, vec, token.line, err_ctx);
         },
+        .hash_map => |hm| {
+            if (i != tokens.items.len - 1) {
+                continue;
+            }
+
+            try compileHashMap(allocator, chunk, locals, hm, token.line, err_ctx);
+        },
         .list => |list| {
             if (list.items.len == 0 and i != tokens.items.len - 1) {
-                // ignore empty list
                 continue;
             }
 

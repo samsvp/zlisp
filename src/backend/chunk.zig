@@ -24,6 +24,8 @@ pub const OpCode = enum(u8) {
     create_vec_long,
     create_list,
     create_list_long,
+    create_hash_map,
+    create_hash_map_long,
     create_closure,
     def_global,
     get_global,
@@ -137,6 +139,18 @@ pub const Chunk = struct {
 
         const bytes = std.mem.toBytes(n);
         try chunk.append(allocator, .create_list_long, line);
+        try chunk.emitBytes(allocator, &bytes, line);
+    }
+
+    pub fn emitHashMap(chunk: *Chunk, allocator: std.mem.Allocator, n: u16, line: usize) !void {
+        if (n < 256) {
+            try chunk.append(allocator, .create_hash_map, line);
+            try chunk.emitByte(allocator, @intCast(n), line);
+            return;
+        }
+
+        const bytes = std.mem.toBytes(n);
+        try chunk.append(allocator, .create_hash_map_long, line);
         try chunk.emitBytes(allocator, &bytes, line);
     }
 

@@ -55,6 +55,8 @@ pub fn disassembleInstruction(allocator: std.mem.Allocator, chunk: Chunk, index:
         .create_vec_long => .{ try std.fmt.allocPrint(allocator, "OP_CREATE_VEC_LONG", .{}), 3 },
         .create_list => .{ try std.fmt.allocPrint(allocator, "OP_CREATE_LIST", .{}), 2 },
         .create_list_long => .{ try std.fmt.allocPrint(allocator, "OP_CREATE_LIST_LONG", .{}), 3 },
+        .create_hash_map => .{ try std.fmt.allocPrint(allocator, "OP_CREATE_HASH_MAP", .{}), 2 },
+        .create_hash_map_long => .{ try std.fmt.allocPrint(allocator, "OP_CREATE_HASH_MAP_LONG", .{}), 3 },
         .create_closure => .{ try std.fmt.allocPrint(allocator, "OP_CREATE_CLOSURE", .{}), 3 },
         .call => .{ try std.fmt.allocPrint(allocator, "OP_CALL", .{}), 3 },
         .pop => .{ try std.fmt.allocPrint(allocator, "OP_POP", .{}), 1 },

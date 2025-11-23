@@ -273,6 +273,19 @@ pub const VM = struct {
         return val;
     }
 
+    fn createHashMap(vm: *VM, allocator: std.mem.Allocator, n: usize) !Value {
+        std.mem.reverse(Value, vm.stack.items[vm.stack.items.len - n ..]);
+
+        const vec = try Obj.PHashMap.init(allocator, vm.stack.items[vm.stack.items.len - n ..]);
+        for (vm.stack.items[vm.stack.items.len - n ..]) |item| {
+            item.deinit(allocator);
+        }
+
+        vm.stack.shrinkRetainingCapacity(vm.stack.items.len - n);
+        const val: Value = .{ .obj = &vec.obj };
+        return val;
+    }
+
     fn createClosure(vm: *VM, allocator: std.mem.Allocator, n: u16) !void {
         const func_val = try vm.stackPop();
         const func = func_val.obj.as(Obj.Function);
@@ -418,22 +431,20 @@ pub const VM = struct {
                     try vm.stack.append(allocator, vm.local_stack.items[slot_index].borrow());
                 },
                 .create_vec, .create_vec_long => |vec_op| {
-                    const n = switch (vec_op) {
-                        .create_vec => vm.readByte(),
-                        .create_vec_long => std.mem.bytesToValue(u16, vm.readBytes(2)),
-                        else => unreachable,
-                    };
+                    const n = if (vec_op == .create_vec) vm.readByte() else std.mem.bytesToValue(u16, vm.readBytes(2));
                     const vec = try vm.createVector(allocator, @intCast(n));
                     try vm.stack.append(allocator, vec);
                     try frame.function.chunk.constants.append(allocator, vec);
                 },
                 .create_list, .create_list_long => |list_op| {
-                    const n = switch (list_op) {
-                        .create_list => vm.readByte(),
-                        .create_list_long => std.mem.bytesToValue(u16, vm.readBytes(2)),
-                        else => unreachable,
-                    };
+                    const n = if (list_op == .create_list) vm.readByte() else std.mem.bytesToValue(u16, vm.readBytes(2));
                     const vec = try vm.createList(allocator, @intCast(n));
+                    try vm.stack.append(allocator, vec);
+                    try frame.function.chunk.constants.append(allocator, vec);
+                },
+                .create_hash_map, .create_hash_map_long => |hash_map_op| {
+                    const n = if (hash_map_op == .create_hash_map) vm.readByte() else std.mem.bytesToValue(u16, vm.readBytes(2));
+                    const vec = try vm.createHashMap(allocator, @intCast(n));
                     try vm.stack.append(allocator, vec);
                     try frame.function.chunk.constants.append(allocator, vec);
                 },

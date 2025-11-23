@@ -69,8 +69,8 @@ pub const Value = union(enum) {
                                 break :blk false;
                             }
 
-                            var v1_iter = vec_1.toIter();
-                            var v2_iter = vec_2.toIter();
+                            var v1_iter = vec_1.iterator();
+                            var v2_iter = vec_2.iterator();
                             const res = for (0..vec_1.len) |_| {
                                 const v1 = v1_iter.next().?;
                                 const v2 = v2_iter.next().?;
@@ -99,7 +99,26 @@ pub const Value = union(enum) {
                         },
                         else => false,
                     },
-                    .hash_map => @panic("Not implemented"),
+                    .hash_map => switch (o_2.kind) {
+                        .hash_map => blk: {
+                            var hm_1 = o_1.as(Obj.PHashMap).hash_map;
+                            var hm_2 = o_2.as(Obj.PHashMap).hash_map;
+                            if (hm_1.size != hm_2.size) {
+                                break :blk false;
+                            }
+
+                            var iter = hm_1.iterator();
+                            while (iter.next()) |kv| {
+                                if (hm_2.get(kv.key)) |v_2| {
+                                    if (!kv.value.eql(v_2)) {
+                                        break :blk false;
+                                    }
+                                } else break :blk false;
+                            }
+                            break :blk true;
+                        },
+                        else => false,
+                    },
                     .function => false,
                     .closure => false,
                     .native_fn => false,
@@ -134,7 +153,7 @@ pub const Value = union(enum) {
                 .string => try std.fmt.allocPrint(allocator, "{s}", .{o.as(Obj.String).items}),
                 .list => try o.as(Obj.List).toString(allocator),
                 .vector => try o.as(Obj.PVector).toString(allocator),
-                .hash_map => @panic("Not implemented"),
+                .hash_map => try o.as(Obj.PHashMap).toString(allocator),
                 .function => try std.fmt.allocPrint(allocator, "<fn>", .{}),
                 .closure => try std.fmt.allocPrint(allocator, "<closure_fn>", .{}),
                 .native_fn => try std.fmt.allocPrint(allocator, "<native_fn>", .{}),
@@ -358,7 +377,7 @@ pub const Obj = struct {
             try buffer.append(gpa, '[');
             var writer = buffer.writer(gpa);
 
-            var iter = self.vec.toIter();
+            var iter = self.vec.iterator();
             while (iter.next()) |v| {
                 const str = try v.toString(gpa);
                 defer gpa.free(str);
@@ -386,7 +405,7 @@ pub const Obj = struct {
                 try hm.assocMut(gpa, values[i], values[i + 1]);
             }
 
-            phash_map.* = PVector{
+            phash_map.* = PHashMap{
                 .obj = Obj.init(.hash_map),
                 .hash_map = hm,
             };
@@ -397,6 +416,29 @@ pub const Obj = struct {
         pub fn deinit(self: *PHashMap, gpa: std.mem.Allocator) void {
             self.hash_map.deinit(gpa);
             gpa.destroy(self);
+        }
+
+        pub fn toString(self: PHashMap, gpa: std.mem.Allocator) ![]const u8 {
+            var buffer: std.ArrayList(u8) = .empty;
+            defer buffer.deinit(gpa);
+
+            try buffer.append(gpa, '{');
+            var writer = buffer.writer(gpa);
+
+            var iter = self.hash_map.iterator();
+            while (iter.next()) |kv| {
+                const key_str = try kv.key.toString(gpa);
+                defer gpa.free(key_str);
+
+                const val_str = try kv.value.toString(gpa);
+                defer gpa.free(val_str);
+
+                try writer.print("{s}: {s}, ", .{ key_str, val_str });
+            }
+            try buffer.append(gpa, '}');
+            const owned_str = try gpa.dupe(u8, buffer.items);
+
+            return owned_str;
         }
 
         const HashCtx = pstructs.HashContext(Value){

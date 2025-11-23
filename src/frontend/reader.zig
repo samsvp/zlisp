@@ -25,12 +25,13 @@ pub const Token = struct {
         atom: Value,
         list: std.ArrayList(Token),
         vector: std.ArrayList(Token),
+        hash_map: std.ArrayList(Token),
     };
 
     pub fn deinit(self: *Token, allocator: std.mem.Allocator) void {
         switch (self.kind) {
             .atom => |*a| a.deinit(allocator),
-            .list, .vector => |*l| {
+            .list, .vector, .hash_map => |*l| {
                 for (l.items) |*a| {
                     a.deinit(allocator);
                 }
@@ -289,6 +290,12 @@ pub fn readForm(
             .line = line,
             .kind = .{
                 .vector = try readCollection(allocator, reader, token_data.line, ']', err_ctx),
+            },
+        },
+        '{' => .{
+            .line = line,
+            .kind = .{
+                .hash_map = try readCollection(allocator, reader, token_data.line, '}', err_ctx),
             },
         },
         else => try readAtom(allocator, token_data, err_ctx),
