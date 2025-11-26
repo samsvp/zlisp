@@ -34,8 +34,11 @@ pub fn main() !void {
         \\(def hm {"hello" 0 "world" 1})
         \\(+ hm {"world" "wat" "new key" 18})
         \\(+ hm {})
+        \\(def a 6)
+        \\(def b 18)
         \\(+ [1 2 3] [4 5 6])
         \\(let [a 5 b (add 5 10)] (+ a b))
+        \\(+ a b)
         \\nil
     ,
         &err_ctx,
