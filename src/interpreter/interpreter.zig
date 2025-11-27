@@ -12,13 +12,15 @@ const MetaData = types.MetaData;
 pub const Interpreter = struct {
     name_set: NameSet,
     err_ctx: errors.Ctx,
-    filenames: std.ArrayList([]const u8),
+    filenames: FileNameArray,
+
+    pub const FileNameArray = std.StringArrayHashMapUnmanaged(void);
 
     pub const main_file = "main";
 
     pub fn init(gpa: std.mem.Allocator) !Interpreter {
-        var filenames: std.ArrayList([]const u8) = .empty;
-        try filenames.append(gpa, main_file);
+        var filenames: FileNameArray = .empty;
+        try filenames.put(gpa, main_file, {});
 
         var self: Interpreter = .{
             .name_set = .{},
@@ -41,9 +43,7 @@ pub const Interpreter = struct {
     }
 
     pub fn getByName(self: Interpreter, filename: []const u8) ?usize {
-        return for (self.filenames.items, 0..) |f, i| {
-            if (std.mem.eql(u8, f, filename)) break i;
-        } else null;
+        return self.filenames.getIndex(filename);
     }
 
     pub fn interpretString(self: *Interpreter, gpa: std.mem.Allocator, subject: []const u8, filename: []const u8) !void {

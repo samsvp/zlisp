@@ -1,11 +1,12 @@
 const std = @import("std");
 const MetaData = @import("lisp_types/value.zig").MetaData;
+const FileNameArray = @import("interpreter/interpreter.zig").Interpreter.FileNameArray;
 
 pub const Ctx = struct {
     msg: []const u8,
-    filenames: *std.ArrayList([]const u8),
+    filenames: *FileNameArray,
 
-    pub fn init(filenames: *std.ArrayList([]const u8)) Ctx {
+    pub fn init(filenames: *FileNameArray) Ctx {
         return .{
             .msg = "",
             .filenames = filenames,
@@ -29,7 +30,7 @@ pub const Ctx = struct {
         args: anytype,
         meta: MetaData,
     ) !void {
-        const filename = self.filenames.items[meta.file_id];
+        const filename = self.filenames.keys()[meta.file_id];
         self.freeMsg(gpa);
         self.msg = try std.fmt.allocPrint(
             gpa,
