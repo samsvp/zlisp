@@ -34,7 +34,7 @@ pub const Ctx = struct {
         self.freeMsg(gpa);
         self.msg = try std.fmt.allocPrint(
             gpa,
-            "[ FILE '{s}', LINE {}, COL {} ]" ++ fmt,
+            "[ FILE '{s}', LINE {}, COL {} ] " ++ fmt,
             .{ filename, meta.line, meta.col } ++ args,
         );
     }

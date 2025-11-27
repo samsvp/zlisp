@@ -18,12 +18,22 @@ pub const ParserError = error{
 };
 
 pub const ParserErrorCtx = struct {
-    pub fn stringReadError(
+    pub fn stringRead(
         err_ctx: *errors.Ctx,
         gpa: std.mem.Allocator,
         meta: MetaData,
     ) ParserError {
         err_ctx.setMessage(gpa, "{s}: Unclosed string.", .{@errorName(ParserError.EOFStringReadError)}, meta) catch {};
+        return ParserError.EOFStringReadError;
+    }
+
+    pub fn collectionRead(
+        err_ctx: *errors.Ctx,
+        gpa: std.mem.Allocator,
+        meta: MetaData,
+        symbol: u8,
+    ) ParserError {
+        err_ctx.setMessage(gpa, "{s}: Unclosed {c}.", .{ @errorName(ParserError.EOFStringReadError), symbol }, meta) catch {};
         return ParserError.EOFStringReadError;
     }
 };
@@ -97,7 +107,7 @@ pub fn tokenize(
                 }
 
                 if (str_offset == text.len) {
-                    return ParserErrorCtx.stringReadError(err_ctx, allocator, .{ .col = offset, .line = line, .file_id = file_id });
+                    return ParserErrorCtx.stringRead(err_ctx, allocator, .{ .col = offset, .line = line, .file_id = file_id });
                 }
 
                 str_offset += 1;
@@ -170,7 +180,7 @@ pub fn readAtom(
         },
         '"' => {
             if (atom.len < 2 or atom[atom.len - 1] != '"') {
-                return ParserErrorCtx.stringReadError(err_ctx, allocator, meta);
+                return ParserErrorCtx.stringRead(err_ctx, allocator, meta);
             }
 
             const str = try Obj.String.init(allocator, atom[1 .. atom.len - 1]);
@@ -210,8 +220,9 @@ fn readCollection(
     name_set: *NameSet,
     close_char: u8,
     array_list: *std.ArrayList(AST),
+    meta: MetaData,
     err_ctx: *errors.Ctx,
-) anyerror!Value {
+) anyerror!AST {
     defer array_list.deinit(allocator);
     errdefer for (array_list.items) |*ast| ast.value.deinit(allocator);
 
@@ -224,10 +235,10 @@ fn readCollection(
 
         const ast = try readForm(allocator, reader, name_set, err_ctx);
         try array_list.append(allocator, ast);
-    }
+    } else return ParserErrorCtx.collectionRead(err_ctx, allocator, meta, close_char);
 
     const list = try Obj.List.init(allocator, array_list.items);
-    return Value.initObj(allocator, &list.obj);
+    return .{ .meta = meta, .value = try Value.initObj(allocator, &list.obj) };
 }
 
 pub fn readForm(
@@ -242,10 +253,7 @@ pub fn readForm(
     switch (token_data.str[0]) {
         '(' => {
             var list: std.ArrayList(AST) = .empty;
-            return .{
-                .meta = meta,
-                .value = try readCollection(allocator, reader, name_set, ')', &list, err_ctx),
-            };
+            return readCollection(allocator, reader, name_set, ')', &list, meta, err_ctx);
         },
         '[' => {
             var list: std.ArrayList(AST) = .empty;
@@ -254,10 +262,7 @@ pub fn readForm(
                 .value = try Value.initSymbol(allocator, name_set, "vector"),
             };
             try list.append(allocator, vector_symbol);
-            return .{
-                .meta = meta,
-                .value = try readCollection(allocator, reader, name_set, ']', &list, err_ctx),
-            };
+            return readCollection(allocator, reader, name_set, ']', &list, meta, err_ctx);
         },
         '{' => {
             var list: std.ArrayList(AST) = .empty;
@@ -266,10 +271,7 @@ pub fn readForm(
                 .value = try Value.initSymbol(allocator, name_set, "hash_map"),
             };
             try list.append(allocator, hm_symbol);
-            return .{
-                .meta = meta,
-                .value = try readCollection(allocator, reader, name_set, '}', &list, err_ctx),
-            };
+            return readCollection(allocator, reader, name_set, '}', &list, meta, err_ctx);
         },
         else => return readAtom(allocator, token_data, name_set, err_ctx),
     }
