@@ -11,6 +11,7 @@ const Env = @import("env.zig").Env;
 const Keywords = enum {
     def,
     let,
+    @"if",
 };
 
 const Errors = error{
@@ -177,6 +178,7 @@ pub fn evalList(
             if (std.meta.stringToEnum(Keywords, s)) |c| return switch (c) {
                 .def => def(gpa, list, env, err_ctx),
                 .let => let(gpa, list, env, err_ctx),
+                .@"if" => if_(gpa, list, env, err_ctx),
             };
             break :blk env.get(s).?;
         },
@@ -184,6 +186,46 @@ pub fn evalList(
     };
     _ = first;
     @panic("not implemented");
+}
+
+fn if_(
+    gpa: std.mem.Allocator,
+    list: std.MultiArrayList(AST),
+    env: *Env,
+    err_ctx: *errors.Ctx,
+) anyerror!Value {
+    const slice = list.slice();
+    const self = slice.get(0);
+
+    if (list.len != 3 and list.len != 4) {
+        const expected: usize = if (list.len < 3) 2 else 3;
+        return ErrorCtx.wrongNumberOfArguments(err_ctx, expected, list.len, self.meta);
+    }
+
+    const cond_ast = slice.get(1);
+    var cond = eval(gpa, cond_ast.value, env, err_ctx) catch |err| {
+        try err_ctx.appendMessage("if function, err evaluating condition.", .{}, cond_ast.meta);
+        return err;
+    };
+    defer cond.deinit(gpa);
+
+    const true_branch = slice.get(2);
+    const new_s = switch (cond) {
+        .nil => if (list.len == 4) slice.get(3) else AST{ .meta = true_branch.meta, .value = Value.Nil },
+        .boolean => blk: {
+            break :blk if (cond.eql(Value.True))
+                true_branch
+            else if (list.len == 4)
+                slice.get(3)
+            else
+                AST{ .meta = true_branch.meta, .value = Value.Nil };
+        },
+        else => true_branch,
+    };
+    return eval(gpa, new_s.value, env, err_ctx) catch |err| {
+        try err_ctx.appendMessage("if function, error evaluating conditional branch.", .{}, new_s.meta);
+        return err;
+    };
 }
 
 pub fn eval(

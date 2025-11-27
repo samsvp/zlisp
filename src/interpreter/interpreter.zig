@@ -75,7 +75,7 @@ pub const Interpreter = struct {
             const str = try ret.toString(gpa);
             defer gpa.free(str);
 
-            std.debug.print("{s}", .{str});
+            std.debug.print("{s}\n", .{str});
         }
     }
 };
