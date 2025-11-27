@@ -7,12 +7,17 @@ const Obj = types.Obj;
 const AST = types.AST;
 const Value = types.Value;
 const Env = @import("env.zig").Env;
+const math = @import("math_builtins.zig");
 
 const Keywords = enum {
     def,
     let,
     @"if",
     do,
+    @"+",
+    @"-",
+    @"*",
+    @"/",
 };
 
 const Errors = error{
@@ -21,8 +26,8 @@ const Errors = error{
     UndefinedVariable,
 };
 
-const ErrorCtx = struct {
-    fn wrongNumberOfArguments(
+pub const ErrorCtx = struct {
+    pub fn wrongNumberOfArguments(
         err_ctx: *errors.Ctx,
         expected: usize,
         actual: usize,
@@ -36,7 +41,7 @@ const ErrorCtx = struct {
         return Errors.WrongNumberOfArguments;
     }
 
-    fn wrongArgumentType(
+    pub fn wrongArgumentType(
         err_ctx: *errors.Ctx,
         expected: []const u8,
         actual: []const u8,
@@ -50,7 +55,7 @@ const ErrorCtx = struct {
         return Errors.WrongArgumentType;
     }
 
-    fn undefinedVariable(
+    pub fn undefinedVariable(
         err_ctx: *errors.Ctx,
         name: []const u8,
         meta: MetaData,
@@ -178,15 +183,16 @@ pub fn evalList(
     const values = list.items(.value);
     const first = switch (values[0]) {
         .symbol => |s| blk: {
-            if (std.meta.stringToEnum(Keywords, s)) |c| {
-                const m_fn: ListFn = switch (c) {
-                    .def => def,
-                    .let => let,
-                    .@"if" => if_,
-                    .do => do,
-                };
-                return m_fn(gpa, list, env, err_ctx);
-            }
+            if (std.meta.stringToEnum(Keywords, s)) |c| return switch (c) {
+                .def => def(gpa, list, env, err_ctx),
+                .let => let(gpa, list, env, err_ctx),
+                .@"if" => if_(gpa, list, env, err_ctx),
+                .do => do(gpa, list, env, err_ctx),
+                .@"+" => math.add(gpa, list, env, err_ctx),
+                .@"-" => math.sub(gpa, list, env, err_ctx),
+                .@"*" => math.mult(gpa, list, env, err_ctx),
+                .@"/" => math.div(gpa, list, env, err_ctx),
+            };
             break :blk env.get(s).?;
         },
         else => return error.WrongArgumentType,
