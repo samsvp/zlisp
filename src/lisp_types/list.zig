@@ -43,10 +43,6 @@ pub const List = struct {
         gpa.destroy(self);
     }
 
-    pub fn copy(self: List, gpa: std.mem.Allocator) !*List {
-        return List.init(gpa, self.vec.items);
-    }
-
     pub fn get(self: List, i: usize) AST {
         return self.vec.get(i);
     }

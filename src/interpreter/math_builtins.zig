@@ -104,6 +104,79 @@ pub const CmpKind = enum {
     }
 };
 
+pub fn addString(
+    gpa: std.mem.Allocator,
+    first: Obj.String,
+    values: []Value,
+    metas: []MetaData,
+    env: *Env,
+    err_ctx: *errors.Ctx,
+) !Value {
+    var acc = try Obj.String.init(gpa, first.items);
+    for (values, 0..) |v, i| {
+        var val = core.eval(gpa, v, env, err_ctx) catch |err| {
+            try err_ctx.appendMessage("Error on '+'", .{}, metas[i]);
+            return err;
+        };
+        defer val.deinit(gpa);
+
+        if (val != .obj) {
+            return wrongType("+", @tagName(val), err_ctx, metas[i]);
+        }
+
+        const o_val = val.obj.getUnwrap();
+        if (o_val.kind != .string) {
+            return wrongType("+", @tagName(val), err_ctx, metas[i]);
+        }
+
+        try acc.appendMut(gpa, o_val.as(Obj.String).items);
+    }
+    return Value.initObj(gpa, &acc.obj);
+}
+
+pub fn addList(
+    gpa: std.mem.Allocator,
+    first: Obj.List,
+    values: []Value,
+    metas: []MetaData,
+    env: *Env,
+    err_ctx: *errors.Ctx,
+) !Value {
+    var list_acc: std.ArrayList(AST) = .empty;
+    defer list_acc.deinit(gpa);
+
+    try list_acc.ensureTotalCapacity(gpa, first.vec.len());
+    for (first.values(), first.metas()) |v, m| {
+        list_acc.appendAssumeCapacity(.{ .value = try v.borrow(), .meta = m });
+    }
+
+    for (values, 0..) |v, i| {
+        var val = core.eval(gpa, v, env, err_ctx) catch |err| {
+            try err_ctx.appendMessage("Error on '+'", .{}, metas[i]);
+            return err;
+        };
+        defer val.deinit(gpa);
+
+        if (val != .obj) {
+            return wrongType("+", @tagName(val), err_ctx, metas[i]);
+        }
+
+        const o_val = val.obj.getUnwrap();
+        if (o_val.kind != .list) {
+            return wrongType("+", @tagName(val), err_ctx, metas[i]);
+        }
+
+        const vec = o_val.as(Obj.List);
+        try list_acc.ensureUnusedCapacity(gpa, vec.vec.len());
+        for (vec.values(), vec.metas()) |v_, m| {
+            list_acc.appendAssumeCapacity(.{ .value = try v_.borrow(), .meta = m });
+        }
+    }
+
+    const new_list = try Obj.List.init(gpa, list_acc.items);
+    return Value.initObj(gpa, &new_list.obj);
+}
+
 pub fn add(
     gpa: std.mem.Allocator,
     list: std.MultiArrayList(AST),
@@ -121,6 +194,15 @@ pub fn add(
         return err;
     };
     defer first.deinit(gpa);
+
+    if (first == .obj) {
+        const o_first = first.obj.getUnwrap();
+        return switch (o_first.kind) {
+            .string => addString(gpa, o_first.as(Obj.String).*, values[2..], metas[2..], env, err_ctx),
+            .list => addList(gpa, o_first.as(Obj.List).*, values[2..], metas[2..], env, err_ctx),
+            else => wrongType("+", @tagName(first), err_ctx, metas[1]),
+        };
+    }
 
     var acc = try first.borrow();
     for (values[2..], 2..) |v, i| {
