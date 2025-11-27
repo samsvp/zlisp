@@ -2,6 +2,7 @@ const std = @import("std");
 
 const errors = @import("../errors.zig");
 const types = @import("../lisp_types/value.zig");
+const MetaData = types.MetaData;
 const Obj = types.Obj;
 const AST = types.AST;
 const Value = types.Value;
@@ -12,28 +13,85 @@ const Keywords = enum {
     let,
 };
 
-pub fn def(
+const Errors = error{
+    WrongNumberOfArguments,
+    WrongArgumentType,
+    UndefinedVariable,
+};
+
+const ErrorCtx = struct {
+    fn wrongNumberOfArguments(
+        err_ctx: *errors.Ctx,
+        expected: usize,
+        actual: usize,
+        meta: MetaData,
+    ) anyerror {
+        try err_ctx.setMessage(
+            "Wrong number of arguments, expected {}, got {}.",
+            .{ expected, actual },
+            meta,
+        );
+        return Errors.WrongNumberOfArguments;
+    }
+
+    fn wrongArgumentType(
+        err_ctx: *errors.Ctx,
+        expected: []const u8,
+        actual: []const u8,
+        meta: MetaData,
+    ) anyerror {
+        try err_ctx.setMessage(
+            "Wrong argument type: expected {s}, got {s}",
+            .{ expected, actual },
+            meta,
+        );
+        return Errors.WrongArgumentType;
+    }
+
+    fn undefinedVariable(
+        err_ctx: *errors.Ctx,
+        name: []const u8,
+        meta: MetaData,
+    ) anyerror {
+        try err_ctx.setMessage(
+            "Undefined variable {s}",
+            .{name},
+            meta,
+        );
+        return Errors.UndefinedVariable;
+    }
+};
+
+fn def(
     gpa: std.mem.Allocator,
     list: std.MultiArrayList(AST),
     env: *Env,
     err_ctx: *errors.Ctx,
 ) !Value {
+    const slice = list.slice();
+    const self = slice.get(0);
+
     if (list.len != 3) {
-        return error.WrongNumberOfArguments;
+        return ErrorCtx.wrongNumberOfArguments(err_ctx, 3, list.len, self.meta);
     }
 
-    const slice = list.slice();
     const name = slice.get(1);
     const ast = slice.get(2);
 
     if (name.value != .symbol) {
-        return error.WrongArgumentType;
+        return ErrorCtx.wrongArgumentType(err_ctx, "symbol", @tagName(name.value), name.meta);
     }
 
-    var value = try eval(gpa, ast.value, env, err_ctx);
+    var value = eval(gpa, ast.value, env, err_ctx) catch |err| {
+        try err_ctx.appendMessage("def function", .{}, ast.meta);
+        return err;
+    };
     defer value.deinit(gpa);
 
-    const res = try env.getGlobal().put(gpa, name.value.symbol, value);
+    const res = env.getGlobal().put(gpa, name.value.symbol, value) catch |err| {
+        try err_ctx.appendMessage("def function", .{}, self.meta);
+        return err;
+    };
     return res;
 }
 
@@ -43,31 +101,36 @@ pub fn let(
     env: *Env,
     err_ctx: *errors.Ctx,
 ) !Value {
+    const slice = list.slice();
+    const self = slice.get(0);
+
     if (list.len != 3) {
-        return error.WrongNumberOfArguments;
+        return ErrorCtx.wrongNumberOfArguments(err_ctx, 3, list.len, self.meta);
     }
 
-    const slice = list.slice();
     const bindings = slice.get(1);
     const ast = slice.get(2);
 
     if (bindings.value != .obj) {
-        return error.WrongArgumentType;
+        return ErrorCtx.wrongArgumentType(err_ctx, @tagName(Obj.Kind.vector), @tagName(bindings.value), bindings.meta);
     }
 
     const o = try bindings.value.obj.get();
     if (o.kind != .list) {
-        return error.WrongArgumentType;
+        return ErrorCtx.wrongArgumentType(err_ctx, @tagName(Obj.Kind.vector), @tagName(bindings.value), bindings.meta);
     }
 
     const args = o.as(Obj.List).vec.array;
-    if (args.len % 2 == 0) {
-        return error.WrongNumberOfArguments;
+    const arg_metas = args.items(.meta);
+    const arg_values = args.items(.value);
+
+    if (args.len == 0 or arg_values[0] != .symbol or !std.mem.eql(u8, arg_values[0].symbol, @tagName(Obj.Kind.vector))) {
+        return ErrorCtx.wrongArgumentType(err_ctx, @tagName(Obj.Kind.vector), @tagName(Obj.Kind.list), bindings.meta);
     }
 
-    const arg_metas = args.items(.meta);
-    _ = arg_metas;
-    const arg_values = args.items(.value);
+    if (args.len % 2 == 0) {
+        return ErrorCtx.wrongNumberOfArguments(err_ctx, args.len, args.len - 1, bindings.meta);
+    }
 
     var local_env = Env.initFromParent(env);
     defer local_env.deinit(gpa);
@@ -80,17 +143,26 @@ pub fn let(
         const value = arg_values[i + 1];
 
         if (name != .symbol) {
-            return error.WrongArgumentType;
+            return ErrorCtx.wrongArgumentType(err_ctx, @tagName(Value.symbol), @tagName(name), arg_metas[i]);
         }
 
-        var ret = try eval(gpa, value, &local_env, err_ctx);
+        var ret = eval(gpa, value, &local_env, err_ctx) catch |err| {
+            try err_ctx.appendMessage("let function", .{}, arg_metas[i + 1]);
+            return err;
+        };
         defer ret.deinit(gpa);
 
-        var ret_clone = try local_env.put(gpa, name.symbol, ret);
+        var ret_clone = local_env.put(gpa, name.symbol, ret) catch |err| {
+            try err_ctx.appendMessage("let function", .{}, arg_metas[i + 1]);
+            return err;
+        };
         ret_clone.deinit(gpa);
     }
 
-    return eval(gpa, ast.value, &local_env, err_ctx);
+    return eval(gpa, ast.value, &local_env, err_ctx) catch |err| {
+        try err_ctx.appendMessage("let function", .{}, self.meta);
+        return err;
+    };
 }
 
 pub fn evalList(
@@ -124,7 +196,7 @@ pub fn eval(
 
     while (true) {
         switch (s) {
-            .symbol => |symbol| return env.get(symbol) orelse error.UndefinedVariable,
+            .symbol => |symbol| return env.get(symbol) orelse Errors.UndefinedVariable,
             .obj => |o_ref| {
                 const o = o_ref.getUnwrap();
                 switch (o.kind) {

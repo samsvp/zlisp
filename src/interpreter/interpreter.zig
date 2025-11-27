@@ -28,7 +28,7 @@ pub const Interpreter = struct {
 
         return .{
             .name_set = .{},
-            .err_ctx = errors.Ctx.init(filenames),
+            .err_ctx = errors.Ctx.init(gpa, filenames),
             .filenames = filenames,
             .env = .{},
         };
@@ -36,7 +36,7 @@ pub const Interpreter = struct {
 
     pub fn deinit(self: *Interpreter, gpa: std.mem.Allocator) void {
         self.name_set.deinit(gpa);
-        self.err_ctx.deinit(gpa);
+        self.err_ctx.deinit();
         self.filenames.deinit(gpa);
         self.env.deinit(gpa);
         gpa.destroy(self.filenames);
@@ -54,21 +54,28 @@ pub const Interpreter = struct {
     pub fn interpretString(self: *Interpreter, gpa: std.mem.Allocator, subject: []const u8, filename: []const u8) !void {
         const file_id = self.getByName(filename) orelse return error.FileNotFound;
         var asts = reader.readStr(gpa, subject, &self.name_set, &self.err_ctx, file_id) catch |err| {
-            std.debug.print("{s}\n", .{self.err_ctx.msg});
-            return err;
+            std.debug.print("{any} {s}\n", .{ err, self.err_ctx.getMessage() });
+            return;
         };
         defer asts.deinit(gpa);
 
-        for (asts.items(.value)) |*v| {
+        const metas = asts.items(.meta);
+        const values = asts.items(.value);
+        for (values, 0..) |*v, i| {
             defer v.deinit(gpa);
 
-            var ret = try core.eval(gpa, v.*, &self.env, &self.err_ctx);
+            self.err_ctx.freeMsg();
+            var ret = core.eval(gpa, v.*, &self.env, &self.err_ctx) catch |err| {
+                try self.err_ctx.appendMessage("{any}", .{err}, metas[i]);
+                std.debug.print("{s}", .{self.err_ctx.getMessage()});
+                return;
+            };
             defer ret.deinit(gpa);
 
             const str = try ret.toString(gpa);
             defer gpa.free(str);
 
-            std.debug.print("{s}\n", .{str});
+            std.debug.print("{s}", .{str});
         }
     }
 };

@@ -20,20 +20,18 @@ pub const ParserError = error{
 pub const ParserErrorCtx = struct {
     pub fn stringRead(
         err_ctx: *errors.Ctx,
-        gpa: std.mem.Allocator,
         meta: MetaData,
     ) ParserError {
-        err_ctx.setMessage(gpa, "{s}: Unclosed string.", .{@errorName(ParserError.EOFStringReadError)}, meta) catch {};
+        err_ctx.setMessage("{s}: Unclosed string.", .{@errorName(ParserError.EOFStringReadError)}, meta) catch {};
         return ParserError.EOFStringReadError;
     }
 
     pub fn collectionRead(
         err_ctx: *errors.Ctx,
-        gpa: std.mem.Allocator,
         meta: MetaData,
         symbol: u8,
     ) ParserError {
-        err_ctx.setMessage(gpa, "{s}: Unclosed {c}.", .{ @errorName(ParserError.EOFStringReadError), symbol }, meta) catch {};
+        err_ctx.setMessage("{s}: Unclosed {c}.", .{ @errorName(ParserError.EOFStringReadError), symbol }, meta) catch {};
         return ParserError.EOFStringReadError;
     }
 };
@@ -107,7 +105,10 @@ pub fn tokenize(
                 }
 
                 if (str_offset == text.len) {
-                    return ParserErrorCtx.stringRead(err_ctx, allocator, .{ .col = total_offset, .line = line, .file_id = file_id });
+                    return ParserErrorCtx.stringRead(
+                        err_ctx,
+                        .{ .col = total_offset, .line = line, .file_id = file_id },
+                    );
                 }
 
                 str_offset += 1;
@@ -181,7 +182,7 @@ pub fn readAtom(
         },
         '"' => {
             if (atom.len < 2 or atom[atom.len - 1] != '"') {
-                return ParserErrorCtx.stringRead(err_ctx, allocator, meta);
+                return ParserErrorCtx.stringRead(err_ctx, meta);
             }
 
             const str = try Obj.String.init(allocator, atom[1 .. atom.len - 1]);
@@ -236,7 +237,7 @@ fn readCollection(
 
         const ast = try readForm(allocator, reader, name_set, err_ctx);
         try array_list.append(allocator, ast);
-    } else return ParserErrorCtx.collectionRead(err_ctx, allocator, meta, close_char);
+    } else return ParserErrorCtx.collectionRead(err_ctx, meta, close_char);
 
     const list = try Obj.List.init(allocator, array_list.items);
     return .{ .meta = meta, .value = try Value.initObj(allocator, &list.obj) };
