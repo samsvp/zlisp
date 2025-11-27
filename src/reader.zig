@@ -1,23 +1,48 @@
 const std = @import("std");
-const LispType = @import("types.zig").LispType;
+const errors = @import("errors.zig");
+
+const types = @import("lisp_types/value.zig");
+const Obj = types.Obj;
+const AST = types.AST;
+const Value = types.Value;
+const NameSet = types.NameSet;
+const MetaData = types.MetaData;
 
 pub const ParserError = error{
     EOFCollectionReadError,
     EOFStringReadError,
     UnhashableKey,
     OutOfMemory,
+    NotImplemented,
+    InvalidToken,
 };
 
-const TokenList = std.ArrayList([]const u8);
+pub const ParserErrorCtx = struct {
+    pub fn stringReadError(
+        err_ctx: *errors.Ctx,
+        gpa: std.mem.Allocator,
+        meta: MetaData,
+    ) ParserError {
+        err_ctx.setMessage(gpa, "{s}: Unclosed string.", .{@errorName(ParserError.EOFStringReadError)}, meta) catch {};
+        return ParserError.EOFStringReadError;
+    }
+};
+
+pub const TokenString = struct {
+    str: []const u8,
+    meta: MetaData,
+};
+
+pub const TokenDataList = std.ArrayList(TokenString);
 
 /// A helper token reader.
 pub const Reader = struct {
-    token_list: TokenList,
+    token_list: TokenDataList,
     current: usize,
 
     const Self = @This();
 
-    pub fn next(self: *Self) ?[]const u8 {
+    pub fn next(self: *Self) ?TokenString {
         if (self.token_list.items.len <= self.current) {
             return null;
         }
@@ -25,7 +50,7 @@ pub const Reader = struct {
         return self.token_list.items[self.current - 1];
     }
 
-    pub fn peek(self: Self) ?[]const u8 {
+    pub fn peek(self: Self) ?TokenString {
         if (self.token_list.items.len <= self.current) {
             return null;
         }
@@ -33,77 +58,85 @@ pub const Reader = struct {
     }
 };
 
-fn tokenize(
-    text_: []const u8,
+pub fn tokenize(
     allocator: std.mem.Allocator,
-) !TokenList {
+    text_: []const u8,
+    err_ctx: *errors.Ctx,
+    file_id: usize,
+) !TokenDataList {
     var text = text_;
 
-    var token_list: TokenList = .empty;
+    var line: usize = 1;
+    var token_list: TokenDataList = .empty;
+    errdefer token_list.deinit(allocator);
+
+    var offset: usize = 0;
     while (text.len > 0) {
-        const offset = switch (text[0]) {
+        offset = switch (text[0]) {
             '(', ')', '[', ']', '{', '}', '\'', '`', '^', '@' => paren: {
-                try token_list.append(allocator, text[0..1]);
+                try token_list.append(allocator, .{ .meta = .{
+                    .file_id = file_id,
+                    .line = line,
+                    .col = offset,
+                }, .str = text[0..1] });
                 break :paren 1;
             },
-            '~' => tilde: {
-                const offset: usize = if (text.len > 1 and text[1] == '@') 2 else 1;
-                try token_list.append(allocator, text[0..offset]);
-                break :tilde offset;
-            },
             '"' => string: {
-                var str = std.ArrayList(u8).empty;
-
-                var offset: usize = 1;
-                try str.append(allocator, '"');
+                var str_offset: usize = 1;
                 var escaped = false;
-                while (offset < text.len and (escaped or text[offset] != '"')) : (offset += 1) {
-                    const char = text[offset];
+                while (str_offset < text.len and (escaped or text[str_offset] != '"')) : (str_offset += 1) {
+                    const char = text[str_offset];
 
                     switch (char) {
                         '\\' => escaped = !escaped,
                         '"' => if (escaped) {
                             escaped = false;
                         },
-                        'n' => if (escaped) {
-                            escaped = false;
-                            try str.append(allocator, '\n');
-                            continue;
-                        },
-                        't' => if (escaped) {
-                            escaped = false;
-                            try str.append(allocator, '\t');
-                            continue;
-                        },
                         else => escaped = false,
                     }
-
-                    if (!escaped) try str.append(allocator, char);
                 }
 
-                if (offset < text.len) try str.append(allocator, text[offset]);
-                try token_list.append(allocator, str.items);
-                offset += 1;
-                break :string offset;
+                if (str_offset == text.len) {
+                    return ParserErrorCtx.stringReadError(err_ctx, allocator, .{ .col = offset, .line = line, .file_id = file_id });
+                }
+
+                str_offset += 1;
+                try token_list.append(allocator, .{
+                    .meta = .{
+                        .file_id = file_id,
+                        .line = line,
+                        .col = offset,
+                    },
+                    .str = text[0..str_offset],
+                });
+                break :string str_offset;
             },
             ';' => comment: {
-                var offset: usize = 1;
-                while (offset < text.len and text[offset] != '\n') : (offset += 1) {}
-                break :comment offset;
+                var comment_offset: usize = 1;
+                while (comment_offset < text.len and text[comment_offset] != '\n') : (comment_offset += 1) {}
+                break :comment comment_offset;
             },
-            ' ', ',', '\t', '\n' => 1,
+            ' ', ',', '\t' => 1,
+            '\n' => new_line: {
+                line += 1;
+                break :new_line 1;
+            },
             else => chars: {
-                var offset: usize = 0;
+                var chars_offset: usize = 0;
 
-                while (offset < text.len) : (offset += 1) {
-                    const char = text[offset];
+                while (chars_offset < text.len) : (chars_offset += 1) {
+                    const char = text[chars_offset];
                     switch (char) {
                         '(', ')', '[', ']', '{', '}', ',', ' ', '\n', '\t' => break,
                         else => {},
                     }
                 }
-                try token_list.append(allocator, text[0..offset]);
-                break :chars offset;
+                try token_list.append(allocator, .{ .meta = .{
+                    .file_id = file_id,
+                    .line = line,
+                    .col = offset,
+                }, .str = text[0..chars_offset] });
+                break :chars chars_offset;
             },
         };
         text = text[offset..];
@@ -112,179 +145,145 @@ fn tokenize(
     return token_list;
 }
 
-fn readAtom(
+pub fn readAtom(
     allocator: std.mem.Allocator,
-    reader: *Reader,
-) ParserError!LispType {
-    const atom = reader.next().?;
+    atom_token: TokenString,
+    name_set: *NameSet,
+    err_ctx: *errors.Ctx,
+) ParserError!AST {
+    const atom = atom_token.str;
+    const meta = atom_token.meta;
     if (atom.len == 0) {
-        return .nil;
+        return AST{
+            .value = Value.Nil,
+            .meta = atom_token.meta,
+        };
     }
 
-    switch (atom[0]) {
+    const value = blk: switch (atom[0]) {
         ':' => {
-            return LispType.String.initKeyword(allocator, atom);
+            if (atom.len == 1) {
+                return ParserError.InvalidToken;
+            }
+
+            break :blk try Value.initKeyword(allocator, name_set, atom);
         },
         '"' => {
             if (atom.len < 2 or atom[atom.len - 1] != '"') {
-                return ParserError.EOFStringReadError;
+                return ParserErrorCtx.stringReadError(err_ctx, allocator, meta);
             }
 
-            return LispType.String.initString(allocator, atom[1 .. atom.len - 1]);
+            const str = try Obj.String.init(allocator, atom[1 .. atom.len - 1]);
+
+            break :blk try Value.initObj(allocator, &str.obj);
         },
         else => {
             const maybe_num = std.fmt.parseInt(i32, atom, 10) catch null;
-            if (maybe_num) |num| {
-                return .{ .int = num };
+            if (maybe_num) |int| {
+                break :blk Value{ .int = int };
             }
             const maybe_float = std.fmt.parseFloat(f32, atom) catch null;
             if (maybe_float) |float| {
-                return .{ .float = float };
+                break :blk Value{ .float = float };
             }
 
             if (std.mem.eql(u8, atom, "nil")) {
-                return .nil;
+                break :blk Value.Nil;
             }
 
             if (std.mem.eql(u8, atom, "true")) {
-                return .{ .boolean = true };
+                break :blk Value.True;
             } else if (std.mem.eql(u8, atom, "false")) {
-                return .{ .boolean = false };
+                break :blk Value.False;
             }
 
-            return LispType.String.initSymbol(allocator, atom);
+            // this guy should own the symbol memory
+            break :blk try Value.initSymbol(allocator, name_set, atom);
         },
-    }
+    };
+    return .{ .value = value, .meta = meta };
 }
-
-const CollectionType = enum {
-    list,
-    vector,
-};
 
 fn readCollection(
     allocator: std.mem.Allocator,
     reader: *Reader,
-    collection_type: CollectionType,
-) ParserError!LispType {
-    var list: std.ArrayList(LispType) = .empty;
-    errdefer {
-        for (list.items) |*item| {
-            item.deinit(allocator);
+    name_set: *NameSet,
+    close_char: u8,
+    array_list: *std.ArrayList(AST),
+    err_ctx: *errors.Ctx,
+) anyerror!Value {
+    defer array_list.deinit(allocator);
+    errdefer for (array_list.items) |*ast| ast.value.deinit(allocator);
+
+    while (reader.peek()) |token_str| {
+        const str = token_str.str;
+        if (str.len == 1 and str[0] == close_char) {
+            _ = reader.next();
+            break;
         }
-        list.deinit(allocator);
+
+        const ast = try readForm(allocator, reader, name_set, err_ctx);
+        try array_list.append(allocator, ast);
     }
 
-    const close_bracket = switch (collection_type) {
-        .list => ")",
-        .vector => "]",
-    };
-    _ = reader.next();
-    while (reader.peek()) |token| {
-        if (std.mem.eql(u8, token, close_bracket)) {
-            _ = reader.next();
-            return switch (collection_type) {
-                .list => .{ .list = .{ .array = list, .array_type = .list } },
-                .vector => .{ .vector = .{ .array = list, .array_type = .vector } },
+    const list = try Obj.List.init(allocator, array_list.items);
+    return Value.initObj(allocator, &list.obj);
+}
+
+pub fn readForm(
+    allocator: std.mem.Allocator,
+    reader: *Reader,
+    name_set: *NameSet,
+    err_ctx: *errors.Ctx,
+) anyerror!AST {
+    const token_data = reader.next() orelse return ParserError.InvalidToken;
+    const meta = token_data.meta;
+
+    switch (token_data.str[0]) {
+        '(' => {
+            var list: std.ArrayList(AST) = .empty;
+            return .{
+                .meta = meta,
+                .value = try readCollection(allocator, reader, name_set, ')', &list, err_ctx),
             };
-        }
-        const val = try readForm(allocator, reader);
-        list.append(allocator, val) catch {
-            return ParserError.OutOfMemory;
-        };
-    }
-    return ParserError.EOFCollectionReadError;
-}
-
-fn readDict(allocator: std.mem.Allocator, reader: *Reader) ParserError!LispType {
-    var dict = LispType.Dict.Map.empty;
-    errdefer {
-        var iter = dict.iterator();
-        while (iter.next()) |entry| {
-            entry.key_ptr.deinit(allocator);
-            entry.value_ptr.deinit(allocator);
-        }
-        dict.deinit(allocator);
-    }
-
-    var maybe_key: ?LispType = null;
-    _ = reader.next();
-    while (reader.peek()) |token| {
-        if (std.mem.eql(u8, token, "}")) {
-            _ = reader.next();
-            if (maybe_key) |*key| {
-                key.deinit(allocator);
-                return ParserError.EOFCollectionReadError;
-            }
-            return .{ .dict = .{ .map = dict } };
-        }
-        var val = try readForm(allocator, reader);
-        if (maybe_key) |*key| {
-            errdefer {
-                key.deinit(allocator);
-                val.deinit(allocator);
-            }
-
-            dict.put(allocator, key.*, val) catch {
-                return ParserError.OutOfMemory;
+        },
+        '[' => {
+            var list: std.ArrayList(AST) = .empty;
+            const vector_symbol: AST = .{
+                .meta = meta,
+                .value = try Value.initSymbol(allocator, name_set, "vector"),
             };
-            maybe_key = null;
-        } else maybe_key = val;
-    }
-    return ParserError.EOFCollectionReadError;
-}
-
-fn translate(allocator: std.mem.Allocator, reader: *Reader, name: []const u8) ParserError!LispType {
-    var deref = LispType.String.initSymbol(allocator, name);
-    defer deref.deinit(allocator);
-
-    _ = reader.next();
-    var next = try readForm(allocator, reader);
-    defer next.deinit(allocator);
-
-    var lst = [_]LispType{ deref, next };
-    return LispType.Array.initList(allocator, &lst);
-}
-
-fn readForm(allocator: std.mem.Allocator, reader: *Reader) !LispType {
-    const maybe_token = reader.peek();
-    if (maybe_token == null) {
-        return .nil;
-    }
-
-    const token = maybe_token.?;
-    if (token.len == 0) {
-        return .nil;
-    }
-
-    return switch (token[0]) {
-        ';' => blk: {
-            _ = reader.next();
-            break :blk readForm(allocator, reader);
+            try list.append(allocator, vector_symbol);
+            return .{
+                .meta = meta,
+                .value = try readCollection(allocator, reader, name_set, ']', &list, err_ctx),
+            };
         },
-        '(' => try readCollection(allocator, reader, .list),
-        '[' => try readCollection(allocator, reader, .vector),
-        '{' => try readDict(allocator, reader),
-        '@' => try translate(allocator, reader, "deref"),
-        '\'' => try translate(allocator, reader, "quote"),
-        '`' => try translate(allocator, reader, "quasiquote"),
-        '~' => blk: {
-            if (token.len == 1)
-                break :blk translate(allocator, reader, "unquote");
-            if (token.len == 2 and token[1] == '@')
-                break :blk translate(allocator, reader, "splice-unquote");
-            break :blk try readAtom(allocator, reader);
+        '{' => {
+            var list: std.ArrayList(AST) = .empty;
+            const hm_symbol: AST = .{
+                .meta = meta,
+                .value = try Value.initSymbol(allocator, name_set, "hash_map"),
+            };
+            try list.append(allocator, hm_symbol);
+            return .{
+                .meta = meta,
+                .value = try readCollection(allocator, reader, name_set, '}', &list, err_ctx),
+            };
         },
-        else => try readAtom(allocator, reader),
-    };
+        else => return readAtom(allocator, token_data, name_set, err_ctx),
+    }
 }
 
 /// Transforms a string into a lisp expression.
 pub fn readStr(
     allocator: std.mem.Allocator,
     subject: []const u8,
-) !LispType {
-    var token_list = try tokenize(subject, allocator);
+    name_set: *NameSet,
+    err_ctx: *errors.Ctx,
+    file_id: usize,
+) !std.MultiArrayList(AST) {
+    var token_list = try tokenize(allocator, subject, err_ctx, file_id);
     defer token_list.deinit(allocator);
 
     var reader = Reader{
@@ -292,5 +291,11 @@ pub fn readStr(
         .current = 0,
     };
 
-    return readForm(allocator, &reader);
+    var acc: std.MultiArrayList(AST) = .empty;
+    while (reader.peek()) |_| {
+        const token = try readForm(allocator, &reader, name_set, err_ctx);
+        try acc.append(allocator, token);
+    }
+
+    return acc;
 }

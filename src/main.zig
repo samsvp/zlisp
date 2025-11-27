@@ -1,7 +1,6 @@
 const std = @import("std");
 const ln = @import("linenoise");
-const Interpreter = @import("interpreter.zig").Interpreter;
-const LispType = @import("types.zig").LispType;
+const Interpreter = @import("interpreter/interpreter.zig").Interpreter;
 
 pub fn main() !void {
     var gpa = std.heap.DebugAllocator(.{}){};
@@ -11,22 +10,22 @@ pub fn main() !void {
     }
 
     const allocator = gpa.allocator();
-    var interpreter = Interpreter.init(allocator);
-    defer interpreter.deinit();
 
     var buffer: [1024]u8 = undefined;
     var writer = std.fs.File.stdout().writer(&buffer);
     const stdout = &writer.interface;
 
-    var script = interpreter.createScript();
+    var interpreter = try Interpreter.init(allocator);
+    defer interpreter.deinit(allocator);
+
     _ = ln.linenoiseHistoryLoad("history.txt");
 
     while (ln.linenoise("user> ")) |line| {
         defer ln.linenoiseFree(line);
         const input: []const u8 = std.mem.span(line);
-        const res = try script.rep(input);
+        try interpreter.interpretString(allocator, input);
 
-        try stdout.print("{s}\n", .{res});
+        try stdout.print("{s}\n", .{input});
         try stdout.flush();
         _ = ln.linenoiseHistoryAdd(line);
     }
