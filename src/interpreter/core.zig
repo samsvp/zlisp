@@ -30,7 +30,7 @@ pub fn def(
         return error.WrongArgumentType;
     }
 
-    const value = try evalAST(gpa, ast, env, err_ctx);
+    const value = try evalAST(gpa, ast.value, env, err_ctx);
     const res = try env.put(gpa, name.value.symbol, value);
     return res;
 }
