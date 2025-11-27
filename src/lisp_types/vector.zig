@@ -4,7 +4,7 @@ const pstructs = @import("pstruct");
 const Value = @import("value.zig").Value;
 const Obj = @import("value.zig").Obj;
 
-/// A persistent vector of values.
+/// A persistent vector of values. It owns the values inside the arrays passed to it.
 pub const PVector = struct {
     obj: Obj,
     vec: VecT,
@@ -21,6 +21,11 @@ pub const PVector = struct {
     }
 
     pub fn deinit(self: *PVector, gpa: std.mem.Allocator) void {
+        var iter = self.vec.iterator();
+        while (iter.nextPtr()) |v| {
+            v.deinit(gpa);
+        }
+
         self.vec.deinit(gpa);
         gpa.destroy(self);
     }
