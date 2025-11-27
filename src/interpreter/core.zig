@@ -12,6 +12,7 @@ const Keywords = enum {
     def,
     let,
     @"if",
+    do,
 };
 
 const Errors = error{
@@ -166,6 +167,8 @@ pub fn let(
     };
 }
 
+const ListFn = *const fn (std.mem.Allocator, std.MultiArrayList(AST), *Env, *errors.Ctx) anyerror!Value;
+
 pub fn evalList(
     gpa: std.mem.Allocator,
     list: std.MultiArrayList(AST),
@@ -175,11 +178,15 @@ pub fn evalList(
     const values = list.items(.value);
     const first = switch (values[0]) {
         .symbol => |s| blk: {
-            if (std.meta.stringToEnum(Keywords, s)) |c| return switch (c) {
-                .def => def(gpa, list, env, err_ctx),
-                .let => let(gpa, list, env, err_ctx),
-                .@"if" => if_(gpa, list, env, err_ctx),
-            };
+            if (std.meta.stringToEnum(Keywords, s)) |c| {
+                const m_fn: ListFn = switch (c) {
+                    .def => def,
+                    .let => let,
+                    .@"if" => if_,
+                    .do => do,
+                };
+                return m_fn(gpa, list, env, err_ctx);
+            }
             break :blk env.get(s).?;
         },
         else => return error.WrongArgumentType,
@@ -226,6 +233,28 @@ fn if_(
         try err_ctx.appendMessage("if function, error evaluating conditional branch.", .{}, new_s.meta);
         return err;
     };
+}
+
+pub fn do(
+    gpa: std.mem.Allocator,
+    list: std.MultiArrayList(AST),
+    env: *Env,
+    err_ctx: *errors.Ctx,
+) anyerror!Value {
+    const slice = list.slice();
+
+    var ret = Value.Nil;
+    const values = slice.items(.value)[1..];
+    const metas = slice.items(.meta);
+    for (values, 1..) |val, i| {
+        const new_ret = eval(gpa, val, env, err_ctx) catch |err| {
+            try err_ctx.appendMessage("if function, error evaluating conditional branch.", .{}, metas[i]);
+            return err;
+        };
+        ret.deinit(gpa);
+        ret = new_ret;
+    }
+    return ret;
 }
 
 pub fn eval(
