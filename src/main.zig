@@ -23,7 +23,7 @@ pub fn main() !void {
     while (ln.linenoise("user> ")) |line| {
         defer ln.linenoiseFree(line);
         const input: []const u8 = std.mem.span(line);
-        try interpreter.interpretString(allocator, input);
+        try interpreter.interpretString(allocator, input, Interpreter.main_file);
 
         try stdout.print("{s}\n", .{input});
         try stdout.flush();
