@@ -4,7 +4,7 @@ const pstructs = @import("pstruct");
 const Value = @import("value.zig").Value;
 const Obj = @import("value.zig").Obj;
 
-/// A persistent hash map using a hash array mapped trie.
+/// A persistent hash map using a hash array mapped trie. It owns its keys and values.
 pub const PHashMap = struct {
     obj: Obj,
     hash_map: HashMapT,
