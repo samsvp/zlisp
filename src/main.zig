@@ -25,7 +25,6 @@ pub fn main() !void {
         const input: []const u8 = std.mem.span(line);
         try interpreter.interpretString(allocator, input, Interpreter.main_file);
 
-        try stdout.print("{s}\n", .{input});
         try stdout.flush();
         _ = ln.linenoiseHistoryAdd(line);
     }

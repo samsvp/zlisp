@@ -80,14 +80,14 @@ pub fn tokenize(
     var token_list: TokenDataList = .empty;
     errdefer token_list.deinit(allocator);
 
-    var offset: usize = 0;
+    var total_offset: usize = 0;
     while (text.len > 0) {
-        offset = switch (text[0]) {
+        const offset = switch (text[0]) {
             '(', ')', '[', ']', '{', '}', '\'', '`', '^', '@' => paren: {
                 try token_list.append(allocator, .{ .meta = .{
                     .file_id = file_id,
                     .line = line,
-                    .col = offset,
+                    .col = total_offset,
                 }, .str = text[0..1] });
                 break :paren 1;
             },
@@ -107,7 +107,7 @@ pub fn tokenize(
                 }
 
                 if (str_offset == text.len) {
-                    return ParserErrorCtx.stringRead(err_ctx, allocator, .{ .col = offset, .line = line, .file_id = file_id });
+                    return ParserErrorCtx.stringRead(err_ctx, allocator, .{ .col = total_offset, .line = line, .file_id = file_id });
                 }
 
                 str_offset += 1;
@@ -115,7 +115,7 @@ pub fn tokenize(
                     .meta = .{
                         .file_id = file_id,
                         .line = line,
-                        .col = offset,
+                        .col = total_offset,
                     },
                     .str = text[0..str_offset],
                 });
@@ -144,11 +144,12 @@ pub fn tokenize(
                 try token_list.append(allocator, .{ .meta = .{
                     .file_id = file_id,
                     .line = line,
-                    .col = offset,
+                    .col = total_offset,
                 }, .str = text[0..chars_offset] });
                 break :chars chars_offset;
             },
         };
+        total_offset += offset;
         text = text[offset..];
     }
 

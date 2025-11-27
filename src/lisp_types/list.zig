@@ -35,6 +35,10 @@ pub const List = struct {
     }
 
     pub fn deinit(self: *List, gpa: std.mem.Allocator) void {
+        for (self.values()) |*v| {
+            v.deinit(gpa);
+        }
+
         self.vec.deinit(gpa);
         gpa.destroy(self);
     }
