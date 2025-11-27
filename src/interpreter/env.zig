@@ -24,12 +24,11 @@ pub const Env = struct {
     }
 
     pub fn get(self: Self, key: []const u8) ?Value {
-        return self.mapping.get(key) orelse {
-            if (self.parent) |parent| {
-                return parent.get(key);
-            }
-            return null;
-        };
+        const maybe_val = self.mapping.get(key);
+        if (maybe_val == null) {
+            return if (self.parent) |p| p.get(key) else null;
+        }
+        return maybe_val.?.borrow() catch unreachable;
     }
 
     pub fn getPtr(self: Self, key: []const u8) ?*Value {

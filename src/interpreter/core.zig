@@ -30,8 +30,10 @@ pub fn def(
         return error.WrongArgumentType;
     }
 
-    const value = try evalAST(gpa, ast.value, env, err_ctx);
-    const res = try env.put(gpa, name.value.symbol, value);
+    var value = try eval(gpa, ast.value, env, err_ctx);
+    defer value.deinit(gpa);
+
+    const res = try env.getGlobal().put(gpa, name.value.symbol, value);
     return res;
 }
 
@@ -40,7 +42,7 @@ pub fn let(
     list: std.MultiArrayList(AST),
     env: *Env,
     err_ctx: *errors.Ctx,
-) !AST {
+) !Value {
     if (list.len != 3) {
         return error.WrongNumberOfArguments;
     }
@@ -63,14 +65,32 @@ pub fn let(
         return error.WrongNumberOfArguments;
     }
 
+    const arg_metas = args.items(.meta);
+    _ = arg_metas;
+    const arg_values = args.items(.value);
+
     var local_env = Env.initFromParent(env);
-    _ = &local_env;
-    for (args.items(.values)[1..], 1..) |v, i| {
-        _ = v;
-        _ = i;
+    defer local_env.deinit(gpa);
+
+    // first argument is the keyword vector
+    for (0..args.len / 2) |idx| {
+        const i = 2 * idx + 1;
+
+        const name = arg_values[i];
+        const value = arg_values[i + 1];
+
+        if (name != .symbol) {
+            return error.WrongArgumentType;
+        }
+
+        var ret = try eval(gpa, value, &local_env, err_ctx);
+        defer ret.deinit(gpa);
+
+        var ret_clone = try local_env.put(gpa, name.symbol, ret);
+        ret_clone.deinit(gpa);
     }
 
-    return evalAST(gpa, ast, env, err_ctx);
+    return eval(gpa, ast.value, &local_env, err_ctx);
 }
 
 pub fn evalList(
@@ -78,29 +98,33 @@ pub fn evalList(
     list: std.MultiArrayList(AST),
     env: *Env,
     err_ctx: *errors.Ctx,
-) anyerror!AST {
-    const values = list.items(.values);
+) anyerror!Value {
+    const values = list.items(.value);
     const first = switch (values[0]) {
-        .symbol => |s| {
+        .symbol => |s| blk: {
             if (std.meta.stringToEnum(Keywords, s)) |c| return switch (c) {
                 .def => def(gpa, list, env, err_ctx),
+                .let => let(gpa, list, env, err_ctx),
             };
-            env.get(s);
+            break :blk env.get(s).?;
         },
+        else => return error.WrongArgumentType,
     };
     _ = first;
+    @panic("not implemented");
 }
 
-pub fn evalAST(
+pub fn eval(
     gpa: std.mem.Allocator,
     ast: Value,
     env: *Env,
     err_ctx: *errors.Ctx,
-) anyerror!AST {
-    var s = ast;
+) anyerror!Value {
+    var s = try ast.borrow();
 
     while (true) {
         switch (s) {
+            .symbol => |symbol| return env.get(symbol) orelse error.UndefinedVariable,
             .obj => |o_ref| {
                 const o = o_ref.getUnwrap();
                 switch (o.kind) {
@@ -111,8 +135,12 @@ pub fn evalAST(
                             return s;
                         }
 
+                        var old_s = s;
+                        defer old_s.deinit(gpa);
+
                         s = try evalList(gpa, items, env, err_ctx);
                     },
+                    else => return s,
                 }
             },
             else => return s,
