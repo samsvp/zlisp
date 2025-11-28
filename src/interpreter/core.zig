@@ -19,6 +19,7 @@ const Keywords = enum {
     @"*",
     @"/",
     list,
+    vector,
 };
 
 const Errors = error{
@@ -199,6 +200,32 @@ fn createList(
     return Value.initObj(gpa, &new_list.obj);
 }
 
+fn createVector(
+    gpa: std.mem.Allocator,
+    list: std.MultiArrayList(AST),
+    env: *Env,
+    err_ctx: *errors.Ctx,
+) anyerror!Value {
+    const values = try gpa.alloc(Value, list.len - 1);
+    defer gpa.free(values);
+
+    const slice = list.slice();
+    for (slice.items(.value)[1..], slice.items(.meta)[1..], 0..) |v, m, i| {
+        const value = eval(gpa, v, env, err_ctx) catch |err| {
+            for (0..i) |j| {
+                values[j].deinit(gpa);
+            }
+
+            try err_ctx.appendMessage("vector", .{}, m);
+            return err;
+        };
+        values[i] = value;
+    }
+
+    const new_vec = try Obj.PVector.init(gpa, values);
+    return Value.initObj(gpa, &new_vec.obj);
+}
+
 const ListFn = *const fn (std.mem.Allocator, std.MultiArrayList(AST), *Env, *errors.Ctx) anyerror!Value;
 
 pub fn evalList(
@@ -220,6 +247,7 @@ pub fn evalList(
                 .@"*" => math.mult(gpa, list, env, err_ctx),
                 .@"/" => math.div(gpa, list, env, err_ctx),
                 .list => createList(gpa, list, env, err_ctx),
+                .vector => createVector(gpa, list, env, err_ctx),
             };
             break :blk env.get(s).?;
         },
