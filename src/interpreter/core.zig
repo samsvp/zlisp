@@ -18,6 +18,7 @@ const Keywords = enum {
     @"-",
     @"*",
     @"/",
+    list,
 };
 
 const Errors = error{
@@ -172,6 +173,32 @@ pub fn let(
     };
 }
 
+fn createList(
+    gpa: std.mem.Allocator,
+    list: std.MultiArrayList(AST),
+    env: *Env,
+    err_ctx: *errors.Ctx,
+) anyerror!Value {
+    const values = try gpa.alloc(AST, list.len - 1);
+    defer gpa.free(values);
+
+    const slice = list.slice();
+    for (slice.items(.value)[1..], slice.items(.meta)[1..], 0..) |v, m, i| {
+        const value = eval(gpa, v, env, err_ctx) catch |err| {
+            for (0..i) |j| {
+                values[j].value.deinit(gpa);
+            }
+
+            try err_ctx.appendMessage("list", .{}, m);
+            return err;
+        };
+        values[i] = .{ .value = value, .meta = m };
+    }
+
+    const new_list = try Obj.List.init(gpa, values);
+    return Value.initObj(gpa, &new_list.obj);
+}
+
 const ListFn = *const fn (std.mem.Allocator, std.MultiArrayList(AST), *Env, *errors.Ctx) anyerror!Value;
 
 pub fn evalList(
@@ -192,6 +219,7 @@ pub fn evalList(
                 .@"-" => math.sub(gpa, list, env, err_ctx),
                 .@"*" => math.mult(gpa, list, env, err_ctx),
                 .@"/" => math.div(gpa, list, env, err_ctx),
+                .list => createList(gpa, list, env, err_ctx),
             };
             break :blk env.get(s).?;
         },
@@ -270,6 +298,7 @@ pub fn eval(
     err_ctx: *errors.Ctx,
 ) anyerror!Value {
     var s = try ast.borrow();
+    _ = &s;
 
     while (true) {
         switch (s) {
@@ -287,7 +316,7 @@ pub fn eval(
                         var old_s = s;
                         defer old_s.deinit(gpa);
 
-                        s = try evalList(gpa, items, env, err_ctx);
+                        return evalList(gpa, items, env, err_ctx);
                     },
                     else => return s,
                 }
