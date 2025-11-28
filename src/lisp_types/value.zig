@@ -5,6 +5,7 @@ const string = @import("string.zig");
 const phash_map = @import("hash_map.zig");
 const pvector = @import("vector.zig");
 const lists = @import("list.zig");
+const f = @import("function.zig");
 
 pub const AST = struct {
     meta: MetaData,
@@ -169,6 +170,7 @@ pub const Value = union(enum) {
                             }
                             break :blk true;
                         },
+                        .function => false,
                     };
                 },
                 else => false,
@@ -207,6 +209,7 @@ pub const Value = union(enum) {
                     .list => try o.as(Obj.List).toString(gpa),
                     .vector => try o.as(Obj.PVector).toString(gpa),
                     .hash_map => try o.as(Obj.PHashMap).toString(gpa),
+                    .function => @panic("not implemented"),
                 };
             },
             .symbol, .keyword => |s| try std.fmt.allocPrint(gpa, "{s}", .{s}),
@@ -225,6 +228,7 @@ pub const Obj = struct {
         list,
         vector,
         hash_map,
+        function,
     };
 
     pub fn init(kind: Kind) Obj {
@@ -237,6 +241,7 @@ pub const Obj = struct {
             .list => self.as(List).deinit(gpa),
             .vector => self.as(PVector).deinit(gpa),
             .hash_map => self.as(PHashMap).deinit(gpa),
+            .function => self.as(Function).deinit(gpa),
         }
     }
 
@@ -248,4 +253,5 @@ pub const Obj = struct {
     pub const List = lists.List;
     pub const PVector = pvector.PVector;
     pub const PHashMap = phash_map.PHashMap;
+    pub const Function = f.Fn;
 };

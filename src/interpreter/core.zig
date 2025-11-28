@@ -180,7 +180,7 @@ pub fn evalList(
     env: *Env,
     err_ctx: *errors.Ctx,
 ) anyerror!Value {
-    const values = list.items(.value);
+    const values: []Value = list.items(.value);
     const first = switch (values[0]) {
         .symbol => |s| blk: {
             if (std.meta.stringToEnum(Keywords, s)) |c| return switch (c) {
@@ -195,9 +195,20 @@ pub fn evalList(
             };
             break :blk env.get(s).?;
         },
+        .obj => |o_ref| blk: {
+            const o = o_ref.getUnwrap();
+            if (o.kind != .function) {
+                return error.WrongArgumentType;
+            }
+            break :blk values[0];
+        },
         else => return error.WrongArgumentType,
     };
-    _ = first;
+
+    if (first != .obj and first.obj.getUnwrap().kind != .function) {
+        return error.WrongArgumentType;
+    }
+
     @panic("not implemented");
 }
 
@@ -266,10 +277,11 @@ pub fn do(
 pub fn eval(
     gpa: std.mem.Allocator,
     ast: Value,
-    env: *Env,
+    root_env: *Env,
     err_ctx: *errors.Ctx,
 ) anyerror!Value {
     var s = try ast.borrow();
+    var env = root_env;
 
     while (true) {
         switch (s) {
