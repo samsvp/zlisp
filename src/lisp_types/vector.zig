@@ -3,13 +3,14 @@ const std = @import("std");
 const pstructs = @import("pstruct");
 const Value = @import("value.zig").Value;
 const Obj = @import("value.zig").Obj;
+const IArrayFunc = @import("iarray.zig").IArrayFunc;
 
 /// A persistent vector of values. It owns the values inside the arrays passed to it.
 pub const PVector = struct {
     obj: Obj,
     vec: VecT,
 
-    pub const VecT = pstructs.AutoPVector(Value);
+    pub const VecT = pstructs.PVector(Value, IArrayFunc);
 
     pub fn init(gpa: std.mem.Allocator, items: []const Value) !*PVector {
         const pvec = try gpa.create(PVector);

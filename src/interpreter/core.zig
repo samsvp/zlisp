@@ -209,17 +209,23 @@ fn createVector(
     const values = try gpa.alloc(Value, list.len - 1);
     defer gpa.free(values);
 
-    const slice = list.slice();
-    for (slice.items(.value)[1..], slice.items(.meta)[1..], 0..) |v, m, i| {
-        const value = eval(gpa, v, env, err_ctx) catch |err| {
-            for (0..i) |j| {
-                values[j].deinit(gpa);
-            }
+    var i: usize = 0;
+    defer for (0..i) |j| {
+        values[j].deinit(gpa);
+    };
 
+    const slice = list.slice();
+    for (
+        slice.items(.value)[1..],
+        slice.items(.meta)[1..],
+    ) |v, m| {
+        const value = eval(gpa, v, env, err_ctx) catch |err| {
             try err_ctx.appendMessage("vector", .{}, m);
             return err;
         };
+
         values[i] = value;
+        i += 1;
     }
 
     const new_vec = try Obj.PVector.init(gpa, values);
