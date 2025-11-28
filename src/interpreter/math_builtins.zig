@@ -37,7 +37,7 @@ pub fn eql(
     list: std.MultiArrayList(AST),
     env: *Env,
     err_ctx: *errors.Ctx,
-) Value {
+) !Value {
     const values = list.items(.value);
     const metas = list.items(.meta);
     if (values.len == 1) {

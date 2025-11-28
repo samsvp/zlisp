@@ -18,6 +18,8 @@ const Keywords = enum {
     @"-",
     @"*",
     @"/",
+    @"=",
+    not,
     list,
     vector,
 };
@@ -252,6 +254,8 @@ pub fn evalList(
                 .@"-" => math.sub(gpa, list, env, err_ctx),
                 .@"*" => math.mult(gpa, list, env, err_ctx),
                 .@"/" => math.div(gpa, list, env, err_ctx),
+                .@"=" => math.eql(gpa, list, env, err_ctx),
+                .not => math.not(gpa, list, env, err_ctx),
                 .list => createList(gpa, list, env, err_ctx),
                 .vector => createVector(gpa, list, env, err_ctx),
             };

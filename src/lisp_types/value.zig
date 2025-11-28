@@ -132,7 +132,7 @@ pub const Value = union(enum) {
                             const res = for (0..vec_1.len) |_| {
                                 const v1 = v1_iter.next().?;
                                 const v2 = v2_iter.next().?;
-                                if (v1.eql(v2))
+                                if (!v1.eql(v2))
                                     break false;
                             } else true;
 
