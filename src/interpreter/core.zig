@@ -234,48 +234,19 @@ fn createVector(
     return Value.initObj(gpa, &new_vec.obj);
 }
 
-const ListFn = *const fn (std.mem.Allocator, std.MultiArrayList(AST), *Env, *errors.Ctx) anyerror!Value;
-
-pub fn evalList(
+const FnRet = std.meta.Tuple(&.{ Value, *Env });
+fn evalFunction(
     gpa: std.mem.Allocator,
-    list: std.MultiArrayList(AST),
+    function: Obj.Function,
+    args: std.MultiArrayList(AST),
     env: *Env,
     err_ctx: *errors.Ctx,
-) anyerror!Value {
-    const values: []Value = list.items(.value);
-    const first = switch (values[0]) {
-        .symbol => |s| blk: {
-            if (std.meta.stringToEnum(Keywords, s)) |c| return switch (c) {
-                .def => def(gpa, list, env, err_ctx),
-                .let => let(gpa, list, env, err_ctx),
-                .@"if" => if_(gpa, list, env, err_ctx),
-                .do => do(gpa, list, env, err_ctx),
-                .@"+" => math.add(gpa, list, env, err_ctx),
-                .@"-" => math.sub(gpa, list, env, err_ctx),
-                .@"*" => math.mult(gpa, list, env, err_ctx),
-                .@"/" => math.div(gpa, list, env, err_ctx),
-                .@"=" => math.eql(gpa, list, env, err_ctx),
-                .not => math.not(gpa, list, env, err_ctx),
-                .list => createList(gpa, list, env, err_ctx),
-                .vector => createVector(gpa, list, env, err_ctx),
-            };
-            break :blk env.get(s).?;
-        },
-        .obj => |o_ref| blk: {
-            const o = o_ref.getUnwrap();
-            if (o.kind != .function) {
-                return error.WrongArgumentType;
-            }
-            break :blk values[0];
-        },
-        else => return error.WrongArgumentType,
-    };
-
-    if (first != .obj and first.obj.getUnwrap().kind != .function) {
-        return error.WrongArgumentType;
-    }
-
-    @panic("not implemented");
+) FnRet {
+    _ = gpa;
+    _ = function;
+    _ = args;
+    _ = env;
+    _ = err_ctx;
 }
 
 fn if_(
@@ -350,28 +321,56 @@ pub fn eval(
     var env = root_env;
     _ = &s;
 
-    while (true) {
-        switch (s) {
-            .symbol => |symbol| return env.get(symbol) orelse Errors.UndefinedVariable,
-            .obj => |o_ref| {
-                const o = o_ref.getUnwrap();
-                switch (o.kind) {
-                    .list => {
-                        const list = o.as(Obj.List);
-                        const items = list.vec.array;
-                        if (items.len == 0) {
-                            return s;
-                        }
+    while (true) switch (s) {
+        .symbol => |symbol| return env.get(symbol) orelse Errors.UndefinedVariable,
+        .obj => |o_ref| {
+            const o = o_ref.getUnwrap();
+            if (o.kind != .list) {
+                return s;
+            }
 
-                        var old_s = s;
-                        defer old_s.deinit(gpa);
+            const list = o.as(Obj.List);
+            const items = list.vec.array;
+            if (items.len == 0) {
+                return s;
+            }
 
-                        return evalList(gpa, items, env, err_ctx);
-                    },
-                    else => return s,
-                }
-            },
-            else => return s,
-        }
-    }
+            var old_s = s;
+            defer old_s.deinit(gpa);
+
+            const values: []Value = list.items(.value);
+            const first = switch (values[0]) {
+                .symbol => |symbol| blk: {
+                    if (std.meta.stringToEnum(Keywords, symbol)) |c| return switch (c) {
+                        .def => def(gpa, list, env, err_ctx),
+                        .let => let(gpa, list, env, err_ctx),
+                        .@"if" => if_(gpa, list, env, err_ctx),
+                        .do => do(gpa, list, env, err_ctx),
+                        .@"+" => math.add(gpa, list, env, err_ctx),
+                        .@"-" => math.sub(gpa, list, env, err_ctx),
+                        .@"*" => math.mult(gpa, list, env, err_ctx),
+                        .@"/" => math.div(gpa, list, env, err_ctx),
+                        .@"=" => math.eql(gpa, list, env, err_ctx),
+                        .not => math.not(gpa, list, env, err_ctx),
+                        .list => createList(gpa, list, env, err_ctx),
+                        .vector => createVector(gpa, list, env, err_ctx),
+                    };
+                    break :blk env.get(s).?;
+                },
+                .obj => |fo_ref| blk: {
+                    const fo = fo_ref.getUnwrap();
+                    if (fo.kind != .function) {
+                        return error.WrongArgumentType;
+                    }
+                    break :blk values[0];
+                },
+                else => return error.WrongArgumentType,
+            };
+
+            if (first != .obj and first.obj.getUnwrap().kind != .function) {
+                return error.WrongArgumentType;
+            }
+        },
+        else => return s,
+    };
 }
