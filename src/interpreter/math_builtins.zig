@@ -37,7 +37,7 @@ pub fn eql(
     list: std.MultiArrayList(AST),
     env: *Env,
     err_ctx: *errors.Ctx,
-) Value {
+) !Value {
     const values = list.items(.value);
     const metas = list.items(.meta);
     if (values.len == 1) {
@@ -177,6 +177,52 @@ pub fn addList(
     return Value.initObj(gpa, &new_list.obj);
 }
 
+pub fn addVector(
+    gpa: std.mem.Allocator,
+    first: Obj.PVector,
+    values: []Value,
+    metas: []MetaData,
+    env: *Env,
+    err_ctx: *errors.Ctx,
+) !Value {
+    defer for (values) |*v| {
+        v.deinit(gpa);
+    };
+
+    const eval_values = try gpa.alloc(Obj.PVector.VecT, values.len);
+    defer gpa.free(eval_values);
+    const eval_objs = try gpa.alloc(Value, values.len);
+    defer gpa.free(eval_objs);
+
+    var i: usize = 0;
+    defer for (0..i) |j| {
+        eval_objs[j].deinit(gpa);
+    };
+
+    for (values) |v| {
+        var val = core.eval(gpa, v, env, err_ctx) catch |err| {
+            try err_ctx.appendMessage("Error on '+'", .{}, metas[i]);
+            return err;
+        };
+
+        if (val != .obj) {
+            return wrongType("+", @tagName(val), err_ctx, metas[i]);
+        }
+
+        const o_val = val.obj.getUnwrap();
+        if (o_val.kind != .vector) {
+            return wrongType("+", @tagName(val), err_ctx, metas[i]);
+        }
+        const vec = o_val.as(Obj.PVector).vec;
+        eval_values[i] = vec;
+        eval_objs[i] = val;
+        i += 1;
+    }
+
+    const new_vec = try first.add(gpa, eval_values);
+    return Value.initObj(gpa, &new_vec.obj);
+}
+
 pub fn add(
     gpa: std.mem.Allocator,
     list: std.MultiArrayList(AST),
@@ -200,6 +246,7 @@ pub fn add(
         return switch (o_first.kind) {
             .string => addString(gpa, o_first.as(Obj.String).*, values[2..], metas[2..], env, err_ctx),
             .list => addList(gpa, o_first.as(Obj.List).*, values[2..], metas[2..], env, err_ctx),
+            .vector => addVector(gpa, o_first.as(Obj.PVector).*, values[2..], metas[2..], env, err_ctx),
             else => wrongType("+", @tagName(first), err_ctx, metas[1]),
         };
     }

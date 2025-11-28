@@ -68,7 +68,7 @@ pub const Interpreter = struct {
             var ret = core.eval(gpa, v.*, &self.env, &self.err_ctx) catch |err| {
                 try self.err_ctx.appendMessage("{any}", .{err}, metas[i]);
                 std.debug.print("{s}", .{self.err_ctx.getMessage()});
-                return;
+                return err;
             };
             defer ret.deinit(gpa);
 
